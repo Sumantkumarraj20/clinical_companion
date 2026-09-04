@@ -1,0 +1,39 @@
+name: Build Android APK
+on:
+  workflow_dispatch: 
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+
+      - name: Download Large SQLite Database
+        # Note: Replace YOUR_FILE_ID with the actual ID from your Google Drive link
+        run: |
+          mkdir -p assets
+          curl -L "https://drive.google.com/uc?export=download&id=YOUR_FILE_ID" -o assets/clinical_drugs.sqlite
+
+      - name: Install Dependencies
+        run: flutter pub get
+
+      - name: Build APK
+        run: flutter build apk --release --split-per-abi
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: clinical-companion-apks
+          path: build/app/outputs/flutter-apk/*-release.apk
