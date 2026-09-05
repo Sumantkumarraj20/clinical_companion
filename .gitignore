@@ -49,3 +49,5 @@ app.*.map.json
 .widget_preview/
 scripts/all_medicine_databased.csv
 assets/clinical_drugs.sqlite
+scripts/HBP 2022 Tier 2 (SHA Bihar).xlsx
+assets/clinical_drugs.sqlite*.xlsx

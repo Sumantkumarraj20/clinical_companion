@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/database/local_database.dart';
 import '../../../core/providers/app_providers.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class PatientRegistryScreen extends ConsumerWidget {
   const PatientRegistryScreen({super.key});
@@ -49,11 +50,22 @@ class PatientRegistryScreen extends ConsumerWidget {
                 isThreeLine: patient.diagnosis != null,
                 onTap: () =>
                     context.go('/patients/${patient.id}', extra: patient),
-                trailing: IconButton(
-                  tooltip: 'Edit patient',
-                  icon: const Icon(Icons.edit_outlined),
-                  onPressed: () =>
-                      _showPatientEditor(context, ref, patient: patient),
+                trailing: Wrap(
+                  children: [
+                    if ((patient.phoneNumber ?? patient.phone)?.isNotEmpty == true)
+                      IconButton(
+                        tooltip: 'Call patient',
+                        icon: const Icon(Icons.call_outlined),
+                        onPressed: () => launchUrl(
+                          Uri(scheme: 'tel', path: patient.phoneNumber ?? patient.phone),
+                        ),
+                      ),
+                    IconButton(
+                      tooltip: 'Edit patient',
+                      icon: const Icon(Icons.edit_outlined),
+                      onPressed: () => _showPatientEditor(context, ref, patient: patient),
+                    ),
+                  ],
                 ),
               ),
             );
@@ -107,6 +119,8 @@ class _PatientEditorState extends ConsumerState<_PatientEditor> {
   late final _surgery = TextEditingController(
     text: widget.patient?.surgeryType ?? '',
   );
+  late final _phone = TextEditingController(text: widget.patient?.phoneNumber ?? widget.patient?.phone ?? '');
+  late final _alternate = TextEditingController(text: widget.patient?.alternateContact ?? '');
   String _department = 'Surgery';
   bool _saving = false;
 
@@ -122,6 +136,8 @@ class _PatientEditorState extends ConsumerState<_PatientEditor> {
     _registration.dispose();
     _diagnosis.dispose();
     _surgery.dispose();
+    _phone.dispose();
+    _alternate.dispose();
     super.dispose();
   }
 
@@ -180,6 +196,18 @@ class _PatientEditorState extends ConsumerState<_PatientEditor> {
                   labelText: 'Surgery / procedure',
                 ),
               ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _phone,
+                keyboardType: TextInputType.phone,
+                decoration: const InputDecoration(labelText: 'Phone number'),
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _alternate,
+                keyboardType: TextInputType.phone,
+                decoration: const InputDecoration(labelText: 'Alternate contact'),
+              ),
             ],
           ),
         ),
@@ -216,6 +244,8 @@ class _PatientEditorState extends ConsumerState<_PatientEditor> {
             currentDepartment: Value(_department),
             diagnosis: Value(_emptyToNull(_diagnosis.text)),
             surgeryType: Value(_emptyToNull(_surgery.text)),
+            phoneNumber: Value(_emptyToNull(_phone.text)),
+            alternateContact: Value(_emptyToNull(_alternate.text)),
           ),
         );
       } else {
@@ -226,6 +256,8 @@ class _PatientEditorState extends ConsumerState<_PatientEditor> {
             currentDepartment: _department,
             diagnosis: Value(_emptyToNull(_diagnosis.text)),
             surgeryType: Value(_emptyToNull(_surgery.text)),
+            phoneNumber: Value(_emptyToNull(_phone.text)),
+            alternateContact: Value(_emptyToNull(_alternate.text)),
           ),
         );
       }

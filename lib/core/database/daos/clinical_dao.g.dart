@@ -16,6 +16,12 @@ mixin _$ClinicalDaoMixin on DatabaseAccessor<AppDatabase> {
   $ClinicalActionsTable get clinicalActions => attachedDatabase.clinicalActions;
   $ClinicalOutcomesTable get clinicalOutcomes =>
       attachedDatabase.clinicalOutcomes;
+  $AyushmanPackagesTable get ayushmanPackages =>
+      attachedDatabase.ayushmanPackages;
+  $HbpProceduresTable get hbpProcedures => attachedDatabase.hbpProcedures;
+  $HbpImplantsTable get hbpImplants => attachedDatabase.hbpImplants;
+  $HbpStratificationsTable get hbpStratifications =>
+      attachedDatabase.hbpStratifications;
   ClinicalDaoManager get managers => ClinicalDaoManager(this);
 }
 
@@ -57,5 +63,19 @@ class ClinicalDaoManager {
       $$ClinicalOutcomesTableTableManager(
         _db.attachedDatabase,
         _db.clinicalOutcomes,
+      );
+  $$AyushmanPackagesTableTableManager get ayushmanPackages =>
+      $$AyushmanPackagesTableTableManager(
+        _db.attachedDatabase,
+        _db.ayushmanPackages,
+      );
+  $$HbpProceduresTableTableManager get hbpProcedures =>
+      $$HbpProceduresTableTableManager(_db.attachedDatabase, _db.hbpProcedures);
+  $$HbpImplantsTableTableManager get hbpImplants =>
+      $$HbpImplantsTableTableManager(_db.attachedDatabase, _db.hbpImplants);
+  $$HbpStratificationsTableTableManager get hbpStratifications =>
+      $$HbpStratificationsTableTableManager(
+        _db.attachedDatabase,
+        _db.hbpStratifications,
       );
 }

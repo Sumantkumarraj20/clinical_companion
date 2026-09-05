@@ -1,0 +1,46 @@
+name: Build Portable Windows App
+on:
+  workflow_dispatch: 
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+
+      - name: Enable Windows Desktop
+        run: flutter config --enable-windows-desktop
+
+      - name: Download Large SQLite Databases
+        run: |
+          New-Item -ItemType Directory -Force -Path assets | Out-Null
+          pip install gdown
+          python -m gdown "18ZTmOadJS1g-_UY-F5zbNcnpBk7XzHRW" -O assets/clinical_drugs.sqlite
+          python -m gdown "1GOcmFoQPdVSbuQChghlhcrjT2JAr_FHv" -O assets/pmjay_hbp.sqlite
+
+      - name: Install Dependencies
+        run: flutter pub get
+
+      - name: Generate Dart Sources
+        run: dart run build_runner build
+
+      - name: Build Windows Release
+        run: flutter build windows --release
+
+      - name: Upload Portable Windows App
+        uses: actions/upload-artifact@v4
+        with:
+          name: clinical-companion-windows-portable
+          path: build\windows\x64\runner\Release\*

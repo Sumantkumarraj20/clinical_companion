@@ -11,9 +11,21 @@ import '../database/daos/cdss_dao.dart';
 import '../database/local_database.dart';
 import '../sync/sync_service.dart';
 
-final appConfigurationProvider = Provider<AppConfiguration>(
-  (_) => AppConfiguration.fromEnvironment(),
-);
+final appConfigurationProvider = NotifierProvider<
+  AppConfigurationNotifier,
+  AppConfiguration
+>(AppConfigurationNotifier.new);
+
+class AppConfigurationNotifier extends Notifier<AppConfiguration> {
+  AppConfigurationNotifier([this.initialConfiguration]);
+
+  final AppConfiguration? initialConfiguration;
+
+  @override
+  AppConfiguration build() => initialConfiguration ?? AppConfiguration.fromEnvironment();
+
+  void setConfiguration(AppConfiguration configuration) => state = configuration;
+}
 
 final appDatabaseProvider = Provider<AppDatabase>((ref) {
   final database = AppDatabase();
@@ -29,7 +41,10 @@ final supabaseClientProvider = Provider<SupabaseClient?>(
 );
 
 final clinicalDaoProvider = Provider<ClinicalDao>(
-  (ref) => ClinicalDao(ref.watch(appDatabaseProvider)),
+  (ref) => ClinicalDao(
+    ref.watch(appDatabaseProvider),
+    defaultOwnerId: ref.watch(appConfigurationProvider).ownerId,
+  ),
 );
 final pharmacopeiaDaoProvider = Provider<PharmacopeiaDao>(
   (ref) => PharmacopeiaDao(ref.watch(appDatabaseProvider)),

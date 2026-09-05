@@ -5,13 +5,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../core/ai/document_ai_service.dart';
 import '../../../core/database/local_database.dart';
 import '../../../core/models/ai_extraction_result.dart';
 import '../../../core/providers/app_providers.dart';
+import '../../../core/utils/portable_directory.dart';
+import 'extraction_review_screen.dart';
 
 class SmartCaptureScreen extends ConsumerStatefulWidget {
   const SmartCaptureScreen({required this.patient, super.key});
@@ -60,10 +61,11 @@ class _SmartCaptureScreenState extends ConsumerState<SmartCaptureScreen> {
     try {
       final result = await DocumentAiService(
         apiKey: ref.read(appConfigurationProvider).geminiApiKey,
-      ).extractDocument(image: image, prompt: _prompt.text.trim());
-      await DocumentAiService(
-        apiKey: ref.read(appConfigurationProvider).geminiApiKey,
-      ).routeMedicationKnowledge(
+      ).extractDocument(
+        image: image,
+        prompt: _prompt.text.trim(),
+      );
+      await DocumentAiService().routeMedicationKnowledge(
         result: result,
         pharmacopeiaDao: ref.read(pharmacopeiaDaoProvider),
         ownerId: ref.read(currentOwnerIdProvider),
@@ -75,6 +77,14 @@ class _SmartCaptureScreenState extends ConsumerState<SmartCaptureScreen> {
         _bed.text = result.location.bedNumber ?? '';
         _summary.text = result.clinicalSummary;
       });
+      await Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => ExtractionReviewScreen(
+            extraction: result,
+            imagePath: image.path,
+          ),
+        ),
+      );
     } catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(
@@ -92,7 +102,7 @@ class _SmartCaptureScreenState extends ConsumerState<SmartCaptureScreen> {
     if (result == null || image == null) return;
     setState(() => _saving = true);
     try {
-      final directory = await getApplicationDocumentsDirectory();
+      final directory = await getPortableStorageDirectory();
       final imageDirectory = Directory(
         p.join(directory.path, 'clinical_images'),
       );
@@ -125,7 +135,7 @@ class _SmartCaptureScreenState extends ConsumerState<SmartCaptureScreen> {
           );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Document saved offline.')),
+          const SnackBar(content: Text('AI Extraction Saved')),
         );
         Navigator.of(context).pop();
       }

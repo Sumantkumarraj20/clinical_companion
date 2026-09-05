@@ -7,6 +7,7 @@ import 'package:drift/drift.dart' show Value;
 
 import '../../../core/database/local_database.dart';
 import '../../../core/providers/app_providers.dart';
+import '../../../core/widgets/shimmer_loading.dart';
 
 class WikiScreen extends ConsumerStatefulWidget {
   const WikiScreen({super.key});
@@ -45,7 +46,7 @@ class _WikiScreenState extends ConsumerState<WikiScreen> {
         label: const Text('Capture pearl'),
       ),
       body: entries.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
+        loading: () => const ShimmerLoading(),
         error: (error, stack) =>
             Center(child: Text('Unable to load notes: $error')),
         data: (items) {

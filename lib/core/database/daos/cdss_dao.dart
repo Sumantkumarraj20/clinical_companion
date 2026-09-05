@@ -8,7 +8,7 @@ part 'cdss_dao.g.dart';
 class CdssDao extends DatabaseAccessor<AppDatabase> with _$CdssDaoMixin {
   CdssDao(super.db);
 
-  Stream<List<CdssRule>> watchRules() =>
+    Stream<List<CdssRule>> watchRules() =>
       (select(cdssRules)..orderBy([(row) => OrderingTerm(expression: row.targetProblem)])).watch();
 
   Future<List<CdssRule>> rulesForProblem(String problem) =>

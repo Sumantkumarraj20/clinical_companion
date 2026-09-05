@@ -16,7 +16,7 @@ class DocumentAiException implements Exception {
 }
 
 class DocumentAiService {
-  DocumentAiService({required this.apiKey});
+  DocumentAiService({this.apiKey = ''});
 
   final String apiKey;
 
@@ -56,6 +56,41 @@ class DocumentAiService {
         apiKey: apiKey,
         generationConfig: GenerationConfig(
           responseMimeType: 'application/json',
+          responseSchema: Schema.object(
+            properties: {
+              'patient_identity': Schema.object(properties: {
+                'name': Schema.string(nullable: true),
+                'age': Schema.integer(nullable: true),
+                'gender': Schema.string(nullable: true),
+                'hospital_reg_no': Schema.string(nullable: true),
+              }),
+              'encounter_context': Schema.object(properties: {
+                'document_type': Schema.string(),
+                'date': Schema.string(nullable: true),
+                'department': Schema.string(nullable: true),
+                'ward_bed': Schema.string(nullable: true),
+              }),
+              'vitals': Schema.object(properties: {
+                'sbp': Schema.integer(nullable: true),
+                'dbp': Schema.integer(nullable: true),
+                'pulse': Schema.integer(nullable: true),
+                'spo2': Schema.integer(nullable: true),
+                'temp_f': Schema.number(nullable: true),
+              }),
+              'medications_ordered': Schema.array(items: Schema.object(properties: {
+                'drug_name': Schema.string(),
+                'dosage': Schema.string(nullable: true),
+                'frequency': Schema.string(nullable: true),
+              })),
+              'lab_results': Schema.array(items: Schema.object(properties: {
+                'test_name': Schema.string(),
+                'value': Schema.string(),
+                'unit': Schema.string(nullable: true),
+                'is_abnormal': Schema.boolean(),
+              })),
+              'clinical_summary': Schema.string(),
+            },
+          ),
         ),
       );
       final bytes = await image.readAsBytes();
@@ -64,8 +99,7 @@ class DocumentAiService {
           TextPart(
             '$prompt\nReturn only JSON matching the requested schema. '
             'Use null for values not visible in the image. Include '
-            'identified_problems as a string list and medications_mentioned '
-            'as objects containing brand, generic, and dose.',
+            'Do not infer patient identity or clinical facts that are not legible.',
           ),
           DataPart('image/jpeg', bytes),
         ]),

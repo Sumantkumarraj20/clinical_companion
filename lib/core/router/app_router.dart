@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:flutter_speed_dial/flutter_speed_dial.dart';
 
 import '../database/local_database.dart';
+import '../providers/app_providers.dart';
 import '../../features/bedside/screens/vitals_entry_screen.dart';
 import '../../features/dashboard/screens/dashboard_screen.dart';
 import '../../features/drugs/screens/drug_reference_screen.dart';
@@ -17,11 +19,23 @@ import '../../features/research/screens/export_dashboard_screen.dart';
 import '../../features/research/screens/comparative_analysis_screen.dart';
 import '../../features/patients/screens/problem_dashboard_screen.dart';
 import '../../features/cdss/screens/rule_builder_screen.dart';
+import '../../features/admin/screens/data_management_screen.dart';
+import '../../features/settings/screens/configuration_screen.dart';
+import '../../features/bedside/screens/manual_entry_screen.dart';
 
 final appRouterProvider = Provider<GoRouter>((ref) {
+  final configuration = ref.watch(appConfigurationProvider);
+  final isConfigured =
+      configuration.hasGemini &&
+      configuration.hasSupabase &&
+      configuration.hasDatabasePassword;
   return GoRouter(
-    initialLocation: '/dashboard',
+    initialLocation: isConfigured ? '/dashboard' : '/configuration',
     routes: [
+      GoRoute(
+        path: '/configuration',
+        builder: (context, state) => const ConfigurationScreen(),
+      ),
       ShellRoute(
         builder: (context, state, child) => AdaptiveScaffold(child: child),
         routes: [
@@ -54,6 +68,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             builder: (context, state) => const RuleBuilderScreen(),
           ),
           GoRoute(
+            path: '/data-management',
+            builder: (context, state) => const DataManagementScreen(),
+          ),
+          GoRoute(
             path: '/wiki',
             builder: (context, state) => const WikiScreen(),
           ),
@@ -77,6 +95,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             },
           ),
           GoRoute(
+            path: '/manual-entry',
+            builder: (context, state) => const ManualEntryScreen(),
+          ),
+          GoRoute(
             path: '/encounter',
             builder: (context, state) {
               final patient = state.extra;
@@ -91,8 +113,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             path: '/patients/:id',
             builder: (context, state) {
               final patient = state.extra;
-              return patient is Patient
-                  ? PatientTimelineScreen(patient: patient)
+              final data = patient is Map ? patient : null;
+              final selectedPatient = data?['patient'] ?? patient;
+              final heroTag = data?['heroTag'] as String?;
+              return selectedPatient is Patient
+                  ? PatientTimelineScreen(patient: selectedPatient, heroTag: heroTag)
                   : const _RouteMessage(
                       message:
                           'Patient timeline is unavailable without a patient.',
@@ -117,7 +142,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
   );
 });
 
-class AdaptiveScaffold extends StatelessWidget {
+class AdaptiveScaffold extends ConsumerWidget {
   const AdaptiveScaffold({required this.child, super.key});
 
   final Widget child;
@@ -129,6 +154,7 @@ class AdaptiveScaffold extends StatelessWidget {
     (path: '/research', icon: Icons.table_view_outlined, label: 'Research'),
     (path: '/wiki', icon: Icons.menu_book_outlined, label: 'Wiki'),
     (path: '/ward-dashboard', icon: Icons.local_hotel_outlined, label: 'Ward'),
+    (path: '/data-management', icon: Icons.manage_accounts_outlined, label: 'Data'),
   ];
 
   int _selectedIndex(BuildContext context) {
@@ -140,7 +166,7 @@ class AdaptiveScaffold extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final selected = _selectedIndex(context);
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -160,15 +186,34 @@ class AdaptiveScaffold extends StatelessWidget {
           ],
         );
         return Scaffold(
-          body: isWide
-              ? Row(
+          floatingActionButton: _CaptureSpeedDial(ref: ref),
+          body: Stack(
+            children: [
+              if (isWide)
+                Row(
                   children: [
                     navigation,
                     const VerticalDivider(width: 1),
                     Expanded(child: child),
                   ],
                 )
-              : child,
+              else
+                child,
+              Positioned(
+                top: MediaQuery.paddingOf(context).top + 4,
+                right: 8,
+                child: Material(
+                  color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.9),
+                  shape: const CircleBorder(),
+                  child: IconButton(
+                    tooltip: 'Settings',
+                    icon: const Icon(Icons.settings_outlined),
+                    onPressed: () => context.push('/configuration'),
+                  ),
+                ),
+              ),
+            ],
+          ),
           bottomNavigationBar: isWide
               ? null
               : BottomNavigationBar(
@@ -186,6 +231,56 @@ class AdaptiveScaffold extends StatelessWidget {
       },
     );
   }
+}
+
+class _CaptureSpeedDial extends ConsumerWidget {
+  const _CaptureSpeedDial({required this.ref});
+  final WidgetRef ref;
+
+  Future<void> _selectPatient(BuildContext context) async {
+    final patients = await ref.read(clinicalDaoProvider).watchAllPatients().first;
+    if (!context.mounted) return;
+    final selected = await showModalBottomSheet<Patient>(
+      context: context,
+      builder: (sheetContext) => SafeArea(
+        child: ListView(
+          shrinkWrap: true,
+          children: [
+            const ListTile(title: Text('Select a patient')),
+            for (final patient in patients)
+              ListTile(
+                leading: const Icon(Icons.person_outline),
+                title: Text(patient.fullName),
+                subtitle: Text(patient.hospitalRegNo),
+                onTap: () => Navigator.pop(sheetContext, patient),
+              ),
+          ],
+        ),
+      ),
+    );
+    if (selected != null && context.mounted) {
+      context.push('/smart-capture', extra: selected);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) => SpeedDial(
+    icon: Icons.add,
+    activeIcon: Icons.close,
+    tooltip: 'Clinical capture options',
+    children: [
+      SpeedDialChild(
+        child: const Icon(Icons.camera_alt_outlined),
+        label: 'AI Smart Capture',
+        onTap: () => _selectPatient(context),
+      ),
+      SpeedDialChild(
+        child: const Icon(Icons.edit_note_outlined),
+        label: 'Manual Quick Entry',
+        onTap: () => context.push('/manual-entry'),
+      ),
+    ],
+  );
 }
 
 class _RouteMessage extends StatelessWidget {

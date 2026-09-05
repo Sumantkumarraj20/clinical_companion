@@ -16,11 +16,13 @@ class _RuleBuilderScreenState extends ConsumerState<RuleBuilderScreen> {
   final _condition = TextEditingController();
   final _action = TextEditingController();
   final _evidence = TextEditingController();
+  final _medicolegal = TextEditingController();
+  bool _requiresPreAuth = false;
   String? _editingId;
 
   @override
   void dispose() {
-    for (final controller in [_problem, _condition, _action, _evidence]) {
+    for (final controller in [_problem, _condition, _action, _evidence, _medicolegal]) {
       controller.dispose();
     }
     super.dispose();
@@ -40,6 +42,8 @@ class _RuleBuilderScreenState extends ConsumerState<RuleBuilderScreen> {
       triggerCondition: _condition.text.trim(),
       suggestedAction: _action.text.trim(),
       evidenceSource: _evidence.text.trim(),
+      requiresPreAuth: Value(_requiresPreAuth),
+      medicolegalAlert: Value(_medicolegal.text.trim()),
       lastUpdated: Value(DateTime.now().toUtc()),
     );
     await ref
@@ -51,6 +55,7 @@ class _RuleBuilderScreenState extends ConsumerState<RuleBuilderScreen> {
       controller.clear();
     }
     setState(() => _editingId = null);
+    setState(() => _requiresPreAuth = false);
   }
 
   @override
@@ -83,6 +88,16 @@ class _RuleBuilderScreenState extends ConsumerState<RuleBuilderScreen> {
                 decoration: const InputDecoration(
                   labelText: 'Evidence source / citation',
                 ),
+              ),
+              TextField(
+                controller: _medicolegal,
+                decoration: const InputDecoration(labelText: 'Medicolegal alert text'),
+              ),
+              SwitchListTile.adaptive(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Requires PM-JAY pre-authorization'),
+                value: _requiresPreAuth,
+                onChanged: (value) => setState(() => _requiresPreAuth = value),
               ),
               const SizedBox(height: 12),
               FilledButton.icon(
@@ -119,6 +134,8 @@ class _RuleBuilderScreenState extends ConsumerState<RuleBuilderScreen> {
                         _condition.text = rule.triggerCondition;
                         _action.text = rule.suggestedAction;
                         _evidence.text = rule.evidenceSource;
+                        _medicolegal.text = rule.medicolegalAlert;
+                        _requiresPreAuth = rule.requiresPreAuth;
                         setState(() => _editingId = rule.id);
                       },
                     ),

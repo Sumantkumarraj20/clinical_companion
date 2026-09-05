@@ -80,6 +80,8 @@ class Patients extends Table {
   DateTimeColumn get dateOfBirth => dateTime().nullable()();
   TextColumn get sex => text().nullable()();
   TextColumn get phone => text().nullable()();
+  TextColumn get phoneNumber => text().nullable()();
+  TextColumn get alternateContact => text().nullable()();
   TextColumn get diagnosis => text().nullable()();
   TextColumn get currentDepartment =>
       text().withDefault(const Constant('Surgery'))();
@@ -295,9 +297,65 @@ class CdssRules extends Table {
   TextColumn get triggerCondition => text()();
   TextColumn get suggestedAction => text()();
   TextColumn get evidenceSource => text()();
+  BoolColumn get requiresPreAuth =>
+      boolean().withDefault(const Constant(false))();
+  TextColumn get medicolegalAlert => text().withDefault(const Constant(''))();
   DateTimeColumn get lastUpdated => dateTime().withDefault(currentDateAndTime)();
   @override
   Set<Column<Object>> get primaryKey => {id};
+}
+
+@DataClassName('AyushmanPackage')
+class AyushmanPackages extends Table {
+  @override
+  String get tableName => 'ayushman_packages';
+
+  TextColumn get code => text()();
+  TextColumn get packageName => text()();
+  TextColumn get stratification => text().nullable()();
+  RealColumn get rate => real().nullable()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {code};
+}
+
+@DataClassName('HbpProcedure')
+class HbpProcedures extends Table {
+  @override
+  String get tableName => 'hbp_procedures';
+
+  TextColumn get procedureCode => text()();
+  TextColumn get packageName => text()();
+  TextColumn get procedureName => text()();
+  RealColumn get rate => real().nullable()();
+  TextColumn get specialty => text().withDefault(const Constant(''))();
+
+  @override
+  Set<Column<Object>> get primaryKey => {procedureCode};
+}
+
+@DataClassName('HbpImplant')
+class HbpImplants extends Table {
+  @override
+  String get tableName => 'hbp_implants';
+
+  IntColumn get id => integer().autoIncrement()();
+  TextColumn get procedureCode => text()();
+  TextColumn get implantCode => text()();
+  TextColumn get implantName => text()();
+  RealColumn get maximumPrice => real().nullable()();
+}
+
+@DataClassName('HbpStratification')
+class HbpStratifications extends Table {
+  @override
+  String get tableName => 'hbp_stratifications';
+
+  IntColumn get id => integer().autoIncrement()();
+  TextColumn get procedureCode => text()();
+  TextColumn get stratificationCode => text()();
+  TextColumn get stratificationName => text()();
+  TextColumn get rule => text().withDefault(const Constant(''))();
 }
 
 @DataClassName('SyncQueueEntry')
@@ -338,6 +396,10 @@ class OfflineSyncQueue extends Table {
     ClinicalActions,
     ClinicalOutcomes,
     CdssRules,
+    AyushmanPackages,
+    HbpProcedures,
+    HbpImplants,
+    HbpStratifications,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -346,7 +408,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(openAppDatabaseExecutor());
 
   @override
-  int get schemaVersion => 8;
+  int get schemaVersion => 11;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -398,9 +460,58 @@ class AppDatabase extends _$AppDatabase {
         await m.createTable(clinicalOutcomes);
       }
       if (from < 8) await m.createTable(cdssRules);
+      if (from < 9) {
+        await m.addColumn(patients, patients.phoneNumber);
+        await m.addColumn(patients, patients.alternateContact);
+      }
+      if (from < 10) {
+        await m.addColumn(cdssRules, cdssRules.requiresPreAuth);
+        await m.addColumn(cdssRules, cdssRules.medicolegalAlert);
+        await m.createTable(ayushmanPackages);
+        await customStatement('''
+          CREATE VIRTUAL TABLE IF NOT EXISTS ayushman_packages_fts USING fts5(
+            package_name, code, stratification,
+            content='ayushman_packages', content_rowid='rowid'
+          )
+        ''');
+        await customStatement('''
+          INSERT INTO ayushman_packages_fts(rowid, package_name, code, stratification)
+          SELECT rowid, package_name, code, stratification FROM ayushman_packages
+          WHERE NOT EXISTS (SELECT 1 FROM ayushman_packages_fts LIMIT 1)
+        ''');
+      }
+      if (from < 11) {
+        await m.createTable(hbpProcedures);
+        await m.createTable(hbpImplants);
+        await m.createTable(hbpStratifications);
+      }
     },
     beforeOpen: (OpeningDetails details) async {
       await customStatement('PRAGMA foreign_keys = ON');
+      await customStatement('''
+        CREATE VIRTUAL TABLE IF NOT EXISTS ayushman_packages_fts USING fts5(
+          package_name, code, stratification,
+          content='ayushman_packages', content_rowid='rowid'
+        )
+      ''');
+      await customStatement('''
+        CREATE VIRTUAL TABLE IF NOT EXISTS hbp_fts USING fts5(
+          package_name, procedure_name, specialty,
+          content='hbp_procedures', content_rowid='rowid'
+        )
+      ''');
+      await customStatement('''
+        INSERT INTO hbp_fts(rowid, package_name, procedure_name, specialty)
+        SELECT rowid, package_name, procedure_name, specialty
+        FROM hbp_procedures
+        WHERE NOT EXISTS (SELECT 1 FROM hbp_fts LIMIT 1)
+      ''');
+      await customStatement('''
+        INSERT INTO ayushman_packages_fts(rowid, package_name, code, stratification)
+        SELECT rowid, package_name, code, stratification
+        FROM ayushman_packages
+        WHERE NOT EXISTS (SELECT 1 FROM ayushman_packages_fts LIMIT 1)
+      ''');
     },
   );
 }

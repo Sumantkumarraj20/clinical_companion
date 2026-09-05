@@ -80,6 +80,28 @@ class $PatientsTable extends Patients with TableInfo<$PatientsTable, Patient> {
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _phoneNumberMeta = const VerificationMeta(
+    'phoneNumber',
+  );
+  @override
+  late final GeneratedColumn<String> phoneNumber = GeneratedColumn<String>(
+    'phone_number',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _alternateContactMeta = const VerificationMeta(
+    'alternateContact',
+  );
+  @override
+  late final GeneratedColumn<String> alternateContact = GeneratedColumn<String>(
+    'alternate_contact',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _diagnosisMeta = const VerificationMeta(
     'diagnosis',
   );
@@ -221,6 +243,8 @@ class $PatientsTable extends Patients with TableInfo<$PatientsTable, Patient> {
     dateOfBirth,
     sex,
     phone,
+    phoneNumber,
+    alternateContact,
     diagnosis,
     currentDepartment,
     surgeryType,
@@ -294,6 +318,24 @@ class $PatientsTable extends Patients with TableInfo<$PatientsTable, Patient> {
       context.handle(
         _phoneMeta,
         phone.isAcceptableOrUnknown(data['phone']!, _phoneMeta),
+      );
+    }
+    if (data.containsKey('phone_number')) {
+      context.handle(
+        _phoneNumberMeta,
+        phoneNumber.isAcceptableOrUnknown(
+          data['phone_number']!,
+          _phoneNumberMeta,
+        ),
+      );
+    }
+    if (data.containsKey('alternate_contact')) {
+      context.handle(
+        _alternateContactMeta,
+        alternateContact.isAcceptableOrUnknown(
+          data['alternate_contact']!,
+          _alternateContactMeta,
+        ),
       );
     }
     if (data.containsKey('diagnosis')) {
@@ -421,6 +463,14 @@ class $PatientsTable extends Patients with TableInfo<$PatientsTable, Patient> {
         DriftSqlType.string,
         data['${effectivePrefix}phone'],
       ),
+      phoneNumber: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}phone_number'],
+      ),
+      alternateContact: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}alternate_contact'],
+      ),
       diagnosis: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}diagnosis'],
@@ -482,6 +532,8 @@ class Patient extends DataClass implements Insertable<Patient> {
   final DateTime? dateOfBirth;
   final String? sex;
   final String? phone;
+  final String? phoneNumber;
+  final String? alternateContact;
   final String? diagnosis;
   final String currentDepartment;
   final String? surgeryType;
@@ -501,6 +553,8 @@ class Patient extends DataClass implements Insertable<Patient> {
     this.dateOfBirth,
     this.sex,
     this.phone,
+    this.phoneNumber,
+    this.alternateContact,
     this.diagnosis,
     required this.currentDepartment,
     this.surgeryType,
@@ -528,6 +582,12 @@ class Patient extends DataClass implements Insertable<Patient> {
     }
     if (!nullToAbsent || phone != null) {
       map['phone'] = Variable<String>(phone);
+    }
+    if (!nullToAbsent || phoneNumber != null) {
+      map['phone_number'] = Variable<String>(phoneNumber);
+    }
+    if (!nullToAbsent || alternateContact != null) {
+      map['alternate_contact'] = Variable<String>(alternateContact);
     }
     if (!nullToAbsent || diagnosis != null) {
       map['diagnosis'] = Variable<String>(diagnosis);
@@ -568,6 +628,12 @@ class Patient extends DataClass implements Insertable<Patient> {
       phone: phone == null && nullToAbsent
           ? const Value.absent()
           : Value(phone),
+      phoneNumber: phoneNumber == null && nullToAbsent
+          ? const Value.absent()
+          : Value(phoneNumber),
+      alternateContact: alternateContact == null && nullToAbsent
+          ? const Value.absent()
+          : Value(alternateContact),
       diagnosis: diagnosis == null && nullToAbsent
           ? const Value.absent()
           : Value(diagnosis),
@@ -607,6 +673,8 @@ class Patient extends DataClass implements Insertable<Patient> {
       dateOfBirth: serializer.fromJson<DateTime?>(json['dateOfBirth']),
       sex: serializer.fromJson<String?>(json['sex']),
       phone: serializer.fromJson<String?>(json['phone']),
+      phoneNumber: serializer.fromJson<String?>(json['phoneNumber']),
+      alternateContact: serializer.fromJson<String?>(json['alternateContact']),
       diagnosis: serializer.fromJson<String?>(json['diagnosis']),
       currentDepartment: serializer.fromJson<String>(json['currentDepartment']),
       surgeryType: serializer.fromJson<String?>(json['surgeryType']),
@@ -631,6 +699,8 @@ class Patient extends DataClass implements Insertable<Patient> {
       'dateOfBirth': serializer.toJson<DateTime?>(dateOfBirth),
       'sex': serializer.toJson<String?>(sex),
       'phone': serializer.toJson<String?>(phone),
+      'phoneNumber': serializer.toJson<String?>(phoneNumber),
+      'alternateContact': serializer.toJson<String?>(alternateContact),
       'diagnosis': serializer.toJson<String?>(diagnosis),
       'currentDepartment': serializer.toJson<String>(currentDepartment),
       'surgeryType': serializer.toJson<String?>(surgeryType),
@@ -653,6 +723,8 @@ class Patient extends DataClass implements Insertable<Patient> {
     Value<DateTime?> dateOfBirth = const Value.absent(),
     Value<String?> sex = const Value.absent(),
     Value<String?> phone = const Value.absent(),
+    Value<String?> phoneNumber = const Value.absent(),
+    Value<String?> alternateContact = const Value.absent(),
     Value<String?> diagnosis = const Value.absent(),
     String? currentDepartment,
     Value<String?> surgeryType = const Value.absent(),
@@ -672,6 +744,10 @@ class Patient extends DataClass implements Insertable<Patient> {
     dateOfBirth: dateOfBirth.present ? dateOfBirth.value : this.dateOfBirth,
     sex: sex.present ? sex.value : this.sex,
     phone: phone.present ? phone.value : this.phone,
+    phoneNumber: phoneNumber.present ? phoneNumber.value : this.phoneNumber,
+    alternateContact: alternateContact.present
+        ? alternateContact.value
+        : this.alternateContact,
     diagnosis: diagnosis.present ? diagnosis.value : this.diagnosis,
     currentDepartment: currentDepartment ?? this.currentDepartment,
     surgeryType: surgeryType.present ? surgeryType.value : this.surgeryType,
@@ -703,6 +779,12 @@ class Patient extends DataClass implements Insertable<Patient> {
           : this.dateOfBirth,
       sex: data.sex.present ? data.sex.value : this.sex,
       phone: data.phone.present ? data.phone.value : this.phone,
+      phoneNumber: data.phoneNumber.present
+          ? data.phoneNumber.value
+          : this.phoneNumber,
+      alternateContact: data.alternateContact.present
+          ? data.alternateContact.value
+          : this.alternateContact,
       diagnosis: data.diagnosis.present ? data.diagnosis.value : this.diagnosis,
       currentDepartment: data.currentDepartment.present
           ? data.currentDepartment.value
@@ -739,6 +821,8 @@ class Patient extends DataClass implements Insertable<Patient> {
           ..write('dateOfBirth: $dateOfBirth, ')
           ..write('sex: $sex, ')
           ..write('phone: $phone, ')
+          ..write('phoneNumber: $phoneNumber, ')
+          ..write('alternateContact: $alternateContact, ')
           ..write('diagnosis: $diagnosis, ')
           ..write('currentDepartment: $currentDepartment, ')
           ..write('surgeryType: $surgeryType, ')
@@ -763,6 +847,8 @@ class Patient extends DataClass implements Insertable<Patient> {
     dateOfBirth,
     sex,
     phone,
+    phoneNumber,
+    alternateContact,
     diagnosis,
     currentDepartment,
     surgeryType,
@@ -786,6 +872,8 @@ class Patient extends DataClass implements Insertable<Patient> {
           other.dateOfBirth == this.dateOfBirth &&
           other.sex == this.sex &&
           other.phone == this.phone &&
+          other.phoneNumber == this.phoneNumber &&
+          other.alternateContact == this.alternateContact &&
           other.diagnosis == this.diagnosis &&
           other.currentDepartment == this.currentDepartment &&
           other.surgeryType == this.surgeryType &&
@@ -807,6 +895,8 @@ class PatientsCompanion extends UpdateCompanion<Patient> {
   final Value<DateTime?> dateOfBirth;
   final Value<String?> sex;
   final Value<String?> phone;
+  final Value<String?> phoneNumber;
+  final Value<String?> alternateContact;
   final Value<String?> diagnosis;
   final Value<String> currentDepartment;
   final Value<String?> surgeryType;
@@ -827,6 +917,8 @@ class PatientsCompanion extends UpdateCompanion<Patient> {
     this.dateOfBirth = const Value.absent(),
     this.sex = const Value.absent(),
     this.phone = const Value.absent(),
+    this.phoneNumber = const Value.absent(),
+    this.alternateContact = const Value.absent(),
     this.diagnosis = const Value.absent(),
     this.currentDepartment = const Value.absent(),
     this.surgeryType = const Value.absent(),
@@ -848,6 +940,8 @@ class PatientsCompanion extends UpdateCompanion<Patient> {
     this.dateOfBirth = const Value.absent(),
     this.sex = const Value.absent(),
     this.phone = const Value.absent(),
+    this.phoneNumber = const Value.absent(),
+    this.alternateContact = const Value.absent(),
     this.diagnosis = const Value.absent(),
     this.currentDepartment = const Value.absent(),
     this.surgeryType = const Value.absent(),
@@ -871,6 +965,8 @@ class PatientsCompanion extends UpdateCompanion<Patient> {
     Expression<DateTime>? dateOfBirth,
     Expression<String>? sex,
     Expression<String>? phone,
+    Expression<String>? phoneNumber,
+    Expression<String>? alternateContact,
     Expression<String>? diagnosis,
     Expression<String>? currentDepartment,
     Expression<String>? surgeryType,
@@ -892,6 +988,8 @@ class PatientsCompanion extends UpdateCompanion<Patient> {
       if (dateOfBirth != null) 'date_of_birth': dateOfBirth,
       if (sex != null) 'sex': sex,
       if (phone != null) 'phone': phone,
+      if (phoneNumber != null) 'phone_number': phoneNumber,
+      if (alternateContact != null) 'alternate_contact': alternateContact,
       if (diagnosis != null) 'diagnosis': diagnosis,
       if (currentDepartment != null) 'current_department': currentDepartment,
       if (surgeryType != null) 'surgery_type': surgeryType,
@@ -915,6 +1013,8 @@ class PatientsCompanion extends UpdateCompanion<Patient> {
     Value<DateTime?>? dateOfBirth,
     Value<String?>? sex,
     Value<String?>? phone,
+    Value<String?>? phoneNumber,
+    Value<String?>? alternateContact,
     Value<String?>? diagnosis,
     Value<String>? currentDepartment,
     Value<String?>? surgeryType,
@@ -936,6 +1036,8 @@ class PatientsCompanion extends UpdateCompanion<Patient> {
       dateOfBirth: dateOfBirth ?? this.dateOfBirth,
       sex: sex ?? this.sex,
       phone: phone ?? this.phone,
+      phoneNumber: phoneNumber ?? this.phoneNumber,
+      alternateContact: alternateContact ?? this.alternateContact,
       diagnosis: diagnosis ?? this.diagnosis,
       currentDepartment: currentDepartment ?? this.currentDepartment,
       surgeryType: surgeryType ?? this.surgeryType,
@@ -974,6 +1076,12 @@ class PatientsCompanion extends UpdateCompanion<Patient> {
     }
     if (phone.present) {
       map['phone'] = Variable<String>(phone.value);
+    }
+    if (phoneNumber.present) {
+      map['phone_number'] = Variable<String>(phoneNumber.value);
+    }
+    if (alternateContact.present) {
+      map['alternate_contact'] = Variable<String>(alternateContact.value);
     }
     if (diagnosis.present) {
       map['diagnosis'] = Variable<String>(diagnosis.value);
@@ -1024,6 +1132,8 @@ class PatientsCompanion extends UpdateCompanion<Patient> {
           ..write('dateOfBirth: $dateOfBirth, ')
           ..write('sex: $sex, ')
           ..write('phone: $phone, ')
+          ..write('phoneNumber: $phoneNumber, ')
+          ..write('alternateContact: $alternateContact, ')
           ..write('diagnosis: $diagnosis, ')
           ..write('currentDepartment: $currentDepartment, ')
           ..write('surgeryType: $surgeryType, ')
@@ -7657,6 +7767,33 @@ class $CdssRulesTable extends CdssRules
     type: DriftSqlType.string,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _requiresPreAuthMeta = const VerificationMeta(
+    'requiresPreAuth',
+  );
+  @override
+  late final GeneratedColumn<bool> requiresPreAuth = GeneratedColumn<bool>(
+    'requires_pre_auth',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("requires_pre_auth" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _medicolegalAlertMeta = const VerificationMeta(
+    'medicolegalAlert',
+  );
+  @override
+  late final GeneratedColumn<String> medicolegalAlert = GeneratedColumn<String>(
+    'medicolegal_alert',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
   static const VerificationMeta _lastUpdatedMeta = const VerificationMeta(
     'lastUpdated',
   );
@@ -7676,6 +7813,8 @@ class $CdssRulesTable extends CdssRules
     triggerCondition,
     suggestedAction,
     evidenceSource,
+    requiresPreAuth,
+    medicolegalAlert,
     lastUpdated,
   ];
   @override
@@ -7737,6 +7876,24 @@ class $CdssRulesTable extends CdssRules
     } else if (isInserting) {
       context.missing(_evidenceSourceMeta);
     }
+    if (data.containsKey('requires_pre_auth')) {
+      context.handle(
+        _requiresPreAuthMeta,
+        requiresPreAuth.isAcceptableOrUnknown(
+          data['requires_pre_auth']!,
+          _requiresPreAuthMeta,
+        ),
+      );
+    }
+    if (data.containsKey('medicolegal_alert')) {
+      context.handle(
+        _medicolegalAlertMeta,
+        medicolegalAlert.isAcceptableOrUnknown(
+          data['medicolegal_alert']!,
+          _medicolegalAlertMeta,
+        ),
+      );
+    }
     if (data.containsKey('last_updated')) {
       context.handle(
         _lastUpdatedMeta,
@@ -7775,6 +7932,14 @@ class $CdssRulesTable extends CdssRules
         DriftSqlType.string,
         data['${effectivePrefix}evidence_source'],
       )!,
+      requiresPreAuth: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}requires_pre_auth'],
+      )!,
+      medicolegalAlert: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}medicolegal_alert'],
+      )!,
       lastUpdated: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}last_updated'],
@@ -7794,6 +7959,8 @@ class CdssRule extends DataClass implements Insertable<CdssRule> {
   final String triggerCondition;
   final String suggestedAction;
   final String evidenceSource;
+  final bool requiresPreAuth;
+  final String medicolegalAlert;
   final DateTime lastUpdated;
   const CdssRule({
     required this.id,
@@ -7801,6 +7968,8 @@ class CdssRule extends DataClass implements Insertable<CdssRule> {
     required this.triggerCondition,
     required this.suggestedAction,
     required this.evidenceSource,
+    required this.requiresPreAuth,
+    required this.medicolegalAlert,
     required this.lastUpdated,
   });
   @override
@@ -7811,6 +7980,8 @@ class CdssRule extends DataClass implements Insertable<CdssRule> {
     map['trigger_condition'] = Variable<String>(triggerCondition);
     map['suggested_action'] = Variable<String>(suggestedAction);
     map['evidence_source'] = Variable<String>(evidenceSource);
+    map['requires_pre_auth'] = Variable<bool>(requiresPreAuth);
+    map['medicolegal_alert'] = Variable<String>(medicolegalAlert);
     map['last_updated'] = Variable<DateTime>(lastUpdated);
     return map;
   }
@@ -7822,6 +7993,8 @@ class CdssRule extends DataClass implements Insertable<CdssRule> {
       triggerCondition: Value(triggerCondition),
       suggestedAction: Value(suggestedAction),
       evidenceSource: Value(evidenceSource),
+      requiresPreAuth: Value(requiresPreAuth),
+      medicolegalAlert: Value(medicolegalAlert),
       lastUpdated: Value(lastUpdated),
     );
   }
@@ -7837,6 +8010,8 @@ class CdssRule extends DataClass implements Insertable<CdssRule> {
       triggerCondition: serializer.fromJson<String>(json['triggerCondition']),
       suggestedAction: serializer.fromJson<String>(json['suggestedAction']),
       evidenceSource: serializer.fromJson<String>(json['evidenceSource']),
+      requiresPreAuth: serializer.fromJson<bool>(json['requiresPreAuth']),
+      medicolegalAlert: serializer.fromJson<String>(json['medicolegalAlert']),
       lastUpdated: serializer.fromJson<DateTime>(json['lastUpdated']),
     );
   }
@@ -7849,6 +8024,8 @@ class CdssRule extends DataClass implements Insertable<CdssRule> {
       'triggerCondition': serializer.toJson<String>(triggerCondition),
       'suggestedAction': serializer.toJson<String>(suggestedAction),
       'evidenceSource': serializer.toJson<String>(evidenceSource),
+      'requiresPreAuth': serializer.toJson<bool>(requiresPreAuth),
+      'medicolegalAlert': serializer.toJson<String>(medicolegalAlert),
       'lastUpdated': serializer.toJson<DateTime>(lastUpdated),
     };
   }
@@ -7859,6 +8036,8 @@ class CdssRule extends DataClass implements Insertable<CdssRule> {
     String? triggerCondition,
     String? suggestedAction,
     String? evidenceSource,
+    bool? requiresPreAuth,
+    String? medicolegalAlert,
     DateTime? lastUpdated,
   }) => CdssRule(
     id: id ?? this.id,
@@ -7866,6 +8045,8 @@ class CdssRule extends DataClass implements Insertable<CdssRule> {
     triggerCondition: triggerCondition ?? this.triggerCondition,
     suggestedAction: suggestedAction ?? this.suggestedAction,
     evidenceSource: evidenceSource ?? this.evidenceSource,
+    requiresPreAuth: requiresPreAuth ?? this.requiresPreAuth,
+    medicolegalAlert: medicolegalAlert ?? this.medicolegalAlert,
     lastUpdated: lastUpdated ?? this.lastUpdated,
   );
   CdssRule copyWithCompanion(CdssRulesCompanion data) {
@@ -7883,6 +8064,12 @@ class CdssRule extends DataClass implements Insertable<CdssRule> {
       evidenceSource: data.evidenceSource.present
           ? data.evidenceSource.value
           : this.evidenceSource,
+      requiresPreAuth: data.requiresPreAuth.present
+          ? data.requiresPreAuth.value
+          : this.requiresPreAuth,
+      medicolegalAlert: data.medicolegalAlert.present
+          ? data.medicolegalAlert.value
+          : this.medicolegalAlert,
       lastUpdated: data.lastUpdated.present
           ? data.lastUpdated.value
           : this.lastUpdated,
@@ -7897,6 +8084,8 @@ class CdssRule extends DataClass implements Insertable<CdssRule> {
           ..write('triggerCondition: $triggerCondition, ')
           ..write('suggestedAction: $suggestedAction, ')
           ..write('evidenceSource: $evidenceSource, ')
+          ..write('requiresPreAuth: $requiresPreAuth, ')
+          ..write('medicolegalAlert: $medicolegalAlert, ')
           ..write('lastUpdated: $lastUpdated')
           ..write(')'))
         .toString();
@@ -7909,6 +8098,8 @@ class CdssRule extends DataClass implements Insertable<CdssRule> {
     triggerCondition,
     suggestedAction,
     evidenceSource,
+    requiresPreAuth,
+    medicolegalAlert,
     lastUpdated,
   );
   @override
@@ -7920,6 +8111,8 @@ class CdssRule extends DataClass implements Insertable<CdssRule> {
           other.triggerCondition == this.triggerCondition &&
           other.suggestedAction == this.suggestedAction &&
           other.evidenceSource == this.evidenceSource &&
+          other.requiresPreAuth == this.requiresPreAuth &&
+          other.medicolegalAlert == this.medicolegalAlert &&
           other.lastUpdated == this.lastUpdated);
 }
 
@@ -7929,6 +8122,8 @@ class CdssRulesCompanion extends UpdateCompanion<CdssRule> {
   final Value<String> triggerCondition;
   final Value<String> suggestedAction;
   final Value<String> evidenceSource;
+  final Value<bool> requiresPreAuth;
+  final Value<String> medicolegalAlert;
   final Value<DateTime> lastUpdated;
   final Value<int> rowid;
   const CdssRulesCompanion({
@@ -7937,6 +8132,8 @@ class CdssRulesCompanion extends UpdateCompanion<CdssRule> {
     this.triggerCondition = const Value.absent(),
     this.suggestedAction = const Value.absent(),
     this.evidenceSource = const Value.absent(),
+    this.requiresPreAuth = const Value.absent(),
+    this.medicolegalAlert = const Value.absent(),
     this.lastUpdated = const Value.absent(),
     this.rowid = const Value.absent(),
   });
@@ -7946,6 +8143,8 @@ class CdssRulesCompanion extends UpdateCompanion<CdssRule> {
     required String triggerCondition,
     required String suggestedAction,
     required String evidenceSource,
+    this.requiresPreAuth = const Value.absent(),
+    this.medicolegalAlert = const Value.absent(),
     this.lastUpdated = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : targetProblem = Value(targetProblem),
@@ -7958,6 +8157,8 @@ class CdssRulesCompanion extends UpdateCompanion<CdssRule> {
     Expression<String>? triggerCondition,
     Expression<String>? suggestedAction,
     Expression<String>? evidenceSource,
+    Expression<bool>? requiresPreAuth,
+    Expression<String>? medicolegalAlert,
     Expression<DateTime>? lastUpdated,
     Expression<int>? rowid,
   }) {
@@ -7967,6 +8168,8 @@ class CdssRulesCompanion extends UpdateCompanion<CdssRule> {
       if (triggerCondition != null) 'trigger_condition': triggerCondition,
       if (suggestedAction != null) 'suggested_action': suggestedAction,
       if (evidenceSource != null) 'evidence_source': evidenceSource,
+      if (requiresPreAuth != null) 'requires_pre_auth': requiresPreAuth,
+      if (medicolegalAlert != null) 'medicolegal_alert': medicolegalAlert,
       if (lastUpdated != null) 'last_updated': lastUpdated,
       if (rowid != null) 'rowid': rowid,
     });
@@ -7978,6 +8181,8 @@ class CdssRulesCompanion extends UpdateCompanion<CdssRule> {
     Value<String>? triggerCondition,
     Value<String>? suggestedAction,
     Value<String>? evidenceSource,
+    Value<bool>? requiresPreAuth,
+    Value<String>? medicolegalAlert,
     Value<DateTime>? lastUpdated,
     Value<int>? rowid,
   }) {
@@ -7987,6 +8192,8 @@ class CdssRulesCompanion extends UpdateCompanion<CdssRule> {
       triggerCondition: triggerCondition ?? this.triggerCondition,
       suggestedAction: suggestedAction ?? this.suggestedAction,
       evidenceSource: evidenceSource ?? this.evidenceSource,
+      requiresPreAuth: requiresPreAuth ?? this.requiresPreAuth,
+      medicolegalAlert: medicolegalAlert ?? this.medicolegalAlert,
       lastUpdated: lastUpdated ?? this.lastUpdated,
       rowid: rowid ?? this.rowid,
     );
@@ -8010,6 +8217,12 @@ class CdssRulesCompanion extends UpdateCompanion<CdssRule> {
     if (evidenceSource.present) {
       map['evidence_source'] = Variable<String>(evidenceSource.value);
     }
+    if (requiresPreAuth.present) {
+      map['requires_pre_auth'] = Variable<bool>(requiresPreAuth.value);
+    }
+    if (medicolegalAlert.present) {
+      map['medicolegal_alert'] = Variable<String>(medicolegalAlert.value);
+    }
     if (lastUpdated.present) {
       map['last_updated'] = Variable<DateTime>(lastUpdated.value);
     }
@@ -8027,8 +8240,1464 @@ class CdssRulesCompanion extends UpdateCompanion<CdssRule> {
           ..write('triggerCondition: $triggerCondition, ')
           ..write('suggestedAction: $suggestedAction, ')
           ..write('evidenceSource: $evidenceSource, ')
+          ..write('requiresPreAuth: $requiresPreAuth, ')
+          ..write('medicolegalAlert: $medicolegalAlert, ')
           ..write('lastUpdated: $lastUpdated, ')
           ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $AyushmanPackagesTable extends AyushmanPackages
+    with TableInfo<$AyushmanPackagesTable, AyushmanPackage> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $AyushmanPackagesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _codeMeta = const VerificationMeta('code');
+  @override
+  late final GeneratedColumn<String> code = GeneratedColumn<String>(
+    'code',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _packageNameMeta = const VerificationMeta(
+    'packageName',
+  );
+  @override
+  late final GeneratedColumn<String> packageName = GeneratedColumn<String>(
+    'package_name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _stratificationMeta = const VerificationMeta(
+    'stratification',
+  );
+  @override
+  late final GeneratedColumn<String> stratification = GeneratedColumn<String>(
+    'stratification',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _rateMeta = const VerificationMeta('rate');
+  @override
+  late final GeneratedColumn<double> rate = GeneratedColumn<double>(
+    'rate',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    code,
+    packageName,
+    stratification,
+    rate,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'ayushman_packages';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<AyushmanPackage> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('code')) {
+      context.handle(
+        _codeMeta,
+        code.isAcceptableOrUnknown(data['code']!, _codeMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_codeMeta);
+    }
+    if (data.containsKey('package_name')) {
+      context.handle(
+        _packageNameMeta,
+        packageName.isAcceptableOrUnknown(
+          data['package_name']!,
+          _packageNameMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_packageNameMeta);
+    }
+    if (data.containsKey('stratification')) {
+      context.handle(
+        _stratificationMeta,
+        stratification.isAcceptableOrUnknown(
+          data['stratification']!,
+          _stratificationMeta,
+        ),
+      );
+    }
+    if (data.containsKey('rate')) {
+      context.handle(
+        _rateMeta,
+        rate.isAcceptableOrUnknown(data['rate']!, _rateMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {code};
+  @override
+  AyushmanPackage map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return AyushmanPackage(
+      code: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}code'],
+      )!,
+      packageName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}package_name'],
+      )!,
+      stratification: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}stratification'],
+      ),
+      rate: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}rate'],
+      ),
+    );
+  }
+
+  @override
+  $AyushmanPackagesTable createAlias(String alias) {
+    return $AyushmanPackagesTable(attachedDatabase, alias);
+  }
+}
+
+class AyushmanPackage extends DataClass implements Insertable<AyushmanPackage> {
+  final String code;
+  final String packageName;
+  final String? stratification;
+  final double? rate;
+  const AyushmanPackage({
+    required this.code,
+    required this.packageName,
+    this.stratification,
+    this.rate,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['code'] = Variable<String>(code);
+    map['package_name'] = Variable<String>(packageName);
+    if (!nullToAbsent || stratification != null) {
+      map['stratification'] = Variable<String>(stratification);
+    }
+    if (!nullToAbsent || rate != null) {
+      map['rate'] = Variable<double>(rate);
+    }
+    return map;
+  }
+
+  AyushmanPackagesCompanion toCompanion(bool nullToAbsent) {
+    return AyushmanPackagesCompanion(
+      code: Value(code),
+      packageName: Value(packageName),
+      stratification: stratification == null && nullToAbsent
+          ? const Value.absent()
+          : Value(stratification),
+      rate: rate == null && nullToAbsent ? const Value.absent() : Value(rate),
+    );
+  }
+
+  factory AyushmanPackage.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return AyushmanPackage(
+      code: serializer.fromJson<String>(json['code']),
+      packageName: serializer.fromJson<String>(json['packageName']),
+      stratification: serializer.fromJson<String?>(json['stratification']),
+      rate: serializer.fromJson<double?>(json['rate']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'code': serializer.toJson<String>(code),
+      'packageName': serializer.toJson<String>(packageName),
+      'stratification': serializer.toJson<String?>(stratification),
+      'rate': serializer.toJson<double?>(rate),
+    };
+  }
+
+  AyushmanPackage copyWith({
+    String? code,
+    String? packageName,
+    Value<String?> stratification = const Value.absent(),
+    Value<double?> rate = const Value.absent(),
+  }) => AyushmanPackage(
+    code: code ?? this.code,
+    packageName: packageName ?? this.packageName,
+    stratification: stratification.present
+        ? stratification.value
+        : this.stratification,
+    rate: rate.present ? rate.value : this.rate,
+  );
+  AyushmanPackage copyWithCompanion(AyushmanPackagesCompanion data) {
+    return AyushmanPackage(
+      code: data.code.present ? data.code.value : this.code,
+      packageName: data.packageName.present
+          ? data.packageName.value
+          : this.packageName,
+      stratification: data.stratification.present
+          ? data.stratification.value
+          : this.stratification,
+      rate: data.rate.present ? data.rate.value : this.rate,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('AyushmanPackage(')
+          ..write('code: $code, ')
+          ..write('packageName: $packageName, ')
+          ..write('stratification: $stratification, ')
+          ..write('rate: $rate')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(code, packageName, stratification, rate);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is AyushmanPackage &&
+          other.code == this.code &&
+          other.packageName == this.packageName &&
+          other.stratification == this.stratification &&
+          other.rate == this.rate);
+}
+
+class AyushmanPackagesCompanion extends UpdateCompanion<AyushmanPackage> {
+  final Value<String> code;
+  final Value<String> packageName;
+  final Value<String?> stratification;
+  final Value<double?> rate;
+  final Value<int> rowid;
+  const AyushmanPackagesCompanion({
+    this.code = const Value.absent(),
+    this.packageName = const Value.absent(),
+    this.stratification = const Value.absent(),
+    this.rate = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  AyushmanPackagesCompanion.insert({
+    required String code,
+    required String packageName,
+    this.stratification = const Value.absent(),
+    this.rate = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : code = Value(code),
+       packageName = Value(packageName);
+  static Insertable<AyushmanPackage> custom({
+    Expression<String>? code,
+    Expression<String>? packageName,
+    Expression<String>? stratification,
+    Expression<double>? rate,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (code != null) 'code': code,
+      if (packageName != null) 'package_name': packageName,
+      if (stratification != null) 'stratification': stratification,
+      if (rate != null) 'rate': rate,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  AyushmanPackagesCompanion copyWith({
+    Value<String>? code,
+    Value<String>? packageName,
+    Value<String?>? stratification,
+    Value<double?>? rate,
+    Value<int>? rowid,
+  }) {
+    return AyushmanPackagesCompanion(
+      code: code ?? this.code,
+      packageName: packageName ?? this.packageName,
+      stratification: stratification ?? this.stratification,
+      rate: rate ?? this.rate,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (code.present) {
+      map['code'] = Variable<String>(code.value);
+    }
+    if (packageName.present) {
+      map['package_name'] = Variable<String>(packageName.value);
+    }
+    if (stratification.present) {
+      map['stratification'] = Variable<String>(stratification.value);
+    }
+    if (rate.present) {
+      map['rate'] = Variable<double>(rate.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('AyushmanPackagesCompanion(')
+          ..write('code: $code, ')
+          ..write('packageName: $packageName, ')
+          ..write('stratification: $stratification, ')
+          ..write('rate: $rate, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $HbpProceduresTable extends HbpProcedures
+    with TableInfo<$HbpProceduresTable, HbpProcedure> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $HbpProceduresTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _procedureCodeMeta = const VerificationMeta(
+    'procedureCode',
+  );
+  @override
+  late final GeneratedColumn<String> procedureCode = GeneratedColumn<String>(
+    'procedure_code',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _packageNameMeta = const VerificationMeta(
+    'packageName',
+  );
+  @override
+  late final GeneratedColumn<String> packageName = GeneratedColumn<String>(
+    'package_name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _procedureNameMeta = const VerificationMeta(
+    'procedureName',
+  );
+  @override
+  late final GeneratedColumn<String> procedureName = GeneratedColumn<String>(
+    'procedure_name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _rateMeta = const VerificationMeta('rate');
+  @override
+  late final GeneratedColumn<double> rate = GeneratedColumn<double>(
+    'rate',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _specialtyMeta = const VerificationMeta(
+    'specialty',
+  );
+  @override
+  late final GeneratedColumn<String> specialty = GeneratedColumn<String>(
+    'specialty',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    procedureCode,
+    packageName,
+    procedureName,
+    rate,
+    specialty,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'hbp_procedures';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<HbpProcedure> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('procedure_code')) {
+      context.handle(
+        _procedureCodeMeta,
+        procedureCode.isAcceptableOrUnknown(
+          data['procedure_code']!,
+          _procedureCodeMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_procedureCodeMeta);
+    }
+    if (data.containsKey('package_name')) {
+      context.handle(
+        _packageNameMeta,
+        packageName.isAcceptableOrUnknown(
+          data['package_name']!,
+          _packageNameMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_packageNameMeta);
+    }
+    if (data.containsKey('procedure_name')) {
+      context.handle(
+        _procedureNameMeta,
+        procedureName.isAcceptableOrUnknown(
+          data['procedure_name']!,
+          _procedureNameMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_procedureNameMeta);
+    }
+    if (data.containsKey('rate')) {
+      context.handle(
+        _rateMeta,
+        rate.isAcceptableOrUnknown(data['rate']!, _rateMeta),
+      );
+    }
+    if (data.containsKey('specialty')) {
+      context.handle(
+        _specialtyMeta,
+        specialty.isAcceptableOrUnknown(data['specialty']!, _specialtyMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {procedureCode};
+  @override
+  HbpProcedure map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return HbpProcedure(
+      procedureCode: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}procedure_code'],
+      )!,
+      packageName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}package_name'],
+      )!,
+      procedureName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}procedure_name'],
+      )!,
+      rate: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}rate'],
+      ),
+      specialty: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}specialty'],
+      )!,
+    );
+  }
+
+  @override
+  $HbpProceduresTable createAlias(String alias) {
+    return $HbpProceduresTable(attachedDatabase, alias);
+  }
+}
+
+class HbpProcedure extends DataClass implements Insertable<HbpProcedure> {
+  final String procedureCode;
+  final String packageName;
+  final String procedureName;
+  final double? rate;
+  final String specialty;
+  const HbpProcedure({
+    required this.procedureCode,
+    required this.packageName,
+    required this.procedureName,
+    this.rate,
+    required this.specialty,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['procedure_code'] = Variable<String>(procedureCode);
+    map['package_name'] = Variable<String>(packageName);
+    map['procedure_name'] = Variable<String>(procedureName);
+    if (!nullToAbsent || rate != null) {
+      map['rate'] = Variable<double>(rate);
+    }
+    map['specialty'] = Variable<String>(specialty);
+    return map;
+  }
+
+  HbpProceduresCompanion toCompanion(bool nullToAbsent) {
+    return HbpProceduresCompanion(
+      procedureCode: Value(procedureCode),
+      packageName: Value(packageName),
+      procedureName: Value(procedureName),
+      rate: rate == null && nullToAbsent ? const Value.absent() : Value(rate),
+      specialty: Value(specialty),
+    );
+  }
+
+  factory HbpProcedure.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return HbpProcedure(
+      procedureCode: serializer.fromJson<String>(json['procedureCode']),
+      packageName: serializer.fromJson<String>(json['packageName']),
+      procedureName: serializer.fromJson<String>(json['procedureName']),
+      rate: serializer.fromJson<double?>(json['rate']),
+      specialty: serializer.fromJson<String>(json['specialty']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'procedureCode': serializer.toJson<String>(procedureCode),
+      'packageName': serializer.toJson<String>(packageName),
+      'procedureName': serializer.toJson<String>(procedureName),
+      'rate': serializer.toJson<double?>(rate),
+      'specialty': serializer.toJson<String>(specialty),
+    };
+  }
+
+  HbpProcedure copyWith({
+    String? procedureCode,
+    String? packageName,
+    String? procedureName,
+    Value<double?> rate = const Value.absent(),
+    String? specialty,
+  }) => HbpProcedure(
+    procedureCode: procedureCode ?? this.procedureCode,
+    packageName: packageName ?? this.packageName,
+    procedureName: procedureName ?? this.procedureName,
+    rate: rate.present ? rate.value : this.rate,
+    specialty: specialty ?? this.specialty,
+  );
+  HbpProcedure copyWithCompanion(HbpProceduresCompanion data) {
+    return HbpProcedure(
+      procedureCode: data.procedureCode.present
+          ? data.procedureCode.value
+          : this.procedureCode,
+      packageName: data.packageName.present
+          ? data.packageName.value
+          : this.packageName,
+      procedureName: data.procedureName.present
+          ? data.procedureName.value
+          : this.procedureName,
+      rate: data.rate.present ? data.rate.value : this.rate,
+      specialty: data.specialty.present ? data.specialty.value : this.specialty,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('HbpProcedure(')
+          ..write('procedureCode: $procedureCode, ')
+          ..write('packageName: $packageName, ')
+          ..write('procedureName: $procedureName, ')
+          ..write('rate: $rate, ')
+          ..write('specialty: $specialty')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(procedureCode, packageName, procedureName, rate, specialty);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is HbpProcedure &&
+          other.procedureCode == this.procedureCode &&
+          other.packageName == this.packageName &&
+          other.procedureName == this.procedureName &&
+          other.rate == this.rate &&
+          other.specialty == this.specialty);
+}
+
+class HbpProceduresCompanion extends UpdateCompanion<HbpProcedure> {
+  final Value<String> procedureCode;
+  final Value<String> packageName;
+  final Value<String> procedureName;
+  final Value<double?> rate;
+  final Value<String> specialty;
+  final Value<int> rowid;
+  const HbpProceduresCompanion({
+    this.procedureCode = const Value.absent(),
+    this.packageName = const Value.absent(),
+    this.procedureName = const Value.absent(),
+    this.rate = const Value.absent(),
+    this.specialty = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  HbpProceduresCompanion.insert({
+    required String procedureCode,
+    required String packageName,
+    required String procedureName,
+    this.rate = const Value.absent(),
+    this.specialty = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : procedureCode = Value(procedureCode),
+       packageName = Value(packageName),
+       procedureName = Value(procedureName);
+  static Insertable<HbpProcedure> custom({
+    Expression<String>? procedureCode,
+    Expression<String>? packageName,
+    Expression<String>? procedureName,
+    Expression<double>? rate,
+    Expression<String>? specialty,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (procedureCode != null) 'procedure_code': procedureCode,
+      if (packageName != null) 'package_name': packageName,
+      if (procedureName != null) 'procedure_name': procedureName,
+      if (rate != null) 'rate': rate,
+      if (specialty != null) 'specialty': specialty,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  HbpProceduresCompanion copyWith({
+    Value<String>? procedureCode,
+    Value<String>? packageName,
+    Value<String>? procedureName,
+    Value<double?>? rate,
+    Value<String>? specialty,
+    Value<int>? rowid,
+  }) {
+    return HbpProceduresCompanion(
+      procedureCode: procedureCode ?? this.procedureCode,
+      packageName: packageName ?? this.packageName,
+      procedureName: procedureName ?? this.procedureName,
+      rate: rate ?? this.rate,
+      specialty: specialty ?? this.specialty,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (procedureCode.present) {
+      map['procedure_code'] = Variable<String>(procedureCode.value);
+    }
+    if (packageName.present) {
+      map['package_name'] = Variable<String>(packageName.value);
+    }
+    if (procedureName.present) {
+      map['procedure_name'] = Variable<String>(procedureName.value);
+    }
+    if (rate.present) {
+      map['rate'] = Variable<double>(rate.value);
+    }
+    if (specialty.present) {
+      map['specialty'] = Variable<String>(specialty.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('HbpProceduresCompanion(')
+          ..write('procedureCode: $procedureCode, ')
+          ..write('packageName: $packageName, ')
+          ..write('procedureName: $procedureName, ')
+          ..write('rate: $rate, ')
+          ..write('specialty: $specialty, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $HbpImplantsTable extends HbpImplants
+    with TableInfo<$HbpImplantsTable, HbpImplant> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $HbpImplantsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _procedureCodeMeta = const VerificationMeta(
+    'procedureCode',
+  );
+  @override
+  late final GeneratedColumn<String> procedureCode = GeneratedColumn<String>(
+    'procedure_code',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _implantCodeMeta = const VerificationMeta(
+    'implantCode',
+  );
+  @override
+  late final GeneratedColumn<String> implantCode = GeneratedColumn<String>(
+    'implant_code',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _implantNameMeta = const VerificationMeta(
+    'implantName',
+  );
+  @override
+  late final GeneratedColumn<String> implantName = GeneratedColumn<String>(
+    'implant_name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _maximumPriceMeta = const VerificationMeta(
+    'maximumPrice',
+  );
+  @override
+  late final GeneratedColumn<double> maximumPrice = GeneratedColumn<double>(
+    'maximum_price',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    procedureCode,
+    implantCode,
+    implantName,
+    maximumPrice,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'hbp_implants';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<HbpImplant> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('procedure_code')) {
+      context.handle(
+        _procedureCodeMeta,
+        procedureCode.isAcceptableOrUnknown(
+          data['procedure_code']!,
+          _procedureCodeMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_procedureCodeMeta);
+    }
+    if (data.containsKey('implant_code')) {
+      context.handle(
+        _implantCodeMeta,
+        implantCode.isAcceptableOrUnknown(
+          data['implant_code']!,
+          _implantCodeMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_implantCodeMeta);
+    }
+    if (data.containsKey('implant_name')) {
+      context.handle(
+        _implantNameMeta,
+        implantName.isAcceptableOrUnknown(
+          data['implant_name']!,
+          _implantNameMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_implantNameMeta);
+    }
+    if (data.containsKey('maximum_price')) {
+      context.handle(
+        _maximumPriceMeta,
+        maximumPrice.isAcceptableOrUnknown(
+          data['maximum_price']!,
+          _maximumPriceMeta,
+        ),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  HbpImplant map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return HbpImplant(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      procedureCode: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}procedure_code'],
+      )!,
+      implantCode: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}implant_code'],
+      )!,
+      implantName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}implant_name'],
+      )!,
+      maximumPrice: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}maximum_price'],
+      ),
+    );
+  }
+
+  @override
+  $HbpImplantsTable createAlias(String alias) {
+    return $HbpImplantsTable(attachedDatabase, alias);
+  }
+}
+
+class HbpImplant extends DataClass implements Insertable<HbpImplant> {
+  final int id;
+  final String procedureCode;
+  final String implantCode;
+  final String implantName;
+  final double? maximumPrice;
+  const HbpImplant({
+    required this.id,
+    required this.procedureCode,
+    required this.implantCode,
+    required this.implantName,
+    this.maximumPrice,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['procedure_code'] = Variable<String>(procedureCode);
+    map['implant_code'] = Variable<String>(implantCode);
+    map['implant_name'] = Variable<String>(implantName);
+    if (!nullToAbsent || maximumPrice != null) {
+      map['maximum_price'] = Variable<double>(maximumPrice);
+    }
+    return map;
+  }
+
+  HbpImplantsCompanion toCompanion(bool nullToAbsent) {
+    return HbpImplantsCompanion(
+      id: Value(id),
+      procedureCode: Value(procedureCode),
+      implantCode: Value(implantCode),
+      implantName: Value(implantName),
+      maximumPrice: maximumPrice == null && nullToAbsent
+          ? const Value.absent()
+          : Value(maximumPrice),
+    );
+  }
+
+  factory HbpImplant.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return HbpImplant(
+      id: serializer.fromJson<int>(json['id']),
+      procedureCode: serializer.fromJson<String>(json['procedureCode']),
+      implantCode: serializer.fromJson<String>(json['implantCode']),
+      implantName: serializer.fromJson<String>(json['implantName']),
+      maximumPrice: serializer.fromJson<double?>(json['maximumPrice']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'procedureCode': serializer.toJson<String>(procedureCode),
+      'implantCode': serializer.toJson<String>(implantCode),
+      'implantName': serializer.toJson<String>(implantName),
+      'maximumPrice': serializer.toJson<double?>(maximumPrice),
+    };
+  }
+
+  HbpImplant copyWith({
+    int? id,
+    String? procedureCode,
+    String? implantCode,
+    String? implantName,
+    Value<double?> maximumPrice = const Value.absent(),
+  }) => HbpImplant(
+    id: id ?? this.id,
+    procedureCode: procedureCode ?? this.procedureCode,
+    implantCode: implantCode ?? this.implantCode,
+    implantName: implantName ?? this.implantName,
+    maximumPrice: maximumPrice.present ? maximumPrice.value : this.maximumPrice,
+  );
+  HbpImplant copyWithCompanion(HbpImplantsCompanion data) {
+    return HbpImplant(
+      id: data.id.present ? data.id.value : this.id,
+      procedureCode: data.procedureCode.present
+          ? data.procedureCode.value
+          : this.procedureCode,
+      implantCode: data.implantCode.present
+          ? data.implantCode.value
+          : this.implantCode,
+      implantName: data.implantName.present
+          ? data.implantName.value
+          : this.implantName,
+      maximumPrice: data.maximumPrice.present
+          ? data.maximumPrice.value
+          : this.maximumPrice,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('HbpImplant(')
+          ..write('id: $id, ')
+          ..write('procedureCode: $procedureCode, ')
+          ..write('implantCode: $implantCode, ')
+          ..write('implantName: $implantName, ')
+          ..write('maximumPrice: $maximumPrice')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(id, procedureCode, implantCode, implantName, maximumPrice);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is HbpImplant &&
+          other.id == this.id &&
+          other.procedureCode == this.procedureCode &&
+          other.implantCode == this.implantCode &&
+          other.implantName == this.implantName &&
+          other.maximumPrice == this.maximumPrice);
+}
+
+class HbpImplantsCompanion extends UpdateCompanion<HbpImplant> {
+  final Value<int> id;
+  final Value<String> procedureCode;
+  final Value<String> implantCode;
+  final Value<String> implantName;
+  final Value<double?> maximumPrice;
+  const HbpImplantsCompanion({
+    this.id = const Value.absent(),
+    this.procedureCode = const Value.absent(),
+    this.implantCode = const Value.absent(),
+    this.implantName = const Value.absent(),
+    this.maximumPrice = const Value.absent(),
+  });
+  HbpImplantsCompanion.insert({
+    this.id = const Value.absent(),
+    required String procedureCode,
+    required String implantCode,
+    required String implantName,
+    this.maximumPrice = const Value.absent(),
+  }) : procedureCode = Value(procedureCode),
+       implantCode = Value(implantCode),
+       implantName = Value(implantName);
+  static Insertable<HbpImplant> custom({
+    Expression<int>? id,
+    Expression<String>? procedureCode,
+    Expression<String>? implantCode,
+    Expression<String>? implantName,
+    Expression<double>? maximumPrice,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (procedureCode != null) 'procedure_code': procedureCode,
+      if (implantCode != null) 'implant_code': implantCode,
+      if (implantName != null) 'implant_name': implantName,
+      if (maximumPrice != null) 'maximum_price': maximumPrice,
+    });
+  }
+
+  HbpImplantsCompanion copyWith({
+    Value<int>? id,
+    Value<String>? procedureCode,
+    Value<String>? implantCode,
+    Value<String>? implantName,
+    Value<double?>? maximumPrice,
+  }) {
+    return HbpImplantsCompanion(
+      id: id ?? this.id,
+      procedureCode: procedureCode ?? this.procedureCode,
+      implantCode: implantCode ?? this.implantCode,
+      implantName: implantName ?? this.implantName,
+      maximumPrice: maximumPrice ?? this.maximumPrice,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (procedureCode.present) {
+      map['procedure_code'] = Variable<String>(procedureCode.value);
+    }
+    if (implantCode.present) {
+      map['implant_code'] = Variable<String>(implantCode.value);
+    }
+    if (implantName.present) {
+      map['implant_name'] = Variable<String>(implantName.value);
+    }
+    if (maximumPrice.present) {
+      map['maximum_price'] = Variable<double>(maximumPrice.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('HbpImplantsCompanion(')
+          ..write('id: $id, ')
+          ..write('procedureCode: $procedureCode, ')
+          ..write('implantCode: $implantCode, ')
+          ..write('implantName: $implantName, ')
+          ..write('maximumPrice: $maximumPrice')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $HbpStratificationsTable extends HbpStratifications
+    with TableInfo<$HbpStratificationsTable, HbpStratification> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $HbpStratificationsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _procedureCodeMeta = const VerificationMeta(
+    'procedureCode',
+  );
+  @override
+  late final GeneratedColumn<String> procedureCode = GeneratedColumn<String>(
+    'procedure_code',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _stratificationCodeMeta =
+      const VerificationMeta('stratificationCode');
+  @override
+  late final GeneratedColumn<String> stratificationCode =
+      GeneratedColumn<String>(
+        'stratification_code',
+        aliasedName,
+        false,
+        type: DriftSqlType.string,
+        requiredDuringInsert: true,
+      );
+  static const VerificationMeta _stratificationNameMeta =
+      const VerificationMeta('stratificationName');
+  @override
+  late final GeneratedColumn<String> stratificationName =
+      GeneratedColumn<String>(
+        'stratification_name',
+        aliasedName,
+        false,
+        type: DriftSqlType.string,
+        requiredDuringInsert: true,
+      );
+  static const VerificationMeta _ruleMeta = const VerificationMeta('rule');
+  @override
+  late final GeneratedColumn<String> rule = GeneratedColumn<String>(
+    'rule',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    procedureCode,
+    stratificationCode,
+    stratificationName,
+    rule,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'hbp_stratifications';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<HbpStratification> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('procedure_code')) {
+      context.handle(
+        _procedureCodeMeta,
+        procedureCode.isAcceptableOrUnknown(
+          data['procedure_code']!,
+          _procedureCodeMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_procedureCodeMeta);
+    }
+    if (data.containsKey('stratification_code')) {
+      context.handle(
+        _stratificationCodeMeta,
+        stratificationCode.isAcceptableOrUnknown(
+          data['stratification_code']!,
+          _stratificationCodeMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_stratificationCodeMeta);
+    }
+    if (data.containsKey('stratification_name')) {
+      context.handle(
+        _stratificationNameMeta,
+        stratificationName.isAcceptableOrUnknown(
+          data['stratification_name']!,
+          _stratificationNameMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_stratificationNameMeta);
+    }
+    if (data.containsKey('rule')) {
+      context.handle(
+        _ruleMeta,
+        rule.isAcceptableOrUnknown(data['rule']!, _ruleMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  HbpStratification map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return HbpStratification(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      procedureCode: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}procedure_code'],
+      )!,
+      stratificationCode: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}stratification_code'],
+      )!,
+      stratificationName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}stratification_name'],
+      )!,
+      rule: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}rule'],
+      )!,
+    );
+  }
+
+  @override
+  $HbpStratificationsTable createAlias(String alias) {
+    return $HbpStratificationsTable(attachedDatabase, alias);
+  }
+}
+
+class HbpStratification extends DataClass
+    implements Insertable<HbpStratification> {
+  final int id;
+  final String procedureCode;
+  final String stratificationCode;
+  final String stratificationName;
+  final String rule;
+  const HbpStratification({
+    required this.id,
+    required this.procedureCode,
+    required this.stratificationCode,
+    required this.stratificationName,
+    required this.rule,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['procedure_code'] = Variable<String>(procedureCode);
+    map['stratification_code'] = Variable<String>(stratificationCode);
+    map['stratification_name'] = Variable<String>(stratificationName);
+    map['rule'] = Variable<String>(rule);
+    return map;
+  }
+
+  HbpStratificationsCompanion toCompanion(bool nullToAbsent) {
+    return HbpStratificationsCompanion(
+      id: Value(id),
+      procedureCode: Value(procedureCode),
+      stratificationCode: Value(stratificationCode),
+      stratificationName: Value(stratificationName),
+      rule: Value(rule),
+    );
+  }
+
+  factory HbpStratification.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return HbpStratification(
+      id: serializer.fromJson<int>(json['id']),
+      procedureCode: serializer.fromJson<String>(json['procedureCode']),
+      stratificationCode: serializer.fromJson<String>(
+        json['stratificationCode'],
+      ),
+      stratificationName: serializer.fromJson<String>(
+        json['stratificationName'],
+      ),
+      rule: serializer.fromJson<String>(json['rule']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'procedureCode': serializer.toJson<String>(procedureCode),
+      'stratificationCode': serializer.toJson<String>(stratificationCode),
+      'stratificationName': serializer.toJson<String>(stratificationName),
+      'rule': serializer.toJson<String>(rule),
+    };
+  }
+
+  HbpStratification copyWith({
+    int? id,
+    String? procedureCode,
+    String? stratificationCode,
+    String? stratificationName,
+    String? rule,
+  }) => HbpStratification(
+    id: id ?? this.id,
+    procedureCode: procedureCode ?? this.procedureCode,
+    stratificationCode: stratificationCode ?? this.stratificationCode,
+    stratificationName: stratificationName ?? this.stratificationName,
+    rule: rule ?? this.rule,
+  );
+  HbpStratification copyWithCompanion(HbpStratificationsCompanion data) {
+    return HbpStratification(
+      id: data.id.present ? data.id.value : this.id,
+      procedureCode: data.procedureCode.present
+          ? data.procedureCode.value
+          : this.procedureCode,
+      stratificationCode: data.stratificationCode.present
+          ? data.stratificationCode.value
+          : this.stratificationCode,
+      stratificationName: data.stratificationName.present
+          ? data.stratificationName.value
+          : this.stratificationName,
+      rule: data.rule.present ? data.rule.value : this.rule,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('HbpStratification(')
+          ..write('id: $id, ')
+          ..write('procedureCode: $procedureCode, ')
+          ..write('stratificationCode: $stratificationCode, ')
+          ..write('stratificationName: $stratificationName, ')
+          ..write('rule: $rule')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    procedureCode,
+    stratificationCode,
+    stratificationName,
+    rule,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is HbpStratification &&
+          other.id == this.id &&
+          other.procedureCode == this.procedureCode &&
+          other.stratificationCode == this.stratificationCode &&
+          other.stratificationName == this.stratificationName &&
+          other.rule == this.rule);
+}
+
+class HbpStratificationsCompanion extends UpdateCompanion<HbpStratification> {
+  final Value<int> id;
+  final Value<String> procedureCode;
+  final Value<String> stratificationCode;
+  final Value<String> stratificationName;
+  final Value<String> rule;
+  const HbpStratificationsCompanion({
+    this.id = const Value.absent(),
+    this.procedureCode = const Value.absent(),
+    this.stratificationCode = const Value.absent(),
+    this.stratificationName = const Value.absent(),
+    this.rule = const Value.absent(),
+  });
+  HbpStratificationsCompanion.insert({
+    this.id = const Value.absent(),
+    required String procedureCode,
+    required String stratificationCode,
+    required String stratificationName,
+    this.rule = const Value.absent(),
+  }) : procedureCode = Value(procedureCode),
+       stratificationCode = Value(stratificationCode),
+       stratificationName = Value(stratificationName);
+  static Insertable<HbpStratification> custom({
+    Expression<int>? id,
+    Expression<String>? procedureCode,
+    Expression<String>? stratificationCode,
+    Expression<String>? stratificationName,
+    Expression<String>? rule,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (procedureCode != null) 'procedure_code': procedureCode,
+      if (stratificationCode != null) 'stratification_code': stratificationCode,
+      if (stratificationName != null) 'stratification_name': stratificationName,
+      if (rule != null) 'rule': rule,
+    });
+  }
+
+  HbpStratificationsCompanion copyWith({
+    Value<int>? id,
+    Value<String>? procedureCode,
+    Value<String>? stratificationCode,
+    Value<String>? stratificationName,
+    Value<String>? rule,
+  }) {
+    return HbpStratificationsCompanion(
+      id: id ?? this.id,
+      procedureCode: procedureCode ?? this.procedureCode,
+      stratificationCode: stratificationCode ?? this.stratificationCode,
+      stratificationName: stratificationName ?? this.stratificationName,
+      rule: rule ?? this.rule,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (procedureCode.present) {
+      map['procedure_code'] = Variable<String>(procedureCode.value);
+    }
+    if (stratificationCode.present) {
+      map['stratification_code'] = Variable<String>(stratificationCode.value);
+    }
+    if (stratificationName.present) {
+      map['stratification_name'] = Variable<String>(stratificationName.value);
+    }
+    if (rule.present) {
+      map['rule'] = Variable<String>(rule.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('HbpStratificationsCompanion(')
+          ..write('id: $id, ')
+          ..write('procedureCode: $procedureCode, ')
+          ..write('stratificationCode: $stratificationCode, ')
+          ..write('stratificationName: $stratificationName, ')
+          ..write('rule: $rule')
           ..write(')'))
         .toString();
   }
@@ -8056,6 +9725,13 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     this,
   );
   late final $CdssRulesTable cdssRules = $CdssRulesTable(this);
+  late final $AyushmanPackagesTable ayushmanPackages = $AyushmanPackagesTable(
+    this,
+  );
+  late final $HbpProceduresTable hbpProcedures = $HbpProceduresTable(this);
+  late final $HbpImplantsTable hbpImplants = $HbpImplantsTable(this);
+  late final $HbpStratificationsTable hbpStratifications =
+      $HbpStratificationsTable(this);
   late final Index patientsHospitalRegNoIdx = Index(
     'patients_hospital_reg_no_idx',
     'CREATE INDEX patients_hospital_reg_no_idx ON patients (hospital_reg_no)',
@@ -8095,6 +9771,10 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     clinicalActions,
     clinicalOutcomes,
     cdssRules,
+    ayushmanPackages,
+    hbpProcedures,
+    hbpImplants,
+    hbpStratifications,
     patientsHospitalRegNoIdx,
     patientsAdmissionDateIdx,
     clinicalEncountersPatientOccurredIdx,
@@ -8158,6 +9838,8 @@ typedef $$PatientsTableCreateCompanionBuilder =
       Value<DateTime?> dateOfBirth,
       Value<String?> sex,
       Value<String?> phone,
+      Value<String?> phoneNumber,
+      Value<String?> alternateContact,
       Value<String?> diagnosis,
       Value<String> currentDepartment,
       Value<String?> surgeryType,
@@ -8180,6 +9862,8 @@ typedef $$PatientsTableUpdateCompanionBuilder =
       Value<DateTime?> dateOfBirth,
       Value<String?> sex,
       Value<String?> phone,
+      Value<String?> phoneNumber,
+      Value<String?> alternateContact,
       Value<String?> diagnosis,
       Value<String> currentDepartment,
       Value<String?> surgeryType,
@@ -8319,6 +10003,16 @@ class $$PatientsTableFilterComposer
 
   ColumnFilters<String> get phone => $composableBuilder(
     column: $table.phone,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get phoneNumber => $composableBuilder(
+    column: $table.phoneNumber,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get alternateContact => $composableBuilder(
+    column: $table.alternateContact,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -8522,6 +10216,16 @@ class $$PatientsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get phoneNumber => $composableBuilder(
+    column: $table.phoneNumber,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get alternateContact => $composableBuilder(
+    column: $table.alternateContact,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get diagnosis => $composableBuilder(
     column: $table.diagnosis,
     builder: (column) => ColumnOrderings(column),
@@ -8611,6 +10315,16 @@ class $$PatientsTableAnnotationComposer
 
   GeneratedColumn<String> get phone =>
       $composableBuilder(column: $table.phone, builder: (column) => column);
+
+  GeneratedColumn<String> get phoneNumber => $composableBuilder(
+    column: $table.phoneNumber,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get alternateContact => $composableBuilder(
+    column: $table.alternateContact,
+    builder: (column) => column,
+  );
 
   GeneratedColumn<String> get diagnosis =>
       $composableBuilder(column: $table.diagnosis, builder: (column) => column);
@@ -8799,6 +10513,8 @@ class $$PatientsTableTableManager
                 Value<DateTime?> dateOfBirth = const Value.absent(),
                 Value<String?> sex = const Value.absent(),
                 Value<String?> phone = const Value.absent(),
+                Value<String?> phoneNumber = const Value.absent(),
+                Value<String?> alternateContact = const Value.absent(),
                 Value<String?> diagnosis = const Value.absent(),
                 Value<String> currentDepartment = const Value.absent(),
                 Value<String?> surgeryType = const Value.absent(),
@@ -8819,6 +10535,8 @@ class $$PatientsTableTableManager
                 dateOfBirth: dateOfBirth,
                 sex: sex,
                 phone: phone,
+                phoneNumber: phoneNumber,
+                alternateContact: alternateContact,
                 diagnosis: diagnosis,
                 currentDepartment: currentDepartment,
                 surgeryType: surgeryType,
@@ -8841,6 +10559,8 @@ class $$PatientsTableTableManager
                 Value<DateTime?> dateOfBirth = const Value.absent(),
                 Value<String?> sex = const Value.absent(),
                 Value<String?> phone = const Value.absent(),
+                Value<String?> phoneNumber = const Value.absent(),
+                Value<String?> alternateContact = const Value.absent(),
                 Value<String?> diagnosis = const Value.absent(),
                 Value<String> currentDepartment = const Value.absent(),
                 Value<String?> surgeryType = const Value.absent(),
@@ -8861,6 +10581,8 @@ class $$PatientsTableTableManager
                 dateOfBirth: dateOfBirth,
                 sex: sex,
                 phone: phone,
+                phoneNumber: phoneNumber,
+                alternateContact: alternateContact,
                 diagnosis: diagnosis,
                 currentDepartment: currentDepartment,
                 surgeryType: surgeryType,
@@ -12986,6 +14708,8 @@ typedef $$CdssRulesTableCreateCompanionBuilder =
       required String triggerCondition,
       required String suggestedAction,
       required String evidenceSource,
+      Value<bool> requiresPreAuth,
+      Value<String> medicolegalAlert,
       Value<DateTime> lastUpdated,
       Value<int> rowid,
     });
@@ -12996,6 +14720,8 @@ typedef $$CdssRulesTableUpdateCompanionBuilder =
       Value<String> triggerCondition,
       Value<String> suggestedAction,
       Value<String> evidenceSource,
+      Value<bool> requiresPreAuth,
+      Value<String> medicolegalAlert,
       Value<DateTime> lastUpdated,
       Value<int> rowid,
     });
@@ -13031,6 +14757,16 @@ class $$CdssRulesTableFilterComposer
 
   ColumnFilters<String> get evidenceSource => $composableBuilder(
     column: $table.evidenceSource,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get requiresPreAuth => $composableBuilder(
+    column: $table.requiresPreAuth,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get medicolegalAlert => $composableBuilder(
+    column: $table.medicolegalAlert,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -13074,6 +14810,16 @@ class $$CdssRulesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<bool> get requiresPreAuth => $composableBuilder(
+    column: $table.requiresPreAuth,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get medicolegalAlert => $composableBuilder(
+    column: $table.medicolegalAlert,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get lastUpdated => $composableBuilder(
     column: $table.lastUpdated,
     builder: (column) => ColumnOrderings(column),
@@ -13109,6 +14855,16 @@ class $$CdssRulesTableAnnotationComposer
 
   GeneratedColumn<String> get evidenceSource => $composableBuilder(
     column: $table.evidenceSource,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get requiresPreAuth => $composableBuilder(
+    column: $table.requiresPreAuth,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get medicolegalAlert => $composableBuilder(
+    column: $table.medicolegalAlert,
     builder: (column) => column,
   );
 
@@ -13151,6 +14907,8 @@ class $$CdssRulesTableTableManager
                 Value<String> triggerCondition = const Value.absent(),
                 Value<String> suggestedAction = const Value.absent(),
                 Value<String> evidenceSource = const Value.absent(),
+                Value<bool> requiresPreAuth = const Value.absent(),
+                Value<String> medicolegalAlert = const Value.absent(),
                 Value<DateTime> lastUpdated = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => CdssRulesCompanion(
@@ -13159,6 +14917,8 @@ class $$CdssRulesTableTableManager
                 triggerCondition: triggerCondition,
                 suggestedAction: suggestedAction,
                 evidenceSource: evidenceSource,
+                requiresPreAuth: requiresPreAuth,
+                medicolegalAlert: medicolegalAlert,
                 lastUpdated: lastUpdated,
                 rowid: rowid,
               ),
@@ -13169,6 +14929,8 @@ class $$CdssRulesTableTableManager
                 required String triggerCondition,
                 required String suggestedAction,
                 required String evidenceSource,
+                Value<bool> requiresPreAuth = const Value.absent(),
+                Value<String> medicolegalAlert = const Value.absent(),
                 Value<DateTime> lastUpdated = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => CdssRulesCompanion.insert(
@@ -13177,6 +14939,8 @@ class $$CdssRulesTableTableManager
                 triggerCondition: triggerCondition,
                 suggestedAction: suggestedAction,
                 evidenceSource: evidenceSource,
+                requiresPreAuth: requiresPreAuth,
+                medicolegalAlert: medicolegalAlert,
                 lastUpdated: lastUpdated,
                 rowid: rowid,
               ),
@@ -13200,6 +14964,818 @@ typedef $$CdssRulesTableProcessedTableManager =
       $$CdssRulesTableUpdateCompanionBuilder,
       (CdssRule, BaseReferences<_$AppDatabase, $CdssRulesTable, CdssRule>),
       CdssRule,
+      PrefetchHooks Function()
+    >;
+typedef $$AyushmanPackagesTableCreateCompanionBuilder =
+    AyushmanPackagesCompanion Function({
+      required String code,
+      required String packageName,
+      Value<String?> stratification,
+      Value<double?> rate,
+      Value<int> rowid,
+    });
+typedef $$AyushmanPackagesTableUpdateCompanionBuilder =
+    AyushmanPackagesCompanion Function({
+      Value<String> code,
+      Value<String> packageName,
+      Value<String?> stratification,
+      Value<double?> rate,
+      Value<int> rowid,
+    });
+
+class $$AyushmanPackagesTableFilterComposer
+    extends Composer<_$AppDatabase, $AyushmanPackagesTable> {
+  $$AyushmanPackagesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get code => $composableBuilder(
+    column: $table.code,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get packageName => $composableBuilder(
+    column: $table.packageName,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get stratification => $composableBuilder(
+    column: $table.stratification,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get rate => $composableBuilder(
+    column: $table.rate,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$AyushmanPackagesTableOrderingComposer
+    extends Composer<_$AppDatabase, $AyushmanPackagesTable> {
+  $$AyushmanPackagesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get code => $composableBuilder(
+    column: $table.code,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get packageName => $composableBuilder(
+    column: $table.packageName,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get stratification => $composableBuilder(
+    column: $table.stratification,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get rate => $composableBuilder(
+    column: $table.rate,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$AyushmanPackagesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $AyushmanPackagesTable> {
+  $$AyushmanPackagesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get code =>
+      $composableBuilder(column: $table.code, builder: (column) => column);
+
+  GeneratedColumn<String> get packageName => $composableBuilder(
+    column: $table.packageName,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get stratification => $composableBuilder(
+    column: $table.stratification,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get rate =>
+      $composableBuilder(column: $table.rate, builder: (column) => column);
+}
+
+class $$AyushmanPackagesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $AyushmanPackagesTable,
+          AyushmanPackage,
+          $$AyushmanPackagesTableFilterComposer,
+          $$AyushmanPackagesTableOrderingComposer,
+          $$AyushmanPackagesTableAnnotationComposer,
+          $$AyushmanPackagesTableCreateCompanionBuilder,
+          $$AyushmanPackagesTableUpdateCompanionBuilder,
+          (
+            AyushmanPackage,
+            BaseReferences<
+              _$AppDatabase,
+              $AyushmanPackagesTable,
+              AyushmanPackage
+            >,
+          ),
+          AyushmanPackage,
+          PrefetchHooks Function()
+        > {
+  $$AyushmanPackagesTableTableManager(
+    _$AppDatabase db,
+    $AyushmanPackagesTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$AyushmanPackagesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$AyushmanPackagesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$AyushmanPackagesTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> code = const Value.absent(),
+                Value<String> packageName = const Value.absent(),
+                Value<String?> stratification = const Value.absent(),
+                Value<double?> rate = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => AyushmanPackagesCompanion(
+                code: code,
+                packageName: packageName,
+                stratification: stratification,
+                rate: rate,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String code,
+                required String packageName,
+                Value<String?> stratification = const Value.absent(),
+                Value<double?> rate = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => AyushmanPackagesCompanion.insert(
+                code: code,
+                packageName: packageName,
+                stratification: stratification,
+                rate: rate,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$AyushmanPackagesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $AyushmanPackagesTable,
+      AyushmanPackage,
+      $$AyushmanPackagesTableFilterComposer,
+      $$AyushmanPackagesTableOrderingComposer,
+      $$AyushmanPackagesTableAnnotationComposer,
+      $$AyushmanPackagesTableCreateCompanionBuilder,
+      $$AyushmanPackagesTableUpdateCompanionBuilder,
+      (
+        AyushmanPackage,
+        BaseReferences<_$AppDatabase, $AyushmanPackagesTable, AyushmanPackage>,
+      ),
+      AyushmanPackage,
+      PrefetchHooks Function()
+    >;
+typedef $$HbpProceduresTableCreateCompanionBuilder =
+    HbpProceduresCompanion Function({
+      required String procedureCode,
+      required String packageName,
+      required String procedureName,
+      Value<double?> rate,
+      Value<String> specialty,
+      Value<int> rowid,
+    });
+typedef $$HbpProceduresTableUpdateCompanionBuilder =
+    HbpProceduresCompanion Function({
+      Value<String> procedureCode,
+      Value<String> packageName,
+      Value<String> procedureName,
+      Value<double?> rate,
+      Value<String> specialty,
+      Value<int> rowid,
+    });
+
+class $$HbpProceduresTableFilterComposer
+    extends Composer<_$AppDatabase, $HbpProceduresTable> {
+  $$HbpProceduresTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get procedureCode => $composableBuilder(
+    column: $table.procedureCode,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get packageName => $composableBuilder(
+    column: $table.packageName,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get procedureName => $composableBuilder(
+    column: $table.procedureName,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get rate => $composableBuilder(
+    column: $table.rate,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get specialty => $composableBuilder(
+    column: $table.specialty,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$HbpProceduresTableOrderingComposer
+    extends Composer<_$AppDatabase, $HbpProceduresTable> {
+  $$HbpProceduresTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get procedureCode => $composableBuilder(
+    column: $table.procedureCode,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get packageName => $composableBuilder(
+    column: $table.packageName,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get procedureName => $composableBuilder(
+    column: $table.procedureName,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get rate => $composableBuilder(
+    column: $table.rate,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get specialty => $composableBuilder(
+    column: $table.specialty,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$HbpProceduresTableAnnotationComposer
+    extends Composer<_$AppDatabase, $HbpProceduresTable> {
+  $$HbpProceduresTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get procedureCode => $composableBuilder(
+    column: $table.procedureCode,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get packageName => $composableBuilder(
+    column: $table.packageName,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get procedureName => $composableBuilder(
+    column: $table.procedureName,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get rate =>
+      $composableBuilder(column: $table.rate, builder: (column) => column);
+
+  GeneratedColumn<String> get specialty =>
+      $composableBuilder(column: $table.specialty, builder: (column) => column);
+}
+
+class $$HbpProceduresTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $HbpProceduresTable,
+          HbpProcedure,
+          $$HbpProceduresTableFilterComposer,
+          $$HbpProceduresTableOrderingComposer,
+          $$HbpProceduresTableAnnotationComposer,
+          $$HbpProceduresTableCreateCompanionBuilder,
+          $$HbpProceduresTableUpdateCompanionBuilder,
+          (
+            HbpProcedure,
+            BaseReferences<_$AppDatabase, $HbpProceduresTable, HbpProcedure>,
+          ),
+          HbpProcedure,
+          PrefetchHooks Function()
+        > {
+  $$HbpProceduresTableTableManager(_$AppDatabase db, $HbpProceduresTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$HbpProceduresTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$HbpProceduresTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$HbpProceduresTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> procedureCode = const Value.absent(),
+                Value<String> packageName = const Value.absent(),
+                Value<String> procedureName = const Value.absent(),
+                Value<double?> rate = const Value.absent(),
+                Value<String> specialty = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => HbpProceduresCompanion(
+                procedureCode: procedureCode,
+                packageName: packageName,
+                procedureName: procedureName,
+                rate: rate,
+                specialty: specialty,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String procedureCode,
+                required String packageName,
+                required String procedureName,
+                Value<double?> rate = const Value.absent(),
+                Value<String> specialty = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => HbpProceduresCompanion.insert(
+                procedureCode: procedureCode,
+                packageName: packageName,
+                procedureName: procedureName,
+                rate: rate,
+                specialty: specialty,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$HbpProceduresTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $HbpProceduresTable,
+      HbpProcedure,
+      $$HbpProceduresTableFilterComposer,
+      $$HbpProceduresTableOrderingComposer,
+      $$HbpProceduresTableAnnotationComposer,
+      $$HbpProceduresTableCreateCompanionBuilder,
+      $$HbpProceduresTableUpdateCompanionBuilder,
+      (
+        HbpProcedure,
+        BaseReferences<_$AppDatabase, $HbpProceduresTable, HbpProcedure>,
+      ),
+      HbpProcedure,
+      PrefetchHooks Function()
+    >;
+typedef $$HbpImplantsTableCreateCompanionBuilder =
+    HbpImplantsCompanion Function({
+      Value<int> id,
+      required String procedureCode,
+      required String implantCode,
+      required String implantName,
+      Value<double?> maximumPrice,
+    });
+typedef $$HbpImplantsTableUpdateCompanionBuilder =
+    HbpImplantsCompanion Function({
+      Value<int> id,
+      Value<String> procedureCode,
+      Value<String> implantCode,
+      Value<String> implantName,
+      Value<double?> maximumPrice,
+    });
+
+class $$HbpImplantsTableFilterComposer
+    extends Composer<_$AppDatabase, $HbpImplantsTable> {
+  $$HbpImplantsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get procedureCode => $composableBuilder(
+    column: $table.procedureCode,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get implantCode => $composableBuilder(
+    column: $table.implantCode,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get implantName => $composableBuilder(
+    column: $table.implantName,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get maximumPrice => $composableBuilder(
+    column: $table.maximumPrice,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$HbpImplantsTableOrderingComposer
+    extends Composer<_$AppDatabase, $HbpImplantsTable> {
+  $$HbpImplantsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get procedureCode => $composableBuilder(
+    column: $table.procedureCode,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get implantCode => $composableBuilder(
+    column: $table.implantCode,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get implantName => $composableBuilder(
+    column: $table.implantName,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get maximumPrice => $composableBuilder(
+    column: $table.maximumPrice,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$HbpImplantsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $HbpImplantsTable> {
+  $$HbpImplantsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get procedureCode => $composableBuilder(
+    column: $table.procedureCode,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get implantCode => $composableBuilder(
+    column: $table.implantCode,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get implantName => $composableBuilder(
+    column: $table.implantName,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get maximumPrice => $composableBuilder(
+    column: $table.maximumPrice,
+    builder: (column) => column,
+  );
+}
+
+class $$HbpImplantsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $HbpImplantsTable,
+          HbpImplant,
+          $$HbpImplantsTableFilterComposer,
+          $$HbpImplantsTableOrderingComposer,
+          $$HbpImplantsTableAnnotationComposer,
+          $$HbpImplantsTableCreateCompanionBuilder,
+          $$HbpImplantsTableUpdateCompanionBuilder,
+          (
+            HbpImplant,
+            BaseReferences<_$AppDatabase, $HbpImplantsTable, HbpImplant>,
+          ),
+          HbpImplant,
+          PrefetchHooks Function()
+        > {
+  $$HbpImplantsTableTableManager(_$AppDatabase db, $HbpImplantsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$HbpImplantsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$HbpImplantsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$HbpImplantsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<String> procedureCode = const Value.absent(),
+                Value<String> implantCode = const Value.absent(),
+                Value<String> implantName = const Value.absent(),
+                Value<double?> maximumPrice = const Value.absent(),
+              }) => HbpImplantsCompanion(
+                id: id,
+                procedureCode: procedureCode,
+                implantCode: implantCode,
+                implantName: implantName,
+                maximumPrice: maximumPrice,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required String procedureCode,
+                required String implantCode,
+                required String implantName,
+                Value<double?> maximumPrice = const Value.absent(),
+              }) => HbpImplantsCompanion.insert(
+                id: id,
+                procedureCode: procedureCode,
+                implantCode: implantCode,
+                implantName: implantName,
+                maximumPrice: maximumPrice,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$HbpImplantsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $HbpImplantsTable,
+      HbpImplant,
+      $$HbpImplantsTableFilterComposer,
+      $$HbpImplantsTableOrderingComposer,
+      $$HbpImplantsTableAnnotationComposer,
+      $$HbpImplantsTableCreateCompanionBuilder,
+      $$HbpImplantsTableUpdateCompanionBuilder,
+      (
+        HbpImplant,
+        BaseReferences<_$AppDatabase, $HbpImplantsTable, HbpImplant>,
+      ),
+      HbpImplant,
+      PrefetchHooks Function()
+    >;
+typedef $$HbpStratificationsTableCreateCompanionBuilder =
+    HbpStratificationsCompanion Function({
+      Value<int> id,
+      required String procedureCode,
+      required String stratificationCode,
+      required String stratificationName,
+      Value<String> rule,
+    });
+typedef $$HbpStratificationsTableUpdateCompanionBuilder =
+    HbpStratificationsCompanion Function({
+      Value<int> id,
+      Value<String> procedureCode,
+      Value<String> stratificationCode,
+      Value<String> stratificationName,
+      Value<String> rule,
+    });
+
+class $$HbpStratificationsTableFilterComposer
+    extends Composer<_$AppDatabase, $HbpStratificationsTable> {
+  $$HbpStratificationsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get procedureCode => $composableBuilder(
+    column: $table.procedureCode,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get stratificationCode => $composableBuilder(
+    column: $table.stratificationCode,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get stratificationName => $composableBuilder(
+    column: $table.stratificationName,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get rule => $composableBuilder(
+    column: $table.rule,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$HbpStratificationsTableOrderingComposer
+    extends Composer<_$AppDatabase, $HbpStratificationsTable> {
+  $$HbpStratificationsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get procedureCode => $composableBuilder(
+    column: $table.procedureCode,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get stratificationCode => $composableBuilder(
+    column: $table.stratificationCode,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get stratificationName => $composableBuilder(
+    column: $table.stratificationName,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get rule => $composableBuilder(
+    column: $table.rule,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$HbpStratificationsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $HbpStratificationsTable> {
+  $$HbpStratificationsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get procedureCode => $composableBuilder(
+    column: $table.procedureCode,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get stratificationCode => $composableBuilder(
+    column: $table.stratificationCode,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get stratificationName => $composableBuilder(
+    column: $table.stratificationName,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get rule =>
+      $composableBuilder(column: $table.rule, builder: (column) => column);
+}
+
+class $$HbpStratificationsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $HbpStratificationsTable,
+          HbpStratification,
+          $$HbpStratificationsTableFilterComposer,
+          $$HbpStratificationsTableOrderingComposer,
+          $$HbpStratificationsTableAnnotationComposer,
+          $$HbpStratificationsTableCreateCompanionBuilder,
+          $$HbpStratificationsTableUpdateCompanionBuilder,
+          (
+            HbpStratification,
+            BaseReferences<
+              _$AppDatabase,
+              $HbpStratificationsTable,
+              HbpStratification
+            >,
+          ),
+          HbpStratification,
+          PrefetchHooks Function()
+        > {
+  $$HbpStratificationsTableTableManager(
+    _$AppDatabase db,
+    $HbpStratificationsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$HbpStratificationsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$HbpStratificationsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$HbpStratificationsTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<String> procedureCode = const Value.absent(),
+                Value<String> stratificationCode = const Value.absent(),
+                Value<String> stratificationName = const Value.absent(),
+                Value<String> rule = const Value.absent(),
+              }) => HbpStratificationsCompanion(
+                id: id,
+                procedureCode: procedureCode,
+                stratificationCode: stratificationCode,
+                stratificationName: stratificationName,
+                rule: rule,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required String procedureCode,
+                required String stratificationCode,
+                required String stratificationName,
+                Value<String> rule = const Value.absent(),
+              }) => HbpStratificationsCompanion.insert(
+                id: id,
+                procedureCode: procedureCode,
+                stratificationCode: stratificationCode,
+                stratificationName: stratificationName,
+                rule: rule,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$HbpStratificationsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $HbpStratificationsTable,
+      HbpStratification,
+      $$HbpStratificationsTableFilterComposer,
+      $$HbpStratificationsTableOrderingComposer,
+      $$HbpStratificationsTableAnnotationComposer,
+      $$HbpStratificationsTableCreateCompanionBuilder,
+      $$HbpStratificationsTableUpdateCompanionBuilder,
+      (
+        HbpStratification,
+        BaseReferences<
+          _$AppDatabase,
+          $HbpStratificationsTable,
+          HbpStratification
+        >,
+      ),
+      HbpStratification,
       PrefetchHooks Function()
     >;
 
@@ -13226,4 +15802,12 @@ class $AppDatabaseManager {
       $$ClinicalOutcomesTableTableManager(_db, _db.clinicalOutcomes);
   $$CdssRulesTableTableManager get cdssRules =>
       $$CdssRulesTableTableManager(_db, _db.cdssRules);
+  $$AyushmanPackagesTableTableManager get ayushmanPackages =>
+      $$AyushmanPackagesTableTableManager(_db, _db.ayushmanPackages);
+  $$HbpProceduresTableTableManager get hbpProcedures =>
+      $$HbpProceduresTableTableManager(_db, _db.hbpProcedures);
+  $$HbpImplantsTableTableManager get hbpImplants =>
+      $$HbpImplantsTableTableManager(_db, _db.hbpImplants);
+  $$HbpStratificationsTableTableManager get hbpStratifications =>
+      $$HbpStratificationsTableTableManager(_db, _db.hbpStratifications);
 }

@@ -68,6 +68,14 @@ class ProblemDashboardScreen extends ConsumerWidget {
         ? <ClinicalAction>[]
         : await dao.watchActionsForProblem(problems.first.id).first;
     final encounters = await dao.getEncountersForPatient(patient.id);
+    final icd11Codes = <String>{};
+    final pmJayCodes = <String>{};
+    for (final encounter in encounters) {
+      final icd = encounter.dynamicData['icd11_code'];
+      final pmJay = encounter.dynamicData['pmjay_code'];
+      if (icd is String && icd.trim().isNotEmpty) icd11Codes.add(icd.trim());
+      if (pmJay is String && pmJay.trim().isNotEmpty) pmJayCodes.add(pmJay.trim());
+    }
     if (encounters.isEmpty) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -109,6 +117,8 @@ class ProblemDashboardScreen extends ConsumerWidget {
         problems.where((p) => p.status == 'Resolved').toList(),
         actions,
         'Follow-up as advised.',
+        icd11Codes: icd11Codes.toList(growable: false),
+        pmJayCodes: pmJayCodes.toList(growable: false),
       ),
       _ => await generator.generateOpdPrescription(
         patient,

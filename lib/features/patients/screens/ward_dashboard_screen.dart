@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/database/local_database.dart';
 import '../../../core/models/department_templates.dart';
 import '../../../core/providers/app_providers.dart';
+import '../../../core/widgets/shimmer_loading.dart';
 
 class WardDashboardScreen extends ConsumerStatefulWidget {
   const WardDashboardScreen({super.key});
@@ -59,13 +61,31 @@ class _WardDashboardScreenState extends ConsumerState<WardDashboardScreen> {
                   itemCount: rows.length,
                   itemBuilder: (context, index) {
                     final row = rows[index];
-                    return Card(
-                      child: ListTile(
-                        title: Text('${row.sbp ?? '-'} / ${row.dbp ?? '-'} mmHg · PR ${row.pulse ?? '-'}'),
-                        subtitle: Text(row.aiSummary ?? row.note ?? row.chiefComplaint ?? 'Clinical encounter'),
-                        isThreeLine: true,
-                        trailing: Text('${row.occurredAt.hour.toString().padLeft(2, '0')}:${row.occurredAt.minute.toString().padLeft(2, '0')}'),
-                      ),
+                    final tag = 'ward-patient-${row.id}';
+                    return FutureBuilder<Patient?>(
+                      future: ref.read(clinicalDaoProvider).findPatient(row.patientId),
+                      builder: (context, patientSnapshot) {
+                        final patient = patientSnapshot.data;
+                        if (patientSnapshot.connectionState != ConnectionState.done) {
+                          return const SizedBox(height: 72, child: ShimmerLoading(rows: 1));
+                        }
+                        return Hero(
+                          tag: tag,
+                          child: Material(
+                            color: Colors.transparent,
+                            child: Card(
+                              child: ListTile(
+                                leading: CircleAvatar(child: Text(patient?.fullName.substring(0, 1).toUpperCase() ?? '?')),
+                                title: Text(patient?.fullName ?? 'Unknown patient'),
+                                subtitle: Text('${row.sbp ?? '-'} / ${row.dbp ?? '-'} mmHg · PR ${row.pulse ?? '-'}\n${row.aiSummary ?? row.note ?? row.chiefComplaint ?? 'Clinical encounter'}'),
+                                isThreeLine: true,
+                                trailing: Text('${row.occurredAt.hour.toString().padLeft(2, '0')}:${row.occurredAt.minute.toString().padLeft(2, '0')}'),
+                                onTap: patient == null ? null : () => context.go('/patients/${patient.id}', extra: {'patient': patient, 'heroTag': tag}),
+                              ),
+                            ),
+                          ),
+                        );
+                      },
                     );
                   },
                 );

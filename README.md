@@ -4,14 +4,15 @@ Offline-first clinical workflow companion for patient registration, bedside
 encounters, investigation tracking, drug lookup, personal clinical notes, and
 de-identified CSV export.
 
-The app works locally by default. To enable Supabase sync, build or run with:
+The app starts with the secure configuration screen. Enter the Supabase URL,
+Supabase publishable key, Gemini API key, and database password there. Values
+are stored in the portable `clinical_data/config.aes` file.
+
+For code generation during development, run:
 
 ```sh
-flutter run \
-  --dart-define=SUPABASE_URL=https://your-project.supabase.co \
-  --dart-define=SUPABASE_ANON_KEY=your-anon-key \
-  --dart-define=CLINICAL_OWNER_ID=your-user-id
+dart run build_runner build
 ```
 
-`CLINICAL_OWNER_ID` defaults to `local-practitioner` for local-only use. When
-Supabase authentication has an active user, that user ID takes precedence.
+The Windows portable workflow downloads the SQLite catalogs, generates sources,
+and builds the release artifact with `flutter build windows --release`.

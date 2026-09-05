@@ -80,6 +80,7 @@ class ClinicalPdfGenerator {
     List<PatientProblem> resolvedProblems,
     List<ClinicalAction> dischargeMeds,
     String followUp,
+    {List<String> icd11Codes = const [], List<String> pmJayCodes = const []}
   ) => _document(_header(patient, 'Discharge Summary'), [
     pw.Text(
       'Resolved Problems: ${resolvedProblems.map((p) => p.problemName).join(', ')}',
@@ -88,6 +89,12 @@ class ClinicalPdfGenerator {
       ['Medication', 'Type'],
       ...dischargeMeds.map((a) => [a.description, a.actionType]),
     ]),
+    if (icd11Codes.isNotEmpty) ...[
+      pw.SizedBox(height: 10),
+      pw.Text('ICD-11 codes: ${icd11Codes.join(', ')}'),
+    ],
+    if (pmJayCodes.isNotEmpty)
+      pw.Text('PM-JAY package codes: ${pmJayCodes.join(', ')}'),
     pw.Text('Follow-up: $followUp'),
   ]);
 

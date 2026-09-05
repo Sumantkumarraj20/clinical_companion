@@ -3,7 +3,10 @@ import 'dart:convert';
 import 'package:drift/drift.dart';
 import 'package:uuid/uuid.dart';
 
+import '../../models/ai_extraction_result.dart';
+import '../../../features/billing/services/clinical_coding_service.dart';
 import '../local/local_database.dart';
+import '../services/identity_resolution_service.dart';
 
 part 'clinical_dao.g.dart';
 
@@ -29,13 +32,154 @@ class PendingInvestigation {
     PatientProblems,
     ClinicalActions,
     ClinicalOutcomes,
+    AyushmanPackages,
+    HbpProcedures,
+    HbpImplants,
+    HbpStratifications,
   ],
 )
 class ClinicalDao extends DatabaseAccessor<AppDatabase>
     with _$ClinicalDaoMixin {
-  ClinicalDao(super.db);
+  ClinicalDao(super.db, {this.defaultOwnerId = 'local-practitioner'});
 
   final _ids = const Uuid();
+  final String defaultOwnerId;
+
+  Future<ClinicalEncounter> processAiExtraction(
+    AiExtractionResult result,
+    String imagePath,
+    {String? patientIdOverride}
+  ) async {
+    return transaction(() async {
+      final patientId = patientIdOverride ??
+          await IdentityResolutionService(
+            database: attachedDatabase,
+            ownerId: defaultOwnerId,
+          ).resolvePatient(result.patientIdentity);
+      final occurredAt = _date(result.encounterContext.date) ?? DateTime.now().toUtc();
+      final vitals = result.vitals;
+      final encounterId = _ids.v4();
+      final encounter = ClinicalEncountersCompanion.insert(
+        id: Value(encounterId),
+        ownerId: defaultOwnerId,
+        patientId: patientId,
+        encounterType: Value(result.encounterContext.documentType),
+        occurredAt: Value(occurredAt),
+        sbp: Value(vitals.sbp),
+        dbp: Value(vitals.dbp),
+        pulse: Value(vitals.pr),
+        temperatureC: Value(vitals.temperatureC),
+        spo2: Value(vitals.spo2),
+        consultantAdvice: Value(result.clinicalSummary),
+        dynamicData: Value(result.toJson()),
+        department: Value(result.encounterContext.department),
+        wardName: Value(result.encounterContext.wardBed),
+        imagePath: Value(imagePath),
+        aiSummary: Value(result.clinicalSummary),
+      );
+      await into(clinicalEncounters).insert(encounter);
+      final savedEncounter = await (select(clinicalEncounters)
+            ..where((row) => row.id.equals(encounterId)))
+          .getSingle();
+      await _enqueue(
+        ownerId: defaultOwnerId,
+        entityType: 'clinical_encounters',
+        entityId: savedEncounter.id,
+        operation: 'insert',
+        payload: _clinicalEncounterPayload(savedEncounter),
+        clientUpdatedAt: savedEncounter.updatedAt,
+      );
+
+      for (final lab in result.labResults) {
+        final id = _ids.v4();
+        await into(investigations).insert(
+          InvestigationsCompanion.insert(
+            id: Value(id),
+            ownerId: defaultOwnerId,
+            patientId: patientId,
+            testName: lab.testName,
+            status: const Value('result_received'),
+            orderedAt: Value(occurredAt),
+            resultReceivedAt: Value(occurredAt),
+            resultValue: Value(lab.value),
+            resultUnit: Value(lab.unit),
+            notes: Value(lab.isAbnormal ? 'AI flagged as abnormal' : null),
+          ),
+        );
+        final savedLab = await (select(investigations)
+              ..where((row) => row.id.equals(id)))
+            .getSingle();
+        await _enqueue(
+          ownerId: defaultOwnerId,
+          entityType: 'investigation_tracker',
+          entityId: savedLab.id,
+          operation: 'insert',
+          payload: _investigationPayload(savedLab),
+          clientUpdatedAt: savedLab.updatedAt,
+        );
+      }
+
+      if (result.medicationsOrdered.isNotEmpty) {
+        final problemId = _ids.v4();
+        await into(patientProblems).insert(
+          PatientProblemsCompanion.insert(
+            id: Value(problemId),
+            patientId: patientId,
+            problemName: 'AI Document Capture',
+          ),
+        );
+        await _enqueue(
+          ownerId: defaultOwnerId,
+          entityType: 'patient_problems',
+          entityId: problemId,
+          operation: 'insert',
+          payload: {
+            'id': problemId,
+            'patient_id': patientId,
+            'problem_name': 'AI Document Capture',
+            'status': 'Active',
+          },
+          clientUpdatedAt: occurredAt,
+        );
+        for (final medication in result.medicationsOrdered) {
+          final id = _ids.v4();
+          final description = [
+            medication.drugName,
+            medication.dosage,
+            medication.frequency,
+          ].whereType<String>().where((item) => item.isNotEmpty).join(' ');
+          await into(clinicalActions).insert(
+            ClinicalActionsCompanion.insert(
+              id: Value(id),
+              patientId: patientId,
+              problemId: problemId,
+              actionType: 'Medication',
+              description: description,
+              occurredAt: Value(occurredAt),
+              metadata: Value(jsonEncode(medication.toJson())),
+            ),
+          );
+          await _enqueue(
+            ownerId: defaultOwnerId,
+            entityType: 'clinical_actions',
+            entityId: id,
+            operation: 'insert',
+            payload: {
+              'id': id,
+              'patient_id': patientId,
+              'problem_id': problemId,
+              'action_type': 'Medication',
+              'description': description,
+              'occurred_at': occurredAt.toIso8601String(),
+              'metadata': medication.toJson(),
+            },
+            clientUpdatedAt: occurredAt,
+          );
+        }
+      }
+      return savedEncounter;
+    });
+  }
 
   Stream<List<Patient>> watchAllPatients() {
     return (select(patients)..orderBy([
@@ -99,6 +243,182 @@ class ClinicalDao extends DatabaseAccessor<AppDatabase>
       );
       await delete(patients).delete(patient);
     });
+  }
+
+  Future<ClinicalEncounter> saveManualEncounter({
+    required String ownerId,
+    required String? patientId,
+    required String patientName,
+    required int? patientAge,
+    required String? patientGender,
+    required String? patientPhone,
+    required int? sbp,
+    required int? dbp,
+    required int? pulse,
+    required int? spo2,
+    required String chiefComplaint,
+    required String note,
+  }) async {
+    return transaction(() async {
+      var resolvedPatientId = patientId;
+      if (resolvedPatientId == null) {
+        final identity = PatientIdentity(
+          name: patientName.trim().isEmpty ? null : patientName.trim(),
+          age: patientAge,
+          gender: patientGender?.trim().isEmpty == true
+              ? null
+              : patientGender?.trim(),
+        );
+        resolvedPatientId = await IdentityResolutionService(
+          database: attachedDatabase,
+          ownerId: ownerId,
+        ).resolvePatient(identity);
+        if (patientPhone?.trim().isNotEmpty == true) {
+          final patient = await findPatient(resolvedPatientId);
+          if (patient != null && patient.phoneNumber == null) {
+            final updatedAt = DateTime.now().toUtc();
+            await update(patients).write(
+              PatientsCompanion(
+                phoneNumber: Value(patientPhone!.trim()),
+                updatedAt: Value(updatedAt),
+              ),
+            );
+            await _enqueue(
+              ownerId: patient.ownerId,
+              entityType: 'patients',
+              entityId: patient.id,
+              operation: 'update',
+              payload: {
+                ..._patientPayload(patient),
+                'phone_number': patientPhone.trim(),
+                'updated_at': updatedAt.toIso8601String(),
+              },
+              clientUpdatedAt: updatedAt,
+            );
+          }
+        }
+      }
+      final id = _ids.v4();
+      await into(clinicalEncounters).insert(
+        ClinicalEncountersCompanion.insert(
+          id: Value(id),
+          ownerId: ownerId,
+          patientId: resolvedPatientId,
+          encounterType: const Value('Manual Quick Entry'),
+          sbp: Value(sbp),
+          dbp: Value(dbp),
+          pulse: Value(pulse),
+          spo2: Value(spo2),
+          chiefComplaint: Value(chiefComplaint.trim().isEmpty ? null : chiefComplaint.trim()),
+          note: Value(note.trim().isEmpty ? null : note.trim()),
+          consultantAdvice: Value(note.trim().isEmpty ? null : note.trim()),
+        ),
+      );
+      final saved = await (select(clinicalEncounters)..where((row) => row.id.equals(id))).getSingle();
+      await _enqueue(
+        ownerId: ownerId,
+        entityType: 'clinical_encounters',
+        entityId: saved.id,
+        operation: 'insert',
+        payload: _clinicalEncounterPayload(saved),
+        clientUpdatedAt: saved.updatedAt,
+      );
+      return saved;
+    });
+  }
+
+  Future<void> deleteCorruptEncounter(String encounterId) async {
+    await transaction(() async {
+      final encounter = await (select(clinicalEncounters)
+            ..where((row) => row.id.equals(encounterId)))
+          .getSingleOrNull();
+      if (encounter == null) return;
+      await _enqueue(
+        ownerId: encounter.ownerId,
+        entityType: 'clinical_encounters',
+        entityId: encounter.id,
+        operation: 'delete',
+        payload: {'id': encounter.id, 'reason': 'corrupt_record'},
+        clientUpdatedAt: DateTime.now().toUtc(),
+      );
+      await (delete(clinicalEncounters)..where((row) => row.id.equals(encounterId))).go();
+    });
+  }
+
+  Future<void> mergePatients({
+    required String primaryPatientId,
+    required String duplicatePatientId,
+  }) async {
+    if (primaryPatientId == duplicatePatientId) {
+      throw ArgumentError('Primary and duplicate patients must be different');
+    }
+    await transaction(() async {
+      final primary = await findPatient(primaryPatientId);
+      final duplicate = await findPatient(duplicatePatientId);
+      if (primary == null || duplicate == null) {
+        throw StateError('Both patient records must exist before merging');
+      }
+      if (primary.ownerId != duplicate.ownerId) {
+        throw StateError('Patients from different owners cannot be merged');
+      }
+      final now = DateTime.now().toUtc();
+      final encounters = await (select(clinicalEncounters)
+            ..where((row) => row.patientId.equals(duplicatePatientId)))
+          .get();
+      for (final row in encounters) {
+        await (update(clinicalEncounters)..where((item) => item.id.equals(row.id)))
+            .write(ClinicalEncountersCompanion(patientId: Value(primaryPatientId), updatedAt: Value(now)));
+        await _enqueue(ownerId: row.ownerId, entityType: 'clinical_encounters', entityId: row.id,
+          operation: 'update', payload: {..._clinicalEncounterPayload(row), 'patient_id': primaryPatientId}, clientUpdatedAt: now);
+      }
+      final investigations = await (select(this.investigations)
+            ..where((row) => row.patientId.equals(duplicatePatientId)))
+          .get();
+      for (final row in investigations) {
+        await (update(this.investigations)..where((item) => item.id.equals(row.id)))
+            .write(InvestigationsCompanion(patientId: Value(primaryPatientId), updatedAt: Value(now)));
+        await _enqueue(ownerId: row.ownerId, entityType: 'investigation_tracker', entityId: row.id,
+          operation: 'update', payload: {..._investigationPayload(row), 'patient_id': primaryPatientId}, clientUpdatedAt: now);
+      }
+      final problems = await (select(patientProblems)
+            ..where((row) => row.patientId.equals(duplicatePatientId)))
+          .get();
+      for (final row in problems) {
+        await (update(patientProblems)..where((item) => item.id.equals(row.id)))
+            .write(PatientProblemsCompanion(patientId: Value(primaryPatientId), updatedAt: Value(now)));
+      }
+      final actions = await (select(clinicalActions)
+            ..where((row) => row.patientId.equals(duplicatePatientId)))
+          .get();
+      for (final row in actions) {
+        await (update(clinicalActions)..where((item) => item.id.equals(row.id)))
+            .write(ClinicalActionsCompanion(patientId: Value(primaryPatientId)));
+        await _enqueue(ownerId: primary.ownerId, entityType: 'clinical_actions', entityId: row.id,
+          operation: 'update', payload: {'id': row.id, 'patient_id': primaryPatientId, 'problem_id': row.problemId,
+            'action_type': row.actionType, 'description': row.description, 'metadata': row.metadata}, clientUpdatedAt: now);
+      }
+      await _enqueue(ownerId: duplicate.ownerId, entityType: 'patients', entityId: duplicate.id,
+        operation: 'delete', payload: {'id': duplicate.id, 'merged_into': primary.id}, clientUpdatedAt: now);
+      await (delete(patients)..where((row) => row.id.equals(duplicatePatientId))).go();
+    });
+  }
+
+  Future<List<AyushmanPackage>> searchAyushmanPackages(String query) async {
+    final term = query.trim();
+    if (term.isEmpty) return const [];
+    final escaped = term.replaceAll('"', ' ');
+    return customSelect(
+      'SELECT p.* FROM ayushman_packages p JOIN ayushman_packages_fts f ON f.rowid = p.rowid WHERE f MATCH ? ORDER BY p.package_name LIMIT 50',
+      variables: [Variable<String>('"$escaped"*')],
+      readsFrom: {ayushmanPackages},
+    ).map(
+      (row) => AyushmanPackage(
+        code: row.read<String>('code'),
+        packageName: row.read<String>('package_name'),
+        stratification: row.readNullable<String>('stratification'),
+        rate: row.readNullable<double>('rate'),
+      ),
+    ).get();
   }
 
   Stream<List<ClinicalEncounter>> watchClinicalEncounters(DateTime day) {
@@ -820,6 +1140,8 @@ class ClinicalDao extends DatabaseAccessor<AppDatabase>
     'date_of_birth': row.dateOfBirth?.toIso8601String(),
     'sex': row.sex,
     'phone': row.phone,
+    'phone_number': row.phoneNumber,
+    'alternate_contact': row.alternateContact,
     'diagnosis': row.diagnosis,
     'current_department': row.currentDepartment,
     'surgery_type': row.surgeryType,
@@ -901,6 +1223,8 @@ class ClinicalDao extends DatabaseAccessor<AppDatabase>
     dateOfBirth: Value(_date(j['date_of_birth'])),
     sex: Value(j['sex'] as String?),
     phone: Value(j['phone'] as String?),
+    phoneNumber: Value(j['phone_number'] as String?),
+    alternateContact: Value(j['alternate_contact'] as String?),
     diagnosis: Value(j['diagnosis'] as String?),
     currentDepartment: Value(j['current_department'] as String? ?? 'Surgery'),
     surgeryType: Value(j['surgery_type'] as String?),
@@ -1001,4 +1325,109 @@ class ClinicalDao extends DatabaseAccessor<AppDatabase>
     final remote = _date(remoteUpdatedAt) ?? fallback;
     return localUpdatedAt != null && localUpdatedAt.isAfter(remote);
   }
+
+  Future<List<HbpProcedureDetails>> searchAyushmanPackagesWithDetails(
+    String query,
+  ) async {
+    final normalized = query.trim();
+    if (normalized.isEmpty) return const [];
+    final terms = normalized
+        .split(RegExp(r'\s+'))
+        .where((term) => term.isNotEmpty)
+        .map((term) => '${term.replaceAll('"', '')}*')
+        .join(' ');
+    final rows = await customSelect(
+      '''
+      SELECT
+        p.procedure_code AS p_code,
+        p.package_name AS p_package,
+        p.procedure_name AS p_name,
+        p.rate AS p_rate,
+        p.specialty AS p_specialty,
+        i.implant_code AS i_code,
+        i.implant_name AS i_name,
+        i.maximum_price AS i_price,
+        s.stratification_code AS s_code,
+        s.stratification_name AS s_name,
+        s.rule AS s_rule
+      FROM hbp_fts f
+      JOIN hbp_procedures p ON p.rowid = f.rowid
+      LEFT JOIN hbp_implants i ON i.procedure_code = p.procedure_code
+      LEFT JOIN hbp_stratifications s ON s.procedure_code = p.procedure_code
+      WHERE hbp_fts MATCH ?
+      ORDER BY p.package_name, p.procedure_name
+      LIMIT 500
+      ''',
+      variables: [Variable<String>(terms)],
+      readsFrom: {hbpProcedures, hbpImplants, hbpStratifications},
+    ).get();
+
+    final grouped = <String, _HbpAccumulator>{};
+    for (final row in rows) {
+      final code = row.read<String>('p_code');
+      final item = grouped.putIfAbsent(
+        code,
+        () => _HbpAccumulator(
+          procedureCode: code,
+          packageName: row.read<String>('p_package'),
+          procedureName: row.read<String>('p_name'),
+          specialty: row.read<String>('p_specialty'),
+          rate: row.readNullable<double>('p_rate'),
+        ),
+      );
+      final implantCode = row.readNullable<String>('i_code');
+      if (implantCode != null && implantCode.isNotEmpty) {
+        item.implants.putIfAbsent(
+          implantCode,
+          () => HbpImplantDetail(
+            code: implantCode,
+            name: row.read<String>('i_name'),
+            maximumPrice: row.readNullable<double>('i_price'),
+          ),
+        );
+      }
+      final stratificationCode = row.readNullable<String>('s_code');
+      if (stratificationCode != null && stratificationCode.isNotEmpty) {
+        item.stratifications.putIfAbsent(
+          stratificationCode,
+          () => HbpStratificationDetail(
+            code: stratificationCode,
+            name: row.read<String>('s_name'),
+            rule: row.read<String>('s_rule'),
+          ),
+        );
+      }
+    }
+    return [
+      for (final item in grouped.values) item.toDetails(),
+    ];
+  }
+}
+
+class _HbpAccumulator {
+  _HbpAccumulator({
+    required this.procedureCode,
+    required this.packageName,
+    required this.procedureName,
+    required this.specialty,
+    required this.rate,
+  });
+
+  final String procedureCode;
+  final String packageName;
+  final String procedureName;
+  final String specialty;
+  final double? rate;
+  final implants = <String, HbpImplantDetail>{};
+  final stratifications = <String, HbpStratificationDetail>{};
+
+  HbpProcedureDetails toDetails() => HbpProcedureDetails(
+    procedureCode: procedureCode,
+    packageName: packageName,
+    procedureName: procedureName,
+    specialty: specialty,
+    rate: rate,
+    implants: implants.values.toList(growable: false),
+    stratifications: stratifications.values.toList(growable: false),
+  );
 }

@@ -3,13 +3,17 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/database/local_database.dart';
+import '../../../core/database/daos/clinical_dao.dart';
 import '../../../core/providers/app_providers.dart';
+import '../../../core/widgets/shimmer_loading.dart';
 
 class PatientTimelineScreen extends ConsumerStatefulWidget {
-  const PatientTimelineScreen({required this.patient, super.key});
+  const PatientTimelineScreen({required this.patient, this.heroTag, super.key});
   final Patient patient;
+  final String? heroTag;
 
   @override
   ConsumerState<PatientTimelineScreen> createState() =>
@@ -18,6 +22,7 @@ class PatientTimelineScreen extends ConsumerStatefulWidget {
 
 class _PatientTimelineScreenState extends ConsumerState<PatientTimelineScreen> {
   final _expanded = <String>{};
+  bool _showFinancialAlert = false;
   late final Future<(List<ClinicalEncounter>, List<Investigation>)>
   _timelineFuture;
 
@@ -41,8 +46,28 @@ class _PatientTimelineScreenState extends ConsumerState<PatientTimelineScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('${widget.patient.fullName} · timeline'),
+        title: Row(
+          children: [
+            Hero(
+              tag: widget.heroTag ?? 'patient-${widget.patient.id}',
+              child: CircleAvatar(child: Text(widget.patient.fullName.substring(0, 1).toUpperCase())),
+            ),
+            const SizedBox(width: 10),
+            Expanded(child: Text('${widget.patient.fullName} · timeline')),
+          ],
+        ),
         actions: [
+          if ((widget.patient.phoneNumber ?? widget.patient.phone)?.isNotEmpty == true)
+            IconButton(
+              tooltip: 'Call patient',
+              icon: const Icon(Icons.call_outlined),
+              onPressed: () => launchUrl(Uri(scheme: 'tel', path: widget.patient.phoneNumber ?? widget.patient.phone)),
+            ),
+          IconButton(
+            tooltip: 'Select PM-JAY procedure',
+            icon: const Icon(Icons.account_balance_wallet_outlined),
+            onPressed: _selectProcedure,
+          ),
           IconButton(
             tooltip: 'Capture clinical document',
             icon: const Icon(Icons.document_scanner_outlined),
@@ -63,7 +88,7 @@ class _PatientTimelineScreenState extends ConsumerState<PatientTimelineScreen> {
         future: _timelineFuture,
         builder: (context, snapshot) {
           if (snapshot.connectionState != ConnectionState.done) {
-            return const Center(child: CircularProgressIndicator());
+            return const ShimmerLoading();
           }
           if (snapshot.hasError) {
             return Center(
@@ -74,18 +99,44 @@ class _PatientTimelineScreenState extends ConsumerState<PatientTimelineScreen> {
           if (events.isEmpty) {
             return const Center(child: Text('No clinical history recorded'));
           }
-          return ListView.builder(
-            padding: const EdgeInsets.fromLTRB(18, 20, 18, 40),
-            itemCount: events.length,
-            itemBuilder: (context, index) => _TimelineRow(
-              event: events[index],
-              isLast: index == events.length - 1,
-              expanded: _expanded.contains(events[index].id),
-              onTap: () => setState(() {
-                final id = events[index].id;
-                if (!_expanded.add(id)) _expanded.remove(id);
-              }),
-            ),
+          return Column(
+            children: [
+              if (_showFinancialAlert)
+                const MaterialBanner(
+                  backgroundColor: Color(0xfffff3cd),
+                  leading: Icon(Icons.account_balance_wallet_outlined, color: Colors.black87),
+                  content: Text(
+                    'FINANCIAL ALERT: This procedure requires pre-authorization under PM-JAY. Ensure clinical photographs and baseline labs are uploaded to TMS.',
+                    style: TextStyle(color: Colors.black87),
+                  ),
+                  actions: [SizedBox.shrink()],
+                ),
+              if (_isMedicoLegal)
+                const MaterialBanner(
+                  backgroundColor: Color(0xffffd7d7),
+                  leading: Icon(Icons.gavel_outlined, color: Colors.red),
+                  content: Text(
+                    'MEDICOLEGAL ALERT: Ensure MLC (Medico-Legal Case) stamp is present on the physical file and police intimation is recorded.',
+                    style: TextStyle(color: Colors.black87),
+                  ),
+                  actions: [SizedBox.shrink()],
+                ),
+              Expanded(
+                child: ListView.builder(
+                  padding: const EdgeInsets.fromLTRB(18, 20, 18, 40),
+                  itemCount: events.length,
+                  itemBuilder: (context, index) => _TimelineRow(
+                    event: events[index],
+                    isLast: index == events.length - 1,
+                    expanded: _expanded.contains(events[index].id),
+                    onTap: () => setState(() {
+                      final id = events[index].id;
+                      if (!_expanded.add(id)) _expanded.remove(id);
+                    }),
+                  ),
+                ),
+              ),
+            ],
           );
         },
       ),
@@ -144,6 +195,78 @@ class _PatientTimelineScreenState extends ConsumerState<PatientTimelineScreen> {
       return const [];
     }
   }
+
+  bool get _isMedicoLegal {
+    final diagnosis = widget.patient.diagnosis?.toLowerCase() ?? '';
+    return diagnosis.contains('trauma') || diagnosis.contains('poison');
+  }
+
+  Future<void> _selectProcedure() async {
+    final selected = await showModalBottomSheet<AyushmanPackage>(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => _ProcedureSearchSheet(dao: ref.read(clinicalDaoProvider)),
+    );
+    if (selected != null && mounted) {
+      final rules = await ref.read(cdssDaoProvider).rulesForProblem(selected.code);
+      final namedRules = await ref.read(cdssDaoProvider).rulesForProblem(selected.packageName);
+      setState(() => _showFinancialAlert = [
+        ...rules,
+        ...namedRules,
+      ].any((rule) => rule.requiresPreAuth));
+    }
+  }
+}
+
+class _ProcedureSearchSheet extends StatefulWidget {
+  const _ProcedureSearchSheet({required this.dao});
+  final ClinicalDao dao;
+
+  @override
+  State<_ProcedureSearchSheet> createState() => _ProcedureSearchSheetState();
+}
+
+class _ProcedureSearchSheetState extends State<_ProcedureSearchSheet> {
+  final _query = TextEditingController();
+  Future<List<AyushmanPackage>>? _results;
+
+  @override
+  void dispose() { _query.dispose(); super.dispose(); }
+
+  @override
+  Widget build(BuildContext context) => SafeArea(
+    child: Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextField(
+            controller: _query,
+            autofocus: true,
+            decoration: const InputDecoration(labelText: 'Search PM-JAY package', prefixIcon: Icon(Icons.search)),
+            onChanged: (value) => setState(() => _results = widget.dao.searchAyushmanPackages(value)),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            height: 320,
+            child: FutureBuilder<List<AyushmanPackage>>(
+              future: _results,
+              builder: (context, snapshot) => ListView(
+                children: [
+                  for (final package in snapshot.data ?? const <AyushmanPackage>[])
+                    ListTile(
+                      title: Text(package.packageName),
+                      subtitle: Text('${package.code} · ₹${package.rate?.toStringAsFixed(2) ?? 'rate unavailable'}'),
+                      onTap: () => Navigator.pop(context, package),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
 }
 
 class _TimelineEvent {

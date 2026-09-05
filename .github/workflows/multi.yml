@@ -1,0 +1,115 @@
+name: Multi-Platform Build
+
+on:
+  workflow_dispatch: 
+
+jobs:
+  build:
+    name: Build on ${{ matrix.os }} for ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false # If one OS fails, let the others continue building
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: android
+            build_cmd: flutter build apk --release --split-per-abi
+            artifact_name: Android-APK
+
+          - os: ubuntu-latest
+            target: linux
+            build_cmd: flutter build linux --release
+            artifact_name: Linux-Portable
+
+          - os: macos-latest
+            target: ios
+            build_cmd: flutter build ios --release --no-codesign
+            artifact_name: iOS-App
+
+          - os: macos-latest
+            target: macos
+            build_cmd: flutter build macos --release
+            artifact_name: macOS-App
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Java (Android only)
+        if: matrix.target == 'android'
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Install Linux Build Dependencies (Linux only)
+        if: matrix.target == 'linux'
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y ninja-build libgtk-3-dev pkg-config cmake
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true # Caches dependencies to speed up subsequent builds
+
+      - name: Download Large SQLite Databases
+        run: |
+          mkdir -p assets
+          python3 -m pip install gdown
+          # Replace with your actual Google Drive File IDs
+          gdown "18ZTmOadJS1g-_UY-F5zbNcnpBk7XzHRW" -O assets/clinical_drugs.sqlite
+          gdown "1GOcmFoQPdVSbuQChghlhcrjT2JAr_FHv" -O assets/pmjay_hbp.sqlite
+        shell: bash
+
+      - name: Install Dependencies
+        run: flutter pub get
+
+      - name: Build App
+        run: ${{ matrix.build_cmd }}
+
+      - name: Package iOS Artifact (iOS only)
+        if: matrix.target == 'ios'
+        run: |
+          cd build/ios/iphoneos
+          mkdir Payload
+          cp -r Runner.app Payload/
+          zip -r app.ipa Payload
+        shell: bash
+
+      - name: Package macOS Artifact (macOS only)
+        if: matrix.target == 'macos'
+        run: |
+          # Compress macOS .app bundle to preserve file permissions
+          cd build/macos/Build/Products/Release
+          zip -r macos_app.zip clinical_companion.app
+        shell: bash
+
+      - name: Upload Android Artifacts
+        if: matrix.target == 'android'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: build/app/outputs/flutter-apk/*-release.apk
+
+      - name: Upload Linux Artifacts
+        if: matrix.target == 'linux'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: build/linux/x64/release/bundle/*
+
+      - name: Upload iOS Artifacts
+        if: matrix.target == 'ios'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: build/ios/iphoneos/app.ipa
+
+      - name: Upload macOS Artifacts
+        if: matrix.target == 'macos'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: build/macos/Build/Products/Release/macos_app.zip

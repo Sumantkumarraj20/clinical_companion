@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/database/daos/clinical_dao.dart';
 import '../../../core/database/local_database.dart';
 import '../../../core/providers/app_providers.dart';
+import '../../../core/widgets/shimmer_loading.dart';
 
 class LabTrackerScreen extends ConsumerWidget {
   const LabTrackerScreen({super.key});
@@ -17,7 +18,7 @@ class LabTrackerScreen extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(title: const Text('Investigation tracker')),
       body: pending.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
+        loading: () => const ShimmerLoading(),
         error: (error, stack) =>
             Center(child: Text('Unable to load investigations: $error')),
         data: (items) {
