@@ -85,17 +85,14 @@ class _DrugReferenceScreenState extends ConsumerState<DrugReferenceScreen> {
                       title: Text(drug.brandName ?? drug.genericName),
                       subtitle: Text(
                         [
-                              drug.genericName,
-                              drug.chemicalClass,
-                              drug.uses,
-                              drug.sideEffects,
-                              drug.strength,
-                              drug.dosageForm,
-                              drug.route,
-                            ]
-                            .whereType<String>()
-                            .where((value) => value.isNotEmpty)
-                            .join(' · '),
+                          drug.genericName,
+                          drug.chemicalClass,
+                          drug.uses,
+                          drug.sideEffects,
+                          drug.route,
+                        ].whereType<String>().where((value) => value.isNotEmpty).join(' • '),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
                       ),
                       trailing: IconButton(
                         tooltip: drug.isTrusted

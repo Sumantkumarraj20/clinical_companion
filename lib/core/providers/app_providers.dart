@@ -171,3 +171,7 @@ final wikiEntriesProvider = StreamProvider<List<WikiEntry>>(
         ownerId: ref.watch(currentOwnerIdProvider),
       ),
 );
+
+final patientListProvider = StreamProvider(
+  (ref) => ref.watch(clinicalDaoProvider).watchAllPatients(),
+);

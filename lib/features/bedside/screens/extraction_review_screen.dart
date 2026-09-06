@@ -32,14 +32,17 @@ class _ExtractionReviewScreenState
   late final TextEditingController _gender;
   late final TextEditingController _summary;
   late final TextEditingController _documentType;
+
   late final TextEditingController _sbp;
   late final TextEditingController _dbp;
   late final TextEditingController _pulse;
   late final TextEditingController _spo2;
   late final TextEditingController _tempF;
+
   late final Future<Patient?> _matchedPatient;
   late final List<_EditableLab> _labs;
   late final List<_EditableMedication> _medications;
+
   String? _selectedPatientId;
   bool _saving = false;
 
@@ -51,26 +54,30 @@ class _ExtractionReviewScreenState
     _age = TextEditingController(text: identity.age?.toString() ?? '');
     _registration = TextEditingController(text: identity.hospitalRegNo ?? '');
     _gender = TextEditingController(text: identity.gender ?? '');
+
     _summary = TextEditingController(text: widget.extraction.clinicalSummary);
     _documentType = TextEditingController(
       text: widget.extraction.encounterContext.documentType,
     );
+
     final vitals = widget.extraction.vitals;
     _sbp = TextEditingController(text: vitals.sbp?.toString() ?? '');
     _dbp = TextEditingController(text: vitals.dbp?.toString() ?? '');
     _pulse = TextEditingController(text: vitals.pr?.toString() ?? '');
     _spo2 = TextEditingController(text: vitals.spo2?.toString() ?? '');
     _tempF = TextEditingController(text: vitals.temperatureC?.toString() ?? '');
+
     _matchedPatient = IdentityResolutionService(
       database: ref.read(appDatabaseProvider),
       ownerId: ref.read(currentOwnerIdProvider),
     ).findExistingPatient(identity);
+
     _labs = [
       for (final lab in widget.extraction.labResults) _EditableLab.from(lab),
     ];
     _medications = [
-      for (final medication in widget.extraction.medicationsOrdered)
-        _EditableMedication.from(medication),
+      for (final med in widget.extraction.medicationsOrdered)
+        _EditableMedication.from(med),
     ];
   }
 
@@ -90,8 +97,8 @@ class _ExtractionReviewScreenState
     for (final lab in _labs) {
       lab.dispose();
     }
-    for (final medication in _medications) {
-      medication.dispose();
+    for (final med in _medications) {
+      med.dispose();
     }
     super.dispose();
   }
@@ -116,27 +123,29 @@ class _ExtractionReviewScreenState
         spo2: int.tryParse(_spo2.text.trim()),
         temperatureC: double.tryParse(_tempF.text.trim()),
       ),
-      labResults: [
-        for (final lab in _labs)
-          AiLabResult(
-            testName: lab.testName.text.trim(),
-            value: lab.value.text.trim(),
-            unit: lab.unit.text.trim().isEmpty ? null : lab.unit.text.trim(),
-            isAbnormal: lab.isAbnormal,
-          ),
-      ],
-      medicationsOrdered: [
-        for (final medication in _medications)
-          OrderedMedication(
-            drugName: medication.drugName.text.trim(),
-            dosage: medication.dosage.text.trim().isEmpty
-                ? null
-                : medication.dosage.text.trim(),
-            frequency: medication.frequency.text.trim().isEmpty
-                ? null
-                : medication.frequency.text.trim(),
-          ),
-      ],
+      labResults: _labs
+          .map(
+            (lab) => AiLabResult(
+              testName: lab.testName.text.trim(),
+              value: lab.value.text.trim(),
+              unit: lab.unit.text.trim().isEmpty ? null : lab.unit.text.trim(),
+              isAbnormal: lab.isAbnormal,
+            ),
+          )
+          .toList(),
+      medicationsOrdered: _medications
+          .map(
+            (med) => OrderedMedication(
+              drugName: med.drugName.text.trim(),
+              dosage: med.dosage.text.trim().isEmpty
+                  ? null
+                  : med.dosage.text.trim(),
+              frequency: med.frequency.text.trim().isEmpty
+                  ? null
+                  : med.frequency.text.trim(),
+            ),
+          )
+          .toList(),
       clinicalSummary: _summary.text.trim(),
     );
   }
@@ -144,20 +153,29 @@ class _ExtractionReviewScreenState
   Future<void> _save() async {
     setState(() => _saving = true);
     try {
-      await ref.read(clinicalDaoProvider).processAiExtraction(
+      await ref
+          .read(clinicalDaoProvider)
+          .processAiExtraction(
             _editedExtraction(),
             widget.imagePath,
             patientIdOverride: _selectedPatientId,
           );
+
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Document saved to the clinical record')),
+        const SnackBar(
+          content: Text('Document successfully saved to clinical record'),
+          backgroundColor: Colors.green,
+        ),
       );
       Navigator.of(context).pop();
     } catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not save document: $error')),
+          SnackBar(
+            content: Text('Could not save document: $error'),
+            backgroundColor: Colors.red,
+          ),
         );
       }
     } finally {
@@ -169,29 +187,55 @@ class _ExtractionReviewScreenState
     return InputDecoration(
       labelText: label,
       helperText: missing ? 'Missing or not confidently identified' : null,
-      prefixIcon: missing ? const Icon(Icons.warning_amber_rounded) : null,
+      prefixIcon: missing
+          ? const Icon(Icons.warning_amber_rounded, size: 20)
+          : null,
       filled: missing,
       fillColor: missing ? Colors.amber.withValues(alpha: 0.08) : null,
       enabledBorder: missing
           ? const OutlineInputBorder(
               borderSide: BorderSide(color: Colors.amber),
             )
-          : null,
+          : const OutlineInputBorder(),
+      border: const OutlineInputBorder(),
+      isDense: true,
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    final patients = ref.watch(clinicalDaoProvider).watchAllPatients();
+    final patientsStream = ref.watch(clinicalDaoProvider).watchAllPatients();
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Review extracted document')),
+      appBar: AppBar(title: const Text('Review AI Extraction')),
+      bottomNavigationBar: BottomAppBar(
+        child: FilledButton.icon(
+          onPressed: _saving ? null : _save,
+          icon: _saving
+              ? const SizedBox.square(
+                  dimension: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
+                )
+              : const Icon(Icons.save_rounded),
+          label: Text(
+            _saving ? 'Processing & Saving...' : 'Confirm & Save Record',
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+          ),
+        ),
+      ),
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
-            final image = SizedBox(
-              height: constraints.maxHeight > 700
-                  ? constraints.maxHeight * 0.46
-                  : 300,
+            final imageViewer = Container(
+              height: constraints.maxWidth > 900 ? double.infinity : 250,
+              decoration: BoxDecoration(
+                border: Border(
+                  bottom: BorderSide(color: Theme.of(context).dividerColor),
+                ),
+              ),
               child: PhotoView(
                 imageProvider: FileImage(File(widget.imagePath)),
                 backgroundDecoration: BoxDecoration(
@@ -200,17 +244,79 @@ class _ExtractionReviewScreenState
                 minScale: PhotoViewComputedScale.contained,
               ),
             );
-            final form = SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
+
+            final formContent = SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
               keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Text('Patient identity', style: Theme.of(context).textTheme.titleLarge),
+                  Text(
+                    'Patient Link',
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      color: Theme.of(context).primaryColor,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  FutureBuilder<Patient?>(
+                    future: _matchedPatient,
+                    builder: (context, matchSnapshot) {
+                      final matched = matchSnapshot.data;
+
+                      return StreamBuilder<List<Patient>>(
+                        stream: patientsStream,
+                        builder: (context, snapshot) {
+                          final patientsList = snapshot.data ?? const [];
+
+                          if (_selectedPatientId != null &&
+                              !patientsList.any(
+                                (p) => p.id == _selectedPatientId,
+                              )) {
+                            _selectedPatientId = null;
+                          }
+
+                          return DropdownButtonFormField<String>(
+                            initialValue: _selectedPatientId ?? matched?.id,
+                            isExpanded: true,
+                            decoration: const InputDecoration(
+                              labelText: 'Attach to Patient Record',
+                              border: OutlineInputBorder(),
+                            ),
+                            items: [
+                              const DropdownMenuItem<String>(
+                                value: null,
+                                child: Text(
+                                  '✨ Create New Patient Profile (AUTO-GEN)',
+                                ),
+                              ),
+                              ...patientsList.map(
+                                (p) => DropdownMenuItem(
+                                  value: p.id,
+                                  child: Text(
+                                    '${p.fullName} | ${p.hospitalRegNo}',
+                                  ),
+                                ),
+                              ),
+                            ],
+                            onChanged: (val) =>
+                                setState(() => _selectedPatientId = val),
+                          );
+                        },
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 24),
+                  Text(
+                    'Extracted Identity',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
                   const SizedBox(height: 12),
                   TextField(
                     controller: _name,
-                    decoration: _decoration('Name', missing: _name.text.isEmpty),
+                    decoration: _decoration(
+                      'Patient Name',
+                      missing: _name.text.isEmpty,
+                    ),
                     onChanged: (_) => setState(() {}),
                   ),
                   const SizedBox(height: 12),
@@ -220,7 +326,10 @@ class _ExtractionReviewScreenState
                         child: TextField(
                           controller: _age,
                           keyboardType: TextInputType.number,
-                          decoration: _decoration('Age', missing: _age.text.isEmpty),
+                          decoration: _decoration(
+                            'Age',
+                            missing: _age.text.isEmpty,
+                          ),
                           onChanged: (_) => setState(() {}),
                         ),
                       ),
@@ -228,7 +337,10 @@ class _ExtractionReviewScreenState
                       Expanded(
                         child: TextField(
                           controller: _gender,
-                          decoration: _decoration('Gender', missing: _gender.text.isEmpty),
+                          decoration: _decoration(
+                            'Gender',
+                            missing: _gender.text.isEmpty,
+                          ),
                           onChanged: (_) => setState(() {}),
                         ),
                       ),
@@ -238,70 +350,25 @@ class _ExtractionReviewScreenState
                   TextField(
                     controller: _registration,
                     decoration: _decoration(
-                      'Hospital registration number',
+                      'Hospital Reg Number (CR No.)',
                       missing: _registration.text.isEmpty,
                     ),
                     onChanged: (_) => setState(() {}),
                   ),
-                  const SizedBox(height: 20),
-                  Text('Patient link', style: Theme.of(context).textTheme.titleLarge),
-                  const SizedBox(height: 8),
-                  FutureBuilder<Patient?>(
-                    future: _matchedPatient,
-                    builder: (context, matchSnapshot) {
-                      final matched = matchSnapshot.data;
-                      return StreamBuilder<List<Patient>>(
-                        stream: patients,
-                        builder: (context, snapshot) {
-                      final values = snapshot.data ?? const <Patient>[];
-                      return DropdownButtonFormField<String>(
-                        initialValue: _selectedPatientId,
-                        isExpanded: true,
-                        decoration: InputDecoration(
-                          labelText: _selectedPatientId != null || matched != null
-                              ? 'Existing patient'
-                              : 'New Patient Profile (AUTO generated on save)',
-                        ),
-                        items: values
-                            .map(
-                              (patient) => DropdownMenuItem(
-                                value: patient.id,
-                                child: Text(
-                                  '${patient.fullName} | ${patient.hospitalRegNo}',
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                            )
-                            .toList(),
-                        onChanged: (value) => setState(() => _selectedPatientId = value),
-                      );
-                        },
-                      );
-                    },
+                  const SizedBox(height: 24),
+                  Text(
+                    'Vitals & Context',
+                    style: Theme.of(context).textTheme.titleMedium,
                   ),
-                  const SizedBox(height: 8),
-                  FutureBuilder<Patient?>(
-                    future: _matchedPatient,
-                    builder: (context, snapshot) => Text(
-                      _selectedPatientId != null
-                          ? 'Manual patient override selected. New findings will be added to that history.'
-                          : snapshot.data == null
-                              ? 'A new patient profile will be created if no exact or fuzzy match is found.'
-                              : 'Matched existing patient: ${snapshot.data!.fullName} · ${snapshot.data!.hospitalRegNo}',
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _documentType,
+                    decoration: _decoration(
+                      'Document Type (e.g. CBC, Progress Note)',
+                      missing: _documentType.text.isEmpty,
                     ),
+                    onChanged: (_) => setState(() {}),
                   ),
-                  if (_selectedPatientId != null)
-                    FutureBuilder<List<ClinicalEncounter>>(
-                      future: ref.read(clinicalDaoProvider).getEncountersForPatient(
-                            _selectedPatientId!,
-                          ),
-                      builder: (context, snapshot) => Text(
-                        'History: ${snapshot.data?.length ?? 0} prior encounters',
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
-                    ),
-                  const SizedBox(height: 20),
-                  Text('Vitals', style: Theme.of(context).textTheme.titleLarge),
                   const SizedBox(height: 12),
                   Row(
                     children: [
@@ -317,64 +384,79 @@ class _ExtractionReviewScreenState
                     children: [
                       Expanded(child: _numberField('SpO2', _spo2)),
                       const SizedBox(width: 8),
-                      Expanded(child: _numberField('Temp F', _tempF, decimal: true)),
+                      Expanded(
+                        child: _numberField(
+                          'Temp (°C/F)',
+                          _tempF,
+                          decimal: true,
+                        ),
+                      ),
                     ],
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 24),
                   if (_labs.isNotEmpty) ...[
-                    Text('Laboratory results', style: Theme.of(context).textTheme.titleLarge),
+                    Text(
+                      'Labs Extracted',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
                     const SizedBox(height: 12),
-                    for (final lab in _labs) _labEditor(lab),
-                    const SizedBox(height: 8),
+                    ..._labs.map((lab) => _labEditor(lab)),
+                    const SizedBox(height: 12),
                   ],
                   if (_medications.isNotEmpty) ...[
-                    Text('Medications ordered', style: Theme.of(context).textTheme.titleLarge),
+                    Text(
+                      'Medications Ordered',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
                     const SizedBox(height: 12),
-                    for (final medication in _medications) _medicationEditor(medication),
-                    const SizedBox(height: 8),
+                    ..._medications.map((med) => _medicationEditor(med)),
+                    const SizedBox(height: 12),
                   ],
-                  TextField(
-                    controller: _documentType,
-                    decoration: _decoration('Document type', missing: _documentType.text.isEmpty),
-                    onChanged: (_) => setState(() {}),
+                  Text(
+                    'AI Clinical Summary',
+                    style: Theme.of(context).textTheme.titleMedium,
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 8),
                   TextField(
                     controller: _summary,
                     minLines: 3,
                     maxLines: 6,
-                    decoration: _decoration('Clinical summary', missing: _summary.text.isEmpty),
-                  ),
-                  const SizedBox(height: 24),
-                  SizedBox(
-                    height: 64,
-                    child: FilledButton.icon(
-                      onPressed: _saving ? null : _save,
-                      icon: _saving
-                          ? const SizedBox.square(
-                              dimension: 22,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Icon(Icons.verified_outlined),
-                      label: Text(
-                        _saving ? 'Saving...' : 'Confirm & Save to Record',
-                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-                      ),
+                    decoration: _decoration(
+                      'Summary of findings',
+                      missing: _summary.text.isEmpty,
                     ),
                   ),
+                  const SizedBox(height: 40),
                 ],
               ),
             );
-            return constraints.maxWidth >= 900
-                ? Row(children: [Expanded(child: image), Expanded(child: form)])
-                : Column(children: [image, Expanded(child: form)]);
+
+            if (constraints.maxWidth >= 900) {
+              return Row(
+                children: [
+                  Expanded(child: imageViewer),
+                  Expanded(child: formContent),
+                ],
+              );
+            } else {
+              return Column(
+                children: [
+                  imageViewer,
+                  Expanded(child: formContent),
+                ],
+              );
+            }
           },
         ),
       ),
     );
   }
 
-  Widget _numberField(String label, TextEditingController controller, {bool decimal = false}) {
+  Widget _numberField(
+    String label,
+    TextEditingController controller, {
+    bool decimal = false,
+  }) {
     return TextField(
       controller: controller,
       keyboardType: TextInputType.numberWithOptions(decimal: decimal),
@@ -384,48 +466,93 @@ class _ExtractionReviewScreenState
   }
 
   Widget _labEditor(_EditableLab lab) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              Expanded(child: TextField(controller: lab.testName, decoration: _decoration('Test name', missing: lab.testName.text.isEmpty), onChanged: (_) => setState(() {}))),
-              const SizedBox(width: 8),
-              Expanded(child: TextField(controller: lab.value, decoration: _decoration('Value', missing: lab.value.text.isEmpty), onChanged: (_) => setState(() {}))),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              Expanded(child: TextField(controller: lab.unit, decoration: const InputDecoration(labelText: 'Unit'))),
-              Checkbox(value: lab.isAbnormal, onChanged: (value) => setState(() => lab.isAbnormal = value ?? false)),
-              const Text('Abnormal'),
-            ],
-          ),
-        ],
+    return Card(
+      elevation: 0,
+      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+      margin: const EdgeInsets.only(bottom: 8),
+      child: Padding(
+        padding: const EdgeInsets.all(8.0),
+        child: Row(
+          children: [
+            Expanded(
+              flex: 2,
+              child: TextField(
+                controller: lab.testName,
+                decoration: const InputDecoration(
+                  labelText: 'Test Name',
+                  isDense: true,
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: TextField(
+                controller: lab.value,
+                decoration: const InputDecoration(
+                  labelText: 'Value',
+                  isDense: true,
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: TextField(
+                controller: lab.unit,
+                decoration: const InputDecoration(
+                  labelText: 'Unit',
+                  isDense: true,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  Widget _medicationEditor(_EditableMedication medication) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Row(
-        children: [
-          Expanded(child: TextField(controller: medication.drugName, decoration: _decoration('Drug', missing: medication.drugName.text.isEmpty), onChanged: (_) => setState(() {}))),
-          const SizedBox(width: 8),
-          Expanded(child: TextField(controller: medication.dosage, decoration: const InputDecoration(labelText: 'Dosage'))),
-          const SizedBox(width: 8),
-          Expanded(child: TextField(controller: medication.frequency, decoration: const InputDecoration(labelText: 'Frequency'))),
-        ],
+  Widget _medicationEditor(_EditableMedication med) {
+    return Card(
+      elevation: 0,
+      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+      margin: const EdgeInsets.only(bottom: 8),
+      child: Padding(
+        padding: const EdgeInsets.all(8.0),
+        child: Row(
+          children: [
+            Expanded(
+              flex: 2,
+              child: TextField(
+                controller: med.drugName,
+                decoration: const InputDecoration(
+                  labelText: 'Drug',
+                  isDense: true,
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: TextField(
+                controller: med.dosage,
+                decoration: const InputDecoration(
+                  labelText: 'Dose',
+                  isDense: true,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 }
 
 class _EditableLab {
-  _EditableLab({required this.testName, required this.value, required this.unit, required this.isAbnormal});
+  _EditableLab({
+    required this.testName,
+    required this.value,
+    required this.unit,
+    required this.isAbnormal,
+  });
 
   factory _EditableLab.from(AiLabResult lab) => _EditableLab(
     testName: TextEditingController(text: lab.testName),
@@ -447,13 +574,18 @@ class _EditableLab {
 }
 
 class _EditableMedication {
-  _EditableMedication({required this.drugName, required this.dosage, required this.frequency});
+  _EditableMedication({
+    required this.drugName,
+    required this.dosage,
+    required this.frequency,
+  });
 
-  factory _EditableMedication.from(OrderedMedication medication) => _EditableMedication(
-    drugName: TextEditingController(text: medication.drugName),
-    dosage: TextEditingController(text: medication.dosage ?? ''),
-    frequency: TextEditingController(text: medication.frequency ?? ''),
-  );
+  factory _EditableMedication.from(OrderedMedication med) =>
+      _EditableMedication(
+        drugName: TextEditingController(text: med.drugName),
+        dosage: TextEditingController(text: med.dosage ?? ''),
+        frequency: TextEditingController(text: med.frequency ?? ''),
+      );
 
   final TextEditingController drugName;
   final TextEditingController dosage;
