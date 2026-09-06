@@ -201,10 +201,10 @@ class Drugs extends Table {
   TextColumn get dosageForm => text().nullable()();
   TextColumn get route => text().nullable()();
   TextColumn get category => text().nullable()();
-  TextColumn get substitutes => text().withDefault(const Constant(''))();
-  TextColumn get sideEffects => text().withDefault(const Constant(''))();
-  TextColumn get uses => text().withDefault(const Constant(''))();
-  TextColumn get chemicalClass => text().withDefault(const Constant(''))();
+  TextColumn get substitutes => text().nullable()();
+  TextColumn get sideEffects => text().nullable()();
+  TextColumn get uses => text().nullable()();
+  TextColumn get chemicalClass => text().nullable()();
   TextColumn get priceEstimate => text().nullable()();
   BoolColumn get isTrusted => boolean().withDefault(const Constant(false))();
   TextColumn get customNotes => text().nullable()();

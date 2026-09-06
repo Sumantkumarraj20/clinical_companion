@@ -37,7 +37,7 @@ class _DrugReferenceScreenState extends ConsumerState<DrugReferenceScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final stream = ref.watch(pharmacopeiaDaoProvider).searchDrugs(_term);
+    final stream = ref.watch(pharmacopeiaDaoProvider).searchDrugsPaged(query: _term);
     return Scaffold(
       appBar: AppBar(title: const Text('Drug reference')),
       floatingActionButton: FloatingActionButton.extended(

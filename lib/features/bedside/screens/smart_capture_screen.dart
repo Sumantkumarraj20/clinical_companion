@@ -1,6 +1,5 @@
 import 'dart:io';
 
-import 'package:clinical_companion/core/database/local_database.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
@@ -10,8 +9,7 @@ import '../../../core/providers/app_providers.dart';
 import 'extraction_review_screen.dart';
 
 class SmartCaptureScreen extends ConsumerStatefulWidget {
-  // Removed the required patient parameter!
-  const SmartCaptureScreen({super.key, required Patient patient});
+  const SmartCaptureScreen({super.key});
 
   @override
   ConsumerState<SmartCaptureScreen> createState() => _SmartCaptureScreenState();
@@ -27,27 +25,33 @@ class _SmartCaptureScreenState extends ConsumerState<SmartCaptureScreen> {
       imageQuality: 90, // Compresses image to save memory and API payload
     );
     if (picked == null) return;
+    await _processImage(File(picked.path));
+  }
 
-    final image = File(picked.path);
+  Future<void> _pickFromGallery() async {
+    final picked = await _picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 90,
+    );
+    if (picked == null) return;
+    await _processImage(File(picked.path));
+  }
+
+  Future<void> _processImage(File image) async {
     setState(() => _processing = true);
 
     try {
       final apiKey = ref.read(appConfigurationProvider).geminiApiKey;
-      if (apiKey.isEmpty) {
-        throw Exception("Gemini API Key is missing in Configuration.");
+      if (apiKey.trim().isEmpty) {
+        throw const DocumentAiException(
+          'Gemini API key is missing. Open Configuration and add it before scanning.',
+        );
       }
 
       final result = await DocumentAiService(apiKey: apiKey).extractDocument(
         image: image,
         prompt:
             'Extract patient identifier, location, document type, vitals, clinical summary, and full raw text from this clinical document.',
-      );
-
-      // Learn from medications silently in the background
-      await DocumentAiService().routeMedicationKnowledge(
-        result: result,
-        pharmacopeiaDao: ref.read(pharmacopeiaDaoProvider),
-        ownerId: ref.read(currentOwnerIdProvider),
       );
 
       if (!mounted) return;
@@ -61,9 +65,12 @@ class _SmartCaptureScreenState extends ConsumerState<SmartCaptureScreen> {
       );
     } catch (error) {
       if (mounted) {
+        final message = error is DocumentAiException && error.cause != null
+            ? '${error.message}\nDetails: ${error.cause}'
+            : error.toString();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('AI Extraction Failed: $error'),
+            content: Text(message),
             backgroundColor: Colors.red,
           ),
         );
@@ -113,6 +120,12 @@ class _SmartCaptureScreenState extends ConsumerState<SmartCaptureScreen> {
                       'Open Camera',
                       style: TextStyle(fontSize: 18),
                     ),
+                  ),
+                  const SizedBox(height: 12),
+                  OutlinedButton.icon(
+                    onPressed: _processing ? null : _pickFromGallery,
+                    icon: const Icon(Icons.photo_library_outlined),
+                    label: const Text('Choose image from phone'),
                   ),
                   const SizedBox(height: 16),
                   const Text(

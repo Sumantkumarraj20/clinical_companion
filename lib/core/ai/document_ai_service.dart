@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'package:path/path.dart' as path;
 
 import 'package:google_generative_ai/google_generative_ai.dart';
 
@@ -20,6 +21,20 @@ class DocumentAiService {
   DocumentAiService({this.apiKey = ''});
 
   final String apiKey;
+
+  String _mimeType(File image) {
+    switch (path.extension(image.path).toLowerCase()) {
+      case '.png':
+        return 'image/png';
+      case '.webp':
+        return 'image/webp';
+      case '.heic':
+      case '.heif':
+        return 'image/heic';
+      default:
+        return 'image/jpeg';
+    }
+  }
 
   Future<void> routeMedicationKnowledge({
     required AiExtractionResult result,
@@ -102,7 +117,7 @@ class DocumentAiService {
             'Use null for values not visible in the image. Include '
             'Do not infer patient identity or clinical facts that are not legible.',
           ),
-          DataPart('image/jpeg', bytes),
+          DataPart(_mimeType(image), bytes),
         ]),
       ]);
       final text = response.text;
@@ -153,7 +168,7 @@ class DocumentAiService {
             '${ClinicalPromptContracts.promptFor(category)}\n'
             'Return only JSON matching the requested schema. Do not infer unreadable facts.',
           ),
-          DataPart('image/jpeg', await image.readAsBytes()),
+          DataPart(_mimeType(image), await image.readAsBytes()),
         ]),
       ]);
       final text = response.text;

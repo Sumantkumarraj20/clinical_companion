@@ -10,12 +10,22 @@ class PharmacopeiaDao extends DatabaseAccessor<AppDatabase>
     with _$PharmacopeiaDaoMixin {
   PharmacopeiaDao(super.db);
 
-  Stream<List<Drug>> searchDrugs(String query) {
+  Stream<List<Drug>> searchDrugsPaged({
+    required String query,
+    int limit = 50,
+    int offset = 0,
+  }) {
+    final safeLimit = limit.clamp(1, 200);
+    final safeOffset = offset < 0 ? 0 : offset;
     final statement = select(drugs)
-      ..where((row) => row.isActive.equals(true))
+      ..where((row) => row.isActive.equals(true) & row.genericName.isNotNull())
       ..orderBy([
         (row) =>
             OrderingTerm(expression: row.isTrusted, mode: OrderingMode.desc),
+        (row) => OrderingTerm(
+          expression: row.usageFrequency,
+          mode: OrderingMode.desc,
+        ),
       ]);
     final term = query.trim();
     if (term.isNotEmpty) {
@@ -24,12 +34,16 @@ class PharmacopeiaDao extends DatabaseAccessor<AppDatabase>
         (row) =>
             row.brandName.like(pattern) |
             row.genericName.like(pattern) |
-            row.substitutes.like(pattern) |
-            row.uses.like(pattern),
+            row.uses.like(pattern) |
+            row.chemicalClass.like(pattern),
       );
     }
+    statement.limit(safeLimit, offset: safeOffset);
     return statement.watch();
   }
+
+  Stream<List<Drug>> searchDrugs(String query) =>
+      searchDrugsPaged(query: query);
 
   Future<void> insertDrug(DrugsCompanion values) =>
       attachedDatabase.into(drugs).insert(values);

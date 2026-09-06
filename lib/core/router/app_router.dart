@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:flutter_speed_dial/flutter_speed_dial.dart';
 
 import '../database/local_database.dart';
 import '../providers/app_providers.dart';
@@ -86,14 +85,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           ),
           GoRoute(
             path: '/smart-capture',
-            builder: (context, state) {
-              final patient = state.extra;
-              return patient is Patient
-                  ? SmartCaptureScreen(patient: patient)
-                  : const _RouteMessage(
-                      message: 'Select a patient before capturing a document.',
-                    );
-            },
+            builder: (context, state) => const SmartCaptureScreen(),
           ),
           GoRoute(
             path: '/adaptive-review',
@@ -196,7 +188,11 @@ class AdaptiveScaffold extends ConsumerWidget {
           ],
         );
         return Scaffold(
-          floatingActionButton: _CaptureSpeedDial(ref: ref),
+          floatingActionButton: FloatingActionButton(
+            tooltip: 'Capture clinical data',
+            onPressed: () => _showCaptureActions(context),
+            child: const Icon(Icons.add),
+          ),
           body: Stack(
             children: [
               if (isWide)
@@ -243,69 +239,32 @@ class AdaptiveScaffold extends ConsumerWidget {
   }
 }
 
-class _CaptureSpeedDial extends ConsumerWidget {
-  const _CaptureSpeedDial({required this.ref});
-  final WidgetRef ref;
-
-  Future<void> _selectPatient(BuildContext context) async {
-    final patients = await ref.read(clinicalDaoProvider).watchAllPatients().first;
-    if (!context.mounted) return;
-    final selected = await showModalBottomSheet<Patient>(
-      context: context,
-      builder: (sheetContext) => SafeArea(
-        child: ListView(
-          shrinkWrap: true,
-          children: [
-            const ListTile(title: Text('Select a patient')),
-            for (final patient in patients)
-              ListTile(
-                leading: const Icon(Icons.person_outline),
-                title: Text(patient.fullName),
-                subtitle: Text(patient.hospitalRegNo),
-                onTap: () => Navigator.pop(sheetContext, patient),
-              ),
-          ],
-        ),
+void _showCaptureActions(BuildContext context) {
+  showModalBottomSheet<void>(
+    context: context,
+    builder: (sheetContext) => SafeArea(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ListTile(
+            leading: const Icon(Icons.camera_alt_outlined),
+            title: const Text('Smart Ingestion'),
+            onTap: () {
+              Navigator.pop(sheetContext);
+              context.push('/smart-capture');
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.edit_note_outlined),
+            title: const Text('Quick Bedside Entry'),
+            onTap: () {
+              Navigator.pop(sheetContext);
+              context.push('/manual-entry');
+            },
+          ),
+        ],
       ),
-    );
-    if (selected != null && context.mounted) {
-      context.push('/smart-capture', extra: selected);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) => SpeedDial(
-    icon: Icons.add,
-    activeIcon: Icons.close,
-    tooltip: 'Clinical capture options',
-    children: [
-      SpeedDialChild(
-        child: const Icon(Icons.camera_alt_outlined),
-        label: 'AI Smart Capture',
-        onTap: () => _selectPatient(context),
-      ),
-      SpeedDialChild(
-        child: const Icon(Icons.document_scanner_outlined),
-        label: 'Adaptive document review',
-        onTap: () async {
-          final patients = await ref.read(clinicalDaoProvider).watchAllPatients().first;
-          if (!context.mounted) return;
-          final selected = await showModalBottomSheet<Patient>(
-            context: context,
-            builder: (sheetContext) => ListView(children: [
-              const ListTile(title: Text('Select a patient')),
-              for (final patient in patients) ListTile(title: Text(patient.fullName), subtitle: Text(patient.hospitalRegNo), onTap: () => Navigator.pop(sheetContext, patient)),
-            ]),
-          );
-          if (selected != null && context.mounted) context.push('/adaptive-review', extra: selected);
-        },
-      ),
-      SpeedDialChild(
-        child: const Icon(Icons.edit_note_outlined),
-        label: 'Manual Quick Entry',
-        onTap: () => context.push('/manual-entry'),
-      ),
-    ],
+    ),
   );
 }
 

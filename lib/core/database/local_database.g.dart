@@ -3768,10 +3768,9 @@ class $DrugsTable extends Drugs with TableInfo<$DrugsTable, Drug> {
   late final GeneratedColumn<String> substitutes = GeneratedColumn<String>(
     'substitutes',
     aliasedName,
-    false,
+    true,
     type: DriftSqlType.string,
     requiredDuringInsert: false,
-    defaultValue: const Constant(''),
   );
   static const VerificationMeta _sideEffectsMeta = const VerificationMeta(
     'sideEffects',
@@ -3780,20 +3779,18 @@ class $DrugsTable extends Drugs with TableInfo<$DrugsTable, Drug> {
   late final GeneratedColumn<String> sideEffects = GeneratedColumn<String>(
     'side_effects',
     aliasedName,
-    false,
+    true,
     type: DriftSqlType.string,
     requiredDuringInsert: false,
-    defaultValue: const Constant(''),
   );
   static const VerificationMeta _usesMeta = const VerificationMeta('uses');
   @override
   late final GeneratedColumn<String> uses = GeneratedColumn<String>(
     'uses',
     aliasedName,
-    false,
+    true,
     type: DriftSqlType.string,
     requiredDuringInsert: false,
-    defaultValue: const Constant(''),
   );
   static const VerificationMeta _chemicalClassMeta = const VerificationMeta(
     'chemicalClass',
@@ -3802,10 +3799,9 @@ class $DrugsTable extends Drugs with TableInfo<$DrugsTable, Drug> {
   late final GeneratedColumn<String> chemicalClass = GeneratedColumn<String>(
     'chemical_class',
     aliasedName,
-    false,
+    true,
     type: DriftSqlType.string,
     requiredDuringInsert: false,
-    defaultValue: const Constant(''),
   );
   static const VerificationMeta _priceEstimateMeta = const VerificationMeta(
     'priceEstimate',
@@ -4171,19 +4167,19 @@ class $DrugsTable extends Drugs with TableInfo<$DrugsTable, Drug> {
       substitutes: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}substitutes'],
-      )!,
+      ),
       sideEffects: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}side_effects'],
-      )!,
+      ),
       uses: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}uses'],
-      )!,
+      ),
       chemicalClass: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}chemical_class'],
-      )!,
+      ),
       priceEstimate: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}price_estimate'],
@@ -4242,10 +4238,10 @@ class Drug extends DataClass implements Insertable<Drug> {
   final String? dosageForm;
   final String? route;
   final String? category;
-  final String substitutes;
-  final String sideEffects;
-  final String uses;
-  final String chemicalClass;
+  final String? substitutes;
+  final String? sideEffects;
+  final String? uses;
+  final String? chemicalClass;
   final String? priceEstimate;
   final bool isTrusted;
   final String? customNotes;
@@ -4265,10 +4261,10 @@ class Drug extends DataClass implements Insertable<Drug> {
     this.dosageForm,
     this.route,
     this.category,
-    required this.substitutes,
-    required this.sideEffects,
-    required this.uses,
-    required this.chemicalClass,
+    this.substitutes,
+    this.sideEffects,
+    this.uses,
+    this.chemicalClass,
     this.priceEstimate,
     required this.isTrusted,
     this.customNotes,
@@ -4301,10 +4297,18 @@ class Drug extends DataClass implements Insertable<Drug> {
     if (!nullToAbsent || category != null) {
       map['category'] = Variable<String>(category);
     }
-    map['substitutes'] = Variable<String>(substitutes);
-    map['side_effects'] = Variable<String>(sideEffects);
-    map['uses'] = Variable<String>(uses);
-    map['chemical_class'] = Variable<String>(chemicalClass);
+    if (!nullToAbsent || substitutes != null) {
+      map['substitutes'] = Variable<String>(substitutes);
+    }
+    if (!nullToAbsent || sideEffects != null) {
+      map['side_effects'] = Variable<String>(sideEffects);
+    }
+    if (!nullToAbsent || uses != null) {
+      map['uses'] = Variable<String>(uses);
+    }
+    if (!nullToAbsent || chemicalClass != null) {
+      map['chemical_class'] = Variable<String>(chemicalClass);
+    }
     if (!nullToAbsent || priceEstimate != null) {
       map['price_estimate'] = Variable<String>(priceEstimate);
     }
@@ -4344,10 +4348,16 @@ class Drug extends DataClass implements Insertable<Drug> {
       category: category == null && nullToAbsent
           ? const Value.absent()
           : Value(category),
-      substitutes: Value(substitutes),
-      sideEffects: Value(sideEffects),
-      uses: Value(uses),
-      chemicalClass: Value(chemicalClass),
+      substitutes: substitutes == null && nullToAbsent
+          ? const Value.absent()
+          : Value(substitutes),
+      sideEffects: sideEffects == null && nullToAbsent
+          ? const Value.absent()
+          : Value(sideEffects),
+      uses: uses == null && nullToAbsent ? const Value.absent() : Value(uses),
+      chemicalClass: chemicalClass == null && nullToAbsent
+          ? const Value.absent()
+          : Value(chemicalClass),
       priceEstimate: priceEstimate == null && nullToAbsent
           ? const Value.absent()
           : Value(priceEstimate),
@@ -4381,10 +4391,10 @@ class Drug extends DataClass implements Insertable<Drug> {
       dosageForm: serializer.fromJson<String?>(json['dosageForm']),
       route: serializer.fromJson<String?>(json['route']),
       category: serializer.fromJson<String?>(json['category']),
-      substitutes: serializer.fromJson<String>(json['substitutes']),
-      sideEffects: serializer.fromJson<String>(json['sideEffects']),
-      uses: serializer.fromJson<String>(json['uses']),
-      chemicalClass: serializer.fromJson<String>(json['chemicalClass']),
+      substitutes: serializer.fromJson<String?>(json['substitutes']),
+      sideEffects: serializer.fromJson<String?>(json['sideEffects']),
+      uses: serializer.fromJson<String?>(json['uses']),
+      chemicalClass: serializer.fromJson<String?>(json['chemicalClass']),
       priceEstimate: serializer.fromJson<String?>(json['priceEstimate']),
       isTrusted: serializer.fromJson<bool>(json['isTrusted']),
       customNotes: serializer.fromJson<String?>(json['customNotes']),
@@ -4411,10 +4421,10 @@ class Drug extends DataClass implements Insertable<Drug> {
       'dosageForm': serializer.toJson<String?>(dosageForm),
       'route': serializer.toJson<String?>(route),
       'category': serializer.toJson<String?>(category),
-      'substitutes': serializer.toJson<String>(substitutes),
-      'sideEffects': serializer.toJson<String>(sideEffects),
-      'uses': serializer.toJson<String>(uses),
-      'chemicalClass': serializer.toJson<String>(chemicalClass),
+      'substitutes': serializer.toJson<String?>(substitutes),
+      'sideEffects': serializer.toJson<String?>(sideEffects),
+      'uses': serializer.toJson<String?>(uses),
+      'chemicalClass': serializer.toJson<String?>(chemicalClass),
       'priceEstimate': serializer.toJson<String?>(priceEstimate),
       'isTrusted': serializer.toJson<bool>(isTrusted),
       'customNotes': serializer.toJson<String?>(customNotes),
@@ -4437,10 +4447,10 @@ class Drug extends DataClass implements Insertable<Drug> {
     Value<String?> dosageForm = const Value.absent(),
     Value<String?> route = const Value.absent(),
     Value<String?> category = const Value.absent(),
-    String? substitutes,
-    String? sideEffects,
-    String? uses,
-    String? chemicalClass,
+    Value<String?> substitutes = const Value.absent(),
+    Value<String?> sideEffects = const Value.absent(),
+    Value<String?> uses = const Value.absent(),
+    Value<String?> chemicalClass = const Value.absent(),
     Value<String?> priceEstimate = const Value.absent(),
     bool? isTrusted,
     Value<String?> customNotes = const Value.absent(),
@@ -4460,10 +4470,12 @@ class Drug extends DataClass implements Insertable<Drug> {
     dosageForm: dosageForm.present ? dosageForm.value : this.dosageForm,
     route: route.present ? route.value : this.route,
     category: category.present ? category.value : this.category,
-    substitutes: substitutes ?? this.substitutes,
-    sideEffects: sideEffects ?? this.sideEffects,
-    uses: uses ?? this.uses,
-    chemicalClass: chemicalClass ?? this.chemicalClass,
+    substitutes: substitutes.present ? substitutes.value : this.substitutes,
+    sideEffects: sideEffects.present ? sideEffects.value : this.sideEffects,
+    uses: uses.present ? uses.value : this.uses,
+    chemicalClass: chemicalClass.present
+        ? chemicalClass.value
+        : this.chemicalClass,
     priceEstimate: priceEstimate.present
         ? priceEstimate.value
         : this.priceEstimate,
@@ -4615,10 +4627,10 @@ class DrugsCompanion extends UpdateCompanion<Drug> {
   final Value<String?> dosageForm;
   final Value<String?> route;
   final Value<String?> category;
-  final Value<String> substitutes;
-  final Value<String> sideEffects;
-  final Value<String> uses;
-  final Value<String> chemicalClass;
+  final Value<String?> substitutes;
+  final Value<String?> sideEffects;
+  final Value<String?> uses;
+  final Value<String?> chemicalClass;
   final Value<String?> priceEstimate;
   final Value<bool> isTrusted;
   final Value<String?> customNotes;
@@ -4742,10 +4754,10 @@ class DrugsCompanion extends UpdateCompanion<Drug> {
     Value<String?>? dosageForm,
     Value<String?>? route,
     Value<String?>? category,
-    Value<String>? substitutes,
-    Value<String>? sideEffects,
-    Value<String>? uses,
-    Value<String>? chemicalClass,
+    Value<String?>? substitutes,
+    Value<String?>? sideEffects,
+    Value<String?>? uses,
+    Value<String?>? chemicalClass,
     Value<String?>? priceEstimate,
     Value<bool>? isTrusted,
     Value<String?>? customNotes,
@@ -15811,10 +15823,10 @@ typedef $$DrugsTableCreateCompanionBuilder =
       Value<String?> dosageForm,
       Value<String?> route,
       Value<String?> category,
-      Value<String> substitutes,
-      Value<String> sideEffects,
-      Value<String> uses,
-      Value<String> chemicalClass,
+      Value<String?> substitutes,
+      Value<String?> sideEffects,
+      Value<String?> uses,
+      Value<String?> chemicalClass,
       Value<String?> priceEstimate,
       Value<bool> isTrusted,
       Value<String?> customNotes,
@@ -15837,10 +15849,10 @@ typedef $$DrugsTableUpdateCompanionBuilder =
       Value<String?> dosageForm,
       Value<String?> route,
       Value<String?> category,
-      Value<String> substitutes,
-      Value<String> sideEffects,
-      Value<String> uses,
-      Value<String> chemicalClass,
+      Value<String?> substitutes,
+      Value<String?> sideEffects,
+      Value<String?> uses,
+      Value<String?> chemicalClass,
       Value<String?> priceEstimate,
       Value<bool> isTrusted,
       Value<String?> customNotes,
@@ -16225,10 +16237,10 @@ class $$DrugsTableTableManager
                 Value<String?> dosageForm = const Value.absent(),
                 Value<String?> route = const Value.absent(),
                 Value<String?> category = const Value.absent(),
-                Value<String> substitutes = const Value.absent(),
-                Value<String> sideEffects = const Value.absent(),
-                Value<String> uses = const Value.absent(),
-                Value<String> chemicalClass = const Value.absent(),
+                Value<String?> substitutes = const Value.absent(),
+                Value<String?> sideEffects = const Value.absent(),
+                Value<String?> uses = const Value.absent(),
+                Value<String?> chemicalClass = const Value.absent(),
                 Value<String?> priceEstimate = const Value.absent(),
                 Value<bool> isTrusted = const Value.absent(),
                 Value<String?> customNotes = const Value.absent(),
@@ -16275,10 +16287,10 @@ class $$DrugsTableTableManager
                 Value<String?> dosageForm = const Value.absent(),
                 Value<String?> route = const Value.absent(),
                 Value<String?> category = const Value.absent(),
-                Value<String> substitutes = const Value.absent(),
-                Value<String> sideEffects = const Value.absent(),
-                Value<String> uses = const Value.absent(),
-                Value<String> chemicalClass = const Value.absent(),
+                Value<String?> substitutes = const Value.absent(),
+                Value<String?> sideEffects = const Value.absent(),
+                Value<String?> uses = const Value.absent(),
+                Value<String?> chemicalClass = const Value.absent(),
                 Value<String?> priceEstimate = const Value.absent(),
                 Value<bool> isTrusted = const Value.absent(),
                 Value<String?> customNotes = const Value.absent(),

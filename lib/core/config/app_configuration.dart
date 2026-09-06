@@ -44,9 +44,14 @@ class AppConfiguration {
   @Deprecated('Use supabasePublishableKey')
   String get supabaseAnonKey => supabasePublishableKey;
 
-  bool get hasSupabase =>
-      Uri.tryParse(supabaseUrl)?.hasScheme == true &&
-      supabasePublishableKey.trim().isNotEmpty;
+  bool get hasSupabase {
+    final uri = Uri.tryParse(supabaseUrl.trim());
+    return uri != null &&
+        (uri.scheme == 'https' || uri.scheme == 'http') &&
+        uri.host.isNotEmpty &&
+        (uri.path.isEmpty || uri.path == '/') &&
+        supabasePublishableKey.trim().isNotEmpty;
+  }
 
   bool get hasGemini => geminiApiKey.trim().isNotEmpty;
 

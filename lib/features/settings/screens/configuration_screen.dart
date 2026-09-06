@@ -61,6 +61,16 @@ class _ConfigurationScreenState extends ConsumerState<ConfigurationScreen> {
       );
       return;
     }
+    final supabaseUri = Uri.tryParse(_supabaseUrl.text.trim());
+    if (supabaseUri == null ||
+        (supabaseUri.scheme != 'https' && supabaseUri.scheme != 'http') ||
+        supabaseUri.host.isEmpty ||
+        (supabaseUri.path.isNotEmpty && supabaseUri.path != '/')) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Use a Supabase project URL such as https://your-project.supabase.co.')),
+      );
+      return;
+    }
     setState(() => _saving = true);
     try {
       await SecureConfigService().saveKeys(

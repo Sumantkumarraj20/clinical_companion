@@ -66,6 +66,12 @@ class ClinicalCompanionApp extends ConsumerWidget {
         useMaterial3: true,
         colorScheme: _colorScheme,
         textTheme: GoogleFonts.interTextTheme(),
+        bottomNavigationBarTheme: BottomNavigationBarThemeData(
+          type: BottomNavigationBarType.fixed,
+          selectedItemColor: const Color(0xFF006A60),
+          unselectedItemColor: const Color(0xFF707974),
+          backgroundColor: _colorScheme.surface,
+        ),
         inputDecorationTheme: const InputDecorationTheme(
           border: OutlineInputBorder(),
         ),
