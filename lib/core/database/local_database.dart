@@ -4,6 +4,7 @@ import 'package:drift/drift.dart';
 import 'package:uuid/uuid.dart';
 
 import 'local/database_executor.dart';
+import 'schema/clinical_records.dart';
 
 part 'local_database.g.dart';
 
@@ -400,6 +401,11 @@ class OfflineSyncQueue extends Table {
     HbpProcedures,
     HbpImplants,
     HbpStratifications,
+    DocumentRegistries,
+    ClinicalObservations,
+    PrescriptionOrders,
+    MicrobiologyCultures,
+    ImagingStudies,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -408,7 +414,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(openAppDatabaseExecutor());
 
   @override
-  int get schemaVersion => 11;
+  int get schemaVersion => 12;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -484,6 +490,13 @@ class AppDatabase extends _$AppDatabase {
         await m.createTable(hbpProcedures);
         await m.createTable(hbpImplants);
         await m.createTable(hbpStratifications);
+      }
+      if (from < 12) {
+        await m.createTable(documentRegistries);
+        await m.createTable(clinicalObservations);
+        await m.createTable(prescriptionOrders);
+        await m.createTable(microbiologyCultures);
+        await m.createTable(imagingStudies);
       }
     },
     beforeOpen: (OpeningDetails details) async {

@@ -5,6 +5,7 @@ import 'package:google_generative_ai/google_generative_ai.dart';
 
 import '../database/daos/pharmacopeia_dao.dart';
 import '../models/ai_extraction_result.dart';
+import 'clinical_prompts.dart';
 
 class DocumentAiException implements Exception {
   const DocumentAiException(this.message, {this.cause});
@@ -115,6 +116,55 @@ class DocumentAiService {
         throw const DocumentAiException('AI returned invalid structured JSON.');
       }
       return AiExtractionResult.fromJson(Map<String, dynamic>.from(decoded));
+    } on DocumentAiException {
+      rethrow;
+    } catch (error) {
+      throw DocumentAiException(
+        'Could not read the document. Check image clarity and connectivity, then try again.',
+        cause: error,
+      );
+    }
+  }
+
+  Future<Map<String, dynamic>> extractClinicalDocument({
+    required File image,
+    required ClinicalDocumentCategory category,
+  }) async {
+    if (apiKey.trim().isEmpty) {
+      throw const DocumentAiException(
+        'AI capture is not configured. Add GEMINI_API_KEY at build time.',
+      );
+    }
+    if (!await image.exists()) {
+      throw const DocumentAiException('The selected image is no longer available.');
+    }
+    try {
+      final model = GenerativeModel(
+        model: 'gemini-1.5-flash',
+        apiKey: apiKey,
+        generationConfig: GenerationConfig(
+          responseMimeType: 'application/json',
+          responseSchema: ClinicalPromptContracts.responseSchemaFor(category),
+        ),
+      );
+      final response = await model.generateContent([
+        Content.multi([
+          TextPart(
+            '${ClinicalPromptContracts.promptFor(category)}\n'
+            'Return only JSON matching the requested schema. Do not infer unreadable facts.',
+          ),
+          DataPart('image/jpeg', await image.readAsBytes()),
+        ]),
+      ]);
+      final text = response.text;
+      if (text == null || text.trim().isEmpty) {
+        throw const DocumentAiException('AI returned an empty document result.');
+      }
+      final decoded = jsonDecode(text);
+      if (decoded is! Map) {
+        throw const DocumentAiException('AI returned invalid structured JSON.');
+      }
+      return Map<String, dynamic>.from(decoded);
     } on DocumentAiException {
       rethrow;
     } catch (error) {

@@ -9703,6 +9703,3144 @@ class HbpStratificationsCompanion extends UpdateCompanion<HbpStratification> {
   }
 }
 
+class $DocumentRegistriesTable extends DocumentRegistries
+    with TableInfo<$DocumentRegistriesTable, DocumentRegistry> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $DocumentRegistriesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _patientIdMeta = const VerificationMeta(
+    'patientId',
+  );
+  @override
+  late final GeneratedColumn<String> patientId = GeneratedColumn<String>(
+    'patient_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES patients (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _documentCategoryMeta = const VerificationMeta(
+    'documentCategory',
+  );
+  @override
+  late final GeneratedColumn<String> documentCategory = GeneratedColumn<String>(
+    'document_category',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _imagePathMeta = const VerificationMeta(
+    'imagePath',
+  );
+  @override
+  late final GeneratedColumn<String> imagePath = GeneratedColumn<String>(
+    'image_path',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _rawOcrTranscriptMeta = const VerificationMeta(
+    'rawOcrTranscript',
+  );
+  @override
+  late final GeneratedColumn<String> rawOcrTranscript = GeneratedColumn<String>(
+    'raw_ocr_transcript',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _confidenceScoreMeta = const VerificationMeta(
+    'confidenceScore',
+  );
+  @override
+  late final GeneratedColumn<double> confidenceScore = GeneratedColumn<double>(
+    'confidence_score',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0.0),
+  );
+  static const VerificationMeta _documentedAtMeta = const VerificationMeta(
+    'documentedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> documentedAt = GeneratedColumn<DateTime>(
+    'documented_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    patientId,
+    documentCategory,
+    imagePath,
+    rawOcrTranscript,
+    confidenceScore,
+    documentedAt,
+    createdAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'document_registries';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<DocumentRegistry> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('patient_id')) {
+      context.handle(
+        _patientIdMeta,
+        patientId.isAcceptableOrUnknown(data['patient_id']!, _patientIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_patientIdMeta);
+    }
+    if (data.containsKey('document_category')) {
+      context.handle(
+        _documentCategoryMeta,
+        documentCategory.isAcceptableOrUnknown(
+          data['document_category']!,
+          _documentCategoryMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_documentCategoryMeta);
+    }
+    if (data.containsKey('image_path')) {
+      context.handle(
+        _imagePathMeta,
+        imagePath.isAcceptableOrUnknown(data['image_path']!, _imagePathMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_imagePathMeta);
+    }
+    if (data.containsKey('raw_ocr_transcript')) {
+      context.handle(
+        _rawOcrTranscriptMeta,
+        rawOcrTranscript.isAcceptableOrUnknown(
+          data['raw_ocr_transcript']!,
+          _rawOcrTranscriptMeta,
+        ),
+      );
+    }
+    if (data.containsKey('confidence_score')) {
+      context.handle(
+        _confidenceScoreMeta,
+        confidenceScore.isAcceptableOrUnknown(
+          data['confidence_score']!,
+          _confidenceScoreMeta,
+        ),
+      );
+    }
+    if (data.containsKey('documented_at')) {
+      context.handle(
+        _documentedAtMeta,
+        documentedAt.isAcceptableOrUnknown(
+          data['documented_at']!,
+          _documentedAtMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_documentedAtMeta);
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  DocumentRegistry map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return DocumentRegistry(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      patientId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}patient_id'],
+      )!,
+      documentCategory: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}document_category'],
+      )!,
+      imagePath: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}image_path'],
+      )!,
+      rawOcrTranscript: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}raw_ocr_transcript'],
+      )!,
+      confidenceScore: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}confidence_score'],
+      )!,
+      documentedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}documented_at'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+    );
+  }
+
+  @override
+  $DocumentRegistriesTable createAlias(String alias) {
+    return $DocumentRegistriesTable(attachedDatabase, alias);
+  }
+}
+
+class DocumentRegistry extends DataClass
+    implements Insertable<DocumentRegistry> {
+  final String id;
+  final String patientId;
+  final String documentCategory;
+  final String imagePath;
+  final String rawOcrTranscript;
+  final double confidenceScore;
+  final DateTime documentedAt;
+  final DateTime createdAt;
+  const DocumentRegistry({
+    required this.id,
+    required this.patientId,
+    required this.documentCategory,
+    required this.imagePath,
+    required this.rawOcrTranscript,
+    required this.confidenceScore,
+    required this.documentedAt,
+    required this.createdAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['patient_id'] = Variable<String>(patientId);
+    map['document_category'] = Variable<String>(documentCategory);
+    map['image_path'] = Variable<String>(imagePath);
+    map['raw_ocr_transcript'] = Variable<String>(rawOcrTranscript);
+    map['confidence_score'] = Variable<double>(confidenceScore);
+    map['documented_at'] = Variable<DateTime>(documentedAt);
+    map['created_at'] = Variable<DateTime>(createdAt);
+    return map;
+  }
+
+  DocumentRegistriesCompanion toCompanion(bool nullToAbsent) {
+    return DocumentRegistriesCompanion(
+      id: Value(id),
+      patientId: Value(patientId),
+      documentCategory: Value(documentCategory),
+      imagePath: Value(imagePath),
+      rawOcrTranscript: Value(rawOcrTranscript),
+      confidenceScore: Value(confidenceScore),
+      documentedAt: Value(documentedAt),
+      createdAt: Value(createdAt),
+    );
+  }
+
+  factory DocumentRegistry.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return DocumentRegistry(
+      id: serializer.fromJson<String>(json['id']),
+      patientId: serializer.fromJson<String>(json['patientId']),
+      documentCategory: serializer.fromJson<String>(json['documentCategory']),
+      imagePath: serializer.fromJson<String>(json['imagePath']),
+      rawOcrTranscript: serializer.fromJson<String>(json['rawOcrTranscript']),
+      confidenceScore: serializer.fromJson<double>(json['confidenceScore']),
+      documentedAt: serializer.fromJson<DateTime>(json['documentedAt']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'patientId': serializer.toJson<String>(patientId),
+      'documentCategory': serializer.toJson<String>(documentCategory),
+      'imagePath': serializer.toJson<String>(imagePath),
+      'rawOcrTranscript': serializer.toJson<String>(rawOcrTranscript),
+      'confidenceScore': serializer.toJson<double>(confidenceScore),
+      'documentedAt': serializer.toJson<DateTime>(documentedAt),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+    };
+  }
+
+  DocumentRegistry copyWith({
+    String? id,
+    String? patientId,
+    String? documentCategory,
+    String? imagePath,
+    String? rawOcrTranscript,
+    double? confidenceScore,
+    DateTime? documentedAt,
+    DateTime? createdAt,
+  }) => DocumentRegistry(
+    id: id ?? this.id,
+    patientId: patientId ?? this.patientId,
+    documentCategory: documentCategory ?? this.documentCategory,
+    imagePath: imagePath ?? this.imagePath,
+    rawOcrTranscript: rawOcrTranscript ?? this.rawOcrTranscript,
+    confidenceScore: confidenceScore ?? this.confidenceScore,
+    documentedAt: documentedAt ?? this.documentedAt,
+    createdAt: createdAt ?? this.createdAt,
+  );
+  DocumentRegistry copyWithCompanion(DocumentRegistriesCompanion data) {
+    return DocumentRegistry(
+      id: data.id.present ? data.id.value : this.id,
+      patientId: data.patientId.present ? data.patientId.value : this.patientId,
+      documentCategory: data.documentCategory.present
+          ? data.documentCategory.value
+          : this.documentCategory,
+      imagePath: data.imagePath.present ? data.imagePath.value : this.imagePath,
+      rawOcrTranscript: data.rawOcrTranscript.present
+          ? data.rawOcrTranscript.value
+          : this.rawOcrTranscript,
+      confidenceScore: data.confidenceScore.present
+          ? data.confidenceScore.value
+          : this.confidenceScore,
+      documentedAt: data.documentedAt.present
+          ? data.documentedAt.value
+          : this.documentedAt,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('DocumentRegistry(')
+          ..write('id: $id, ')
+          ..write('patientId: $patientId, ')
+          ..write('documentCategory: $documentCategory, ')
+          ..write('imagePath: $imagePath, ')
+          ..write('rawOcrTranscript: $rawOcrTranscript, ')
+          ..write('confidenceScore: $confidenceScore, ')
+          ..write('documentedAt: $documentedAt, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    patientId,
+    documentCategory,
+    imagePath,
+    rawOcrTranscript,
+    confidenceScore,
+    documentedAt,
+    createdAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is DocumentRegistry &&
+          other.id == this.id &&
+          other.patientId == this.patientId &&
+          other.documentCategory == this.documentCategory &&
+          other.imagePath == this.imagePath &&
+          other.rawOcrTranscript == this.rawOcrTranscript &&
+          other.confidenceScore == this.confidenceScore &&
+          other.documentedAt == this.documentedAt &&
+          other.createdAt == this.createdAt);
+}
+
+class DocumentRegistriesCompanion extends UpdateCompanion<DocumentRegistry> {
+  final Value<String> id;
+  final Value<String> patientId;
+  final Value<String> documentCategory;
+  final Value<String> imagePath;
+  final Value<String> rawOcrTranscript;
+  final Value<double> confidenceScore;
+  final Value<DateTime> documentedAt;
+  final Value<DateTime> createdAt;
+  final Value<int> rowid;
+  const DocumentRegistriesCompanion({
+    this.id = const Value.absent(),
+    this.patientId = const Value.absent(),
+    this.documentCategory = const Value.absent(),
+    this.imagePath = const Value.absent(),
+    this.rawOcrTranscript = const Value.absent(),
+    this.confidenceScore = const Value.absent(),
+    this.documentedAt = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  DocumentRegistriesCompanion.insert({
+    required String id,
+    required String patientId,
+    required String documentCategory,
+    required String imagePath,
+    this.rawOcrTranscript = const Value.absent(),
+    this.confidenceScore = const Value.absent(),
+    required DateTime documentedAt,
+    this.createdAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       patientId = Value(patientId),
+       documentCategory = Value(documentCategory),
+       imagePath = Value(imagePath),
+       documentedAt = Value(documentedAt);
+  static Insertable<DocumentRegistry> custom({
+    Expression<String>? id,
+    Expression<String>? patientId,
+    Expression<String>? documentCategory,
+    Expression<String>? imagePath,
+    Expression<String>? rawOcrTranscript,
+    Expression<double>? confidenceScore,
+    Expression<DateTime>? documentedAt,
+    Expression<DateTime>? createdAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (patientId != null) 'patient_id': patientId,
+      if (documentCategory != null) 'document_category': documentCategory,
+      if (imagePath != null) 'image_path': imagePath,
+      if (rawOcrTranscript != null) 'raw_ocr_transcript': rawOcrTranscript,
+      if (confidenceScore != null) 'confidence_score': confidenceScore,
+      if (documentedAt != null) 'documented_at': documentedAt,
+      if (createdAt != null) 'created_at': createdAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  DocumentRegistriesCompanion copyWith({
+    Value<String>? id,
+    Value<String>? patientId,
+    Value<String>? documentCategory,
+    Value<String>? imagePath,
+    Value<String>? rawOcrTranscript,
+    Value<double>? confidenceScore,
+    Value<DateTime>? documentedAt,
+    Value<DateTime>? createdAt,
+    Value<int>? rowid,
+  }) {
+    return DocumentRegistriesCompanion(
+      id: id ?? this.id,
+      patientId: patientId ?? this.patientId,
+      documentCategory: documentCategory ?? this.documentCategory,
+      imagePath: imagePath ?? this.imagePath,
+      rawOcrTranscript: rawOcrTranscript ?? this.rawOcrTranscript,
+      confidenceScore: confidenceScore ?? this.confidenceScore,
+      documentedAt: documentedAt ?? this.documentedAt,
+      createdAt: createdAt ?? this.createdAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (patientId.present) {
+      map['patient_id'] = Variable<String>(patientId.value);
+    }
+    if (documentCategory.present) {
+      map['document_category'] = Variable<String>(documentCategory.value);
+    }
+    if (imagePath.present) {
+      map['image_path'] = Variable<String>(imagePath.value);
+    }
+    if (rawOcrTranscript.present) {
+      map['raw_ocr_transcript'] = Variable<String>(rawOcrTranscript.value);
+    }
+    if (confidenceScore.present) {
+      map['confidence_score'] = Variable<double>(confidenceScore.value);
+    }
+    if (documentedAt.present) {
+      map['documented_at'] = Variable<DateTime>(documentedAt.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('DocumentRegistriesCompanion(')
+          ..write('id: $id, ')
+          ..write('patientId: $patientId, ')
+          ..write('documentCategory: $documentCategory, ')
+          ..write('imagePath: $imagePath, ')
+          ..write('rawOcrTranscript: $rawOcrTranscript, ')
+          ..write('confidenceScore: $confidenceScore, ')
+          ..write('documentedAt: $documentedAt, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $ClinicalObservationsTable extends ClinicalObservations
+    with TableInfo<$ClinicalObservationsTable, ClinicalObservation> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ClinicalObservationsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _patientIdMeta = const VerificationMeta(
+    'patientId',
+  );
+  @override
+  late final GeneratedColumn<String> patientId = GeneratedColumn<String>(
+    'patient_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES patients (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _documentIdMeta = const VerificationMeta(
+    'documentId',
+  );
+  @override
+  late final GeneratedColumn<String> documentId = GeneratedColumn<String>(
+    'document_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES document_registries (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _observationCategoryMeta =
+      const VerificationMeta('observationCategory');
+  @override
+  late final GeneratedColumn<String> observationCategory =
+      GeneratedColumn<String>(
+        'observation_category',
+        aliasedName,
+        false,
+        type: DriftSqlType.string,
+        requiredDuringInsert: true,
+      );
+  static const VerificationMeta _codeMeta = const VerificationMeta('code');
+  @override
+  late final GeneratedColumn<String> code = GeneratedColumn<String>(
+    'code',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _displayNameMeta = const VerificationMeta(
+    'displayName',
+  );
+  @override
+  late final GeneratedColumn<String> displayName = GeneratedColumn<String>(
+    'display_name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _numericValueMeta = const VerificationMeta(
+    'numericValue',
+  );
+  @override
+  late final GeneratedColumn<double> numericValue = GeneratedColumn<double>(
+    'numeric_value',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _textValueMeta = const VerificationMeta(
+    'textValue',
+  );
+  @override
+  late final GeneratedColumn<String> textValue = GeneratedColumn<String>(
+    'text_value',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _unitMeta = const VerificationMeta('unit');
+  @override
+  late final GeneratedColumn<String> unit = GeneratedColumn<String>(
+    'unit',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _referenceLowMeta = const VerificationMeta(
+    'referenceLow',
+  );
+  @override
+  late final GeneratedColumn<double> referenceLow = GeneratedColumn<double>(
+    'reference_low',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _referenceHighMeta = const VerificationMeta(
+    'referenceHigh',
+  );
+  @override
+  late final GeneratedColumn<double> referenceHigh = GeneratedColumn<double>(
+    'reference_high',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _isAbnormalMeta = const VerificationMeta(
+    'isAbnormal',
+  );
+  @override
+  late final GeneratedColumn<bool> isAbnormal = GeneratedColumn<bool>(
+    'is_abnormal',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_abnormal" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _recordedAtMeta = const VerificationMeta(
+    'recordedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> recordedAt = GeneratedColumn<DateTime>(
+    'recorded_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _corroborationNoteMeta = const VerificationMeta(
+    'corroborationNote',
+  );
+  @override
+  late final GeneratedColumn<String> corroborationNote =
+      GeneratedColumn<String>(
+        'corroboration_note',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    patientId,
+    documentId,
+    observationCategory,
+    code,
+    displayName,
+    numericValue,
+    textValue,
+    unit,
+    referenceLow,
+    referenceHigh,
+    isAbnormal,
+    recordedAt,
+    corroborationNote,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'clinical_observations';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<ClinicalObservation> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('patient_id')) {
+      context.handle(
+        _patientIdMeta,
+        patientId.isAcceptableOrUnknown(data['patient_id']!, _patientIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_patientIdMeta);
+    }
+    if (data.containsKey('document_id')) {
+      context.handle(
+        _documentIdMeta,
+        documentId.isAcceptableOrUnknown(data['document_id']!, _documentIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_documentIdMeta);
+    }
+    if (data.containsKey('observation_category')) {
+      context.handle(
+        _observationCategoryMeta,
+        observationCategory.isAcceptableOrUnknown(
+          data['observation_category']!,
+          _observationCategoryMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_observationCategoryMeta);
+    }
+    if (data.containsKey('code')) {
+      context.handle(
+        _codeMeta,
+        code.isAcceptableOrUnknown(data['code']!, _codeMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_codeMeta);
+    }
+    if (data.containsKey('display_name')) {
+      context.handle(
+        _displayNameMeta,
+        displayName.isAcceptableOrUnknown(
+          data['display_name']!,
+          _displayNameMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_displayNameMeta);
+    }
+    if (data.containsKey('numeric_value')) {
+      context.handle(
+        _numericValueMeta,
+        numericValue.isAcceptableOrUnknown(
+          data['numeric_value']!,
+          _numericValueMeta,
+        ),
+      );
+    }
+    if (data.containsKey('text_value')) {
+      context.handle(
+        _textValueMeta,
+        textValue.isAcceptableOrUnknown(data['text_value']!, _textValueMeta),
+      );
+    }
+    if (data.containsKey('unit')) {
+      context.handle(
+        _unitMeta,
+        unit.isAcceptableOrUnknown(data['unit']!, _unitMeta),
+      );
+    }
+    if (data.containsKey('reference_low')) {
+      context.handle(
+        _referenceLowMeta,
+        referenceLow.isAcceptableOrUnknown(
+          data['reference_low']!,
+          _referenceLowMeta,
+        ),
+      );
+    }
+    if (data.containsKey('reference_high')) {
+      context.handle(
+        _referenceHighMeta,
+        referenceHigh.isAcceptableOrUnknown(
+          data['reference_high']!,
+          _referenceHighMeta,
+        ),
+      );
+    }
+    if (data.containsKey('is_abnormal')) {
+      context.handle(
+        _isAbnormalMeta,
+        isAbnormal.isAcceptableOrUnknown(data['is_abnormal']!, _isAbnormalMeta),
+      );
+    }
+    if (data.containsKey('recorded_at')) {
+      context.handle(
+        _recordedAtMeta,
+        recordedAt.isAcceptableOrUnknown(data['recorded_at']!, _recordedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_recordedAtMeta);
+    }
+    if (data.containsKey('corroboration_note')) {
+      context.handle(
+        _corroborationNoteMeta,
+        corroborationNote.isAcceptableOrUnknown(
+          data['corroboration_note']!,
+          _corroborationNoteMeta,
+        ),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  ClinicalObservation map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ClinicalObservation(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      patientId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}patient_id'],
+      )!,
+      documentId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}document_id'],
+      )!,
+      observationCategory: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}observation_category'],
+      )!,
+      code: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}code'],
+      )!,
+      displayName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}display_name'],
+      )!,
+      numericValue: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}numeric_value'],
+      ),
+      textValue: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}text_value'],
+      ),
+      unit: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}unit'],
+      ),
+      referenceLow: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}reference_low'],
+      ),
+      referenceHigh: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}reference_high'],
+      ),
+      isAbnormal: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_abnormal'],
+      )!,
+      recordedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}recorded_at'],
+      )!,
+      corroborationNote: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}corroboration_note'],
+      ),
+    );
+  }
+
+  @override
+  $ClinicalObservationsTable createAlias(String alias) {
+    return $ClinicalObservationsTable(attachedDatabase, alias);
+  }
+}
+
+class ClinicalObservation extends DataClass
+    implements Insertable<ClinicalObservation> {
+  final String id;
+  final String patientId;
+  final String documentId;
+  final String observationCategory;
+  final String code;
+  final String displayName;
+  final double? numericValue;
+  final String? textValue;
+  final String? unit;
+  final double? referenceLow;
+  final double? referenceHigh;
+  final bool isAbnormal;
+  final DateTime recordedAt;
+  final String? corroborationNote;
+  const ClinicalObservation({
+    required this.id,
+    required this.patientId,
+    required this.documentId,
+    required this.observationCategory,
+    required this.code,
+    required this.displayName,
+    this.numericValue,
+    this.textValue,
+    this.unit,
+    this.referenceLow,
+    this.referenceHigh,
+    required this.isAbnormal,
+    required this.recordedAt,
+    this.corroborationNote,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['patient_id'] = Variable<String>(patientId);
+    map['document_id'] = Variable<String>(documentId);
+    map['observation_category'] = Variable<String>(observationCategory);
+    map['code'] = Variable<String>(code);
+    map['display_name'] = Variable<String>(displayName);
+    if (!nullToAbsent || numericValue != null) {
+      map['numeric_value'] = Variable<double>(numericValue);
+    }
+    if (!nullToAbsent || textValue != null) {
+      map['text_value'] = Variable<String>(textValue);
+    }
+    if (!nullToAbsent || unit != null) {
+      map['unit'] = Variable<String>(unit);
+    }
+    if (!nullToAbsent || referenceLow != null) {
+      map['reference_low'] = Variable<double>(referenceLow);
+    }
+    if (!nullToAbsent || referenceHigh != null) {
+      map['reference_high'] = Variable<double>(referenceHigh);
+    }
+    map['is_abnormal'] = Variable<bool>(isAbnormal);
+    map['recorded_at'] = Variable<DateTime>(recordedAt);
+    if (!nullToAbsent || corroborationNote != null) {
+      map['corroboration_note'] = Variable<String>(corroborationNote);
+    }
+    return map;
+  }
+
+  ClinicalObservationsCompanion toCompanion(bool nullToAbsent) {
+    return ClinicalObservationsCompanion(
+      id: Value(id),
+      patientId: Value(patientId),
+      documentId: Value(documentId),
+      observationCategory: Value(observationCategory),
+      code: Value(code),
+      displayName: Value(displayName),
+      numericValue: numericValue == null && nullToAbsent
+          ? const Value.absent()
+          : Value(numericValue),
+      textValue: textValue == null && nullToAbsent
+          ? const Value.absent()
+          : Value(textValue),
+      unit: unit == null && nullToAbsent ? const Value.absent() : Value(unit),
+      referenceLow: referenceLow == null && nullToAbsent
+          ? const Value.absent()
+          : Value(referenceLow),
+      referenceHigh: referenceHigh == null && nullToAbsent
+          ? const Value.absent()
+          : Value(referenceHigh),
+      isAbnormal: Value(isAbnormal),
+      recordedAt: Value(recordedAt),
+      corroborationNote: corroborationNote == null && nullToAbsent
+          ? const Value.absent()
+          : Value(corroborationNote),
+    );
+  }
+
+  factory ClinicalObservation.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ClinicalObservation(
+      id: serializer.fromJson<String>(json['id']),
+      patientId: serializer.fromJson<String>(json['patientId']),
+      documentId: serializer.fromJson<String>(json['documentId']),
+      observationCategory: serializer.fromJson<String>(
+        json['observationCategory'],
+      ),
+      code: serializer.fromJson<String>(json['code']),
+      displayName: serializer.fromJson<String>(json['displayName']),
+      numericValue: serializer.fromJson<double?>(json['numericValue']),
+      textValue: serializer.fromJson<String?>(json['textValue']),
+      unit: serializer.fromJson<String?>(json['unit']),
+      referenceLow: serializer.fromJson<double?>(json['referenceLow']),
+      referenceHigh: serializer.fromJson<double?>(json['referenceHigh']),
+      isAbnormal: serializer.fromJson<bool>(json['isAbnormal']),
+      recordedAt: serializer.fromJson<DateTime>(json['recordedAt']),
+      corroborationNote: serializer.fromJson<String?>(
+        json['corroborationNote'],
+      ),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'patientId': serializer.toJson<String>(patientId),
+      'documentId': serializer.toJson<String>(documentId),
+      'observationCategory': serializer.toJson<String>(observationCategory),
+      'code': serializer.toJson<String>(code),
+      'displayName': serializer.toJson<String>(displayName),
+      'numericValue': serializer.toJson<double?>(numericValue),
+      'textValue': serializer.toJson<String?>(textValue),
+      'unit': serializer.toJson<String?>(unit),
+      'referenceLow': serializer.toJson<double?>(referenceLow),
+      'referenceHigh': serializer.toJson<double?>(referenceHigh),
+      'isAbnormal': serializer.toJson<bool>(isAbnormal),
+      'recordedAt': serializer.toJson<DateTime>(recordedAt),
+      'corroborationNote': serializer.toJson<String?>(corroborationNote),
+    };
+  }
+
+  ClinicalObservation copyWith({
+    String? id,
+    String? patientId,
+    String? documentId,
+    String? observationCategory,
+    String? code,
+    String? displayName,
+    Value<double?> numericValue = const Value.absent(),
+    Value<String?> textValue = const Value.absent(),
+    Value<String?> unit = const Value.absent(),
+    Value<double?> referenceLow = const Value.absent(),
+    Value<double?> referenceHigh = const Value.absent(),
+    bool? isAbnormal,
+    DateTime? recordedAt,
+    Value<String?> corroborationNote = const Value.absent(),
+  }) => ClinicalObservation(
+    id: id ?? this.id,
+    patientId: patientId ?? this.patientId,
+    documentId: documentId ?? this.documentId,
+    observationCategory: observationCategory ?? this.observationCategory,
+    code: code ?? this.code,
+    displayName: displayName ?? this.displayName,
+    numericValue: numericValue.present ? numericValue.value : this.numericValue,
+    textValue: textValue.present ? textValue.value : this.textValue,
+    unit: unit.present ? unit.value : this.unit,
+    referenceLow: referenceLow.present ? referenceLow.value : this.referenceLow,
+    referenceHigh: referenceHigh.present
+        ? referenceHigh.value
+        : this.referenceHigh,
+    isAbnormal: isAbnormal ?? this.isAbnormal,
+    recordedAt: recordedAt ?? this.recordedAt,
+    corroborationNote: corroborationNote.present
+        ? corroborationNote.value
+        : this.corroborationNote,
+  );
+  ClinicalObservation copyWithCompanion(ClinicalObservationsCompanion data) {
+    return ClinicalObservation(
+      id: data.id.present ? data.id.value : this.id,
+      patientId: data.patientId.present ? data.patientId.value : this.patientId,
+      documentId: data.documentId.present
+          ? data.documentId.value
+          : this.documentId,
+      observationCategory: data.observationCategory.present
+          ? data.observationCategory.value
+          : this.observationCategory,
+      code: data.code.present ? data.code.value : this.code,
+      displayName: data.displayName.present
+          ? data.displayName.value
+          : this.displayName,
+      numericValue: data.numericValue.present
+          ? data.numericValue.value
+          : this.numericValue,
+      textValue: data.textValue.present ? data.textValue.value : this.textValue,
+      unit: data.unit.present ? data.unit.value : this.unit,
+      referenceLow: data.referenceLow.present
+          ? data.referenceLow.value
+          : this.referenceLow,
+      referenceHigh: data.referenceHigh.present
+          ? data.referenceHigh.value
+          : this.referenceHigh,
+      isAbnormal: data.isAbnormal.present
+          ? data.isAbnormal.value
+          : this.isAbnormal,
+      recordedAt: data.recordedAt.present
+          ? data.recordedAt.value
+          : this.recordedAt,
+      corroborationNote: data.corroborationNote.present
+          ? data.corroborationNote.value
+          : this.corroborationNote,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ClinicalObservation(')
+          ..write('id: $id, ')
+          ..write('patientId: $patientId, ')
+          ..write('documentId: $documentId, ')
+          ..write('observationCategory: $observationCategory, ')
+          ..write('code: $code, ')
+          ..write('displayName: $displayName, ')
+          ..write('numericValue: $numericValue, ')
+          ..write('textValue: $textValue, ')
+          ..write('unit: $unit, ')
+          ..write('referenceLow: $referenceLow, ')
+          ..write('referenceHigh: $referenceHigh, ')
+          ..write('isAbnormal: $isAbnormal, ')
+          ..write('recordedAt: $recordedAt, ')
+          ..write('corroborationNote: $corroborationNote')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    patientId,
+    documentId,
+    observationCategory,
+    code,
+    displayName,
+    numericValue,
+    textValue,
+    unit,
+    referenceLow,
+    referenceHigh,
+    isAbnormal,
+    recordedAt,
+    corroborationNote,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ClinicalObservation &&
+          other.id == this.id &&
+          other.patientId == this.patientId &&
+          other.documentId == this.documentId &&
+          other.observationCategory == this.observationCategory &&
+          other.code == this.code &&
+          other.displayName == this.displayName &&
+          other.numericValue == this.numericValue &&
+          other.textValue == this.textValue &&
+          other.unit == this.unit &&
+          other.referenceLow == this.referenceLow &&
+          other.referenceHigh == this.referenceHigh &&
+          other.isAbnormal == this.isAbnormal &&
+          other.recordedAt == this.recordedAt &&
+          other.corroborationNote == this.corroborationNote);
+}
+
+class ClinicalObservationsCompanion
+    extends UpdateCompanion<ClinicalObservation> {
+  final Value<String> id;
+  final Value<String> patientId;
+  final Value<String> documentId;
+  final Value<String> observationCategory;
+  final Value<String> code;
+  final Value<String> displayName;
+  final Value<double?> numericValue;
+  final Value<String?> textValue;
+  final Value<String?> unit;
+  final Value<double?> referenceLow;
+  final Value<double?> referenceHigh;
+  final Value<bool> isAbnormal;
+  final Value<DateTime> recordedAt;
+  final Value<String?> corroborationNote;
+  final Value<int> rowid;
+  const ClinicalObservationsCompanion({
+    this.id = const Value.absent(),
+    this.patientId = const Value.absent(),
+    this.documentId = const Value.absent(),
+    this.observationCategory = const Value.absent(),
+    this.code = const Value.absent(),
+    this.displayName = const Value.absent(),
+    this.numericValue = const Value.absent(),
+    this.textValue = const Value.absent(),
+    this.unit = const Value.absent(),
+    this.referenceLow = const Value.absent(),
+    this.referenceHigh = const Value.absent(),
+    this.isAbnormal = const Value.absent(),
+    this.recordedAt = const Value.absent(),
+    this.corroborationNote = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  ClinicalObservationsCompanion.insert({
+    required String id,
+    required String patientId,
+    required String documentId,
+    required String observationCategory,
+    required String code,
+    required String displayName,
+    this.numericValue = const Value.absent(),
+    this.textValue = const Value.absent(),
+    this.unit = const Value.absent(),
+    this.referenceLow = const Value.absent(),
+    this.referenceHigh = const Value.absent(),
+    this.isAbnormal = const Value.absent(),
+    required DateTime recordedAt,
+    this.corroborationNote = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       patientId = Value(patientId),
+       documentId = Value(documentId),
+       observationCategory = Value(observationCategory),
+       code = Value(code),
+       displayName = Value(displayName),
+       recordedAt = Value(recordedAt);
+  static Insertable<ClinicalObservation> custom({
+    Expression<String>? id,
+    Expression<String>? patientId,
+    Expression<String>? documentId,
+    Expression<String>? observationCategory,
+    Expression<String>? code,
+    Expression<String>? displayName,
+    Expression<double>? numericValue,
+    Expression<String>? textValue,
+    Expression<String>? unit,
+    Expression<double>? referenceLow,
+    Expression<double>? referenceHigh,
+    Expression<bool>? isAbnormal,
+    Expression<DateTime>? recordedAt,
+    Expression<String>? corroborationNote,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (patientId != null) 'patient_id': patientId,
+      if (documentId != null) 'document_id': documentId,
+      if (observationCategory != null)
+        'observation_category': observationCategory,
+      if (code != null) 'code': code,
+      if (displayName != null) 'display_name': displayName,
+      if (numericValue != null) 'numeric_value': numericValue,
+      if (textValue != null) 'text_value': textValue,
+      if (unit != null) 'unit': unit,
+      if (referenceLow != null) 'reference_low': referenceLow,
+      if (referenceHigh != null) 'reference_high': referenceHigh,
+      if (isAbnormal != null) 'is_abnormal': isAbnormal,
+      if (recordedAt != null) 'recorded_at': recordedAt,
+      if (corroborationNote != null) 'corroboration_note': corroborationNote,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  ClinicalObservationsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? patientId,
+    Value<String>? documentId,
+    Value<String>? observationCategory,
+    Value<String>? code,
+    Value<String>? displayName,
+    Value<double?>? numericValue,
+    Value<String?>? textValue,
+    Value<String?>? unit,
+    Value<double?>? referenceLow,
+    Value<double?>? referenceHigh,
+    Value<bool>? isAbnormal,
+    Value<DateTime>? recordedAt,
+    Value<String?>? corroborationNote,
+    Value<int>? rowid,
+  }) {
+    return ClinicalObservationsCompanion(
+      id: id ?? this.id,
+      patientId: patientId ?? this.patientId,
+      documentId: documentId ?? this.documentId,
+      observationCategory: observationCategory ?? this.observationCategory,
+      code: code ?? this.code,
+      displayName: displayName ?? this.displayName,
+      numericValue: numericValue ?? this.numericValue,
+      textValue: textValue ?? this.textValue,
+      unit: unit ?? this.unit,
+      referenceLow: referenceLow ?? this.referenceLow,
+      referenceHigh: referenceHigh ?? this.referenceHigh,
+      isAbnormal: isAbnormal ?? this.isAbnormal,
+      recordedAt: recordedAt ?? this.recordedAt,
+      corroborationNote: corroborationNote ?? this.corroborationNote,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (patientId.present) {
+      map['patient_id'] = Variable<String>(patientId.value);
+    }
+    if (documentId.present) {
+      map['document_id'] = Variable<String>(documentId.value);
+    }
+    if (observationCategory.present) {
+      map['observation_category'] = Variable<String>(observationCategory.value);
+    }
+    if (code.present) {
+      map['code'] = Variable<String>(code.value);
+    }
+    if (displayName.present) {
+      map['display_name'] = Variable<String>(displayName.value);
+    }
+    if (numericValue.present) {
+      map['numeric_value'] = Variable<double>(numericValue.value);
+    }
+    if (textValue.present) {
+      map['text_value'] = Variable<String>(textValue.value);
+    }
+    if (unit.present) {
+      map['unit'] = Variable<String>(unit.value);
+    }
+    if (referenceLow.present) {
+      map['reference_low'] = Variable<double>(referenceLow.value);
+    }
+    if (referenceHigh.present) {
+      map['reference_high'] = Variable<double>(referenceHigh.value);
+    }
+    if (isAbnormal.present) {
+      map['is_abnormal'] = Variable<bool>(isAbnormal.value);
+    }
+    if (recordedAt.present) {
+      map['recorded_at'] = Variable<DateTime>(recordedAt.value);
+    }
+    if (corroborationNote.present) {
+      map['corroboration_note'] = Variable<String>(corroborationNote.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ClinicalObservationsCompanion(')
+          ..write('id: $id, ')
+          ..write('patientId: $patientId, ')
+          ..write('documentId: $documentId, ')
+          ..write('observationCategory: $observationCategory, ')
+          ..write('code: $code, ')
+          ..write('displayName: $displayName, ')
+          ..write('numericValue: $numericValue, ')
+          ..write('textValue: $textValue, ')
+          ..write('unit: $unit, ')
+          ..write('referenceLow: $referenceLow, ')
+          ..write('referenceHigh: $referenceHigh, ')
+          ..write('isAbnormal: $isAbnormal, ')
+          ..write('recordedAt: $recordedAt, ')
+          ..write('corroborationNote: $corroborationNote, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $PrescriptionOrdersTable extends PrescriptionOrders
+    with TableInfo<$PrescriptionOrdersTable, PrescriptionOrder> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $PrescriptionOrdersTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _patientIdMeta = const VerificationMeta(
+    'patientId',
+  );
+  @override
+  late final GeneratedColumn<String> patientId = GeneratedColumn<String>(
+    'patient_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES patients (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _documentIdMeta = const VerificationMeta(
+    'documentId',
+  );
+  @override
+  late final GeneratedColumn<String> documentId = GeneratedColumn<String>(
+    'document_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES document_registries (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _drugNameMeta = const VerificationMeta(
+    'drugName',
+  );
+  @override
+  late final GeneratedColumn<String> drugName = GeneratedColumn<String>(
+    'drug_name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _strengthMeta = const VerificationMeta(
+    'strength',
+  );
+  @override
+  late final GeneratedColumn<String> strength = GeneratedColumn<String>(
+    'strength',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _dosageFormMeta = const VerificationMeta(
+    'dosageForm',
+  );
+  @override
+  late final GeneratedColumn<String> dosageForm = GeneratedColumn<String>(
+    'dosage_form',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _routeMeta = const VerificationMeta('route');
+  @override
+  late final GeneratedColumn<String> route = GeneratedColumn<String>(
+    'route',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _frequencyMeta = const VerificationMeta(
+    'frequency',
+  );
+  @override
+  late final GeneratedColumn<String> frequency = GeneratedColumn<String>(
+    'frequency',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _diluentAndRateMeta = const VerificationMeta(
+    'diluentAndRate',
+  );
+  @override
+  late final GeneratedColumn<String> diluentAndRate = GeneratedColumn<String>(
+    'diluent_and_rate',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _isActiveMeta = const VerificationMeta(
+    'isActive',
+  );
+  @override
+  late final GeneratedColumn<bool> isActive = GeneratedColumn<bool>(
+    'is_active',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_active" IN (0, 1))',
+    ),
+    defaultValue: const Constant(true),
+  );
+  static const VerificationMeta _orderedAtMeta = const VerificationMeta(
+    'orderedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> orderedAt = GeneratedColumn<DateTime>(
+    'ordered_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    patientId,
+    documentId,
+    drugName,
+    strength,
+    dosageForm,
+    route,
+    frequency,
+    diluentAndRate,
+    isActive,
+    orderedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'prescription_orders';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<PrescriptionOrder> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('patient_id')) {
+      context.handle(
+        _patientIdMeta,
+        patientId.isAcceptableOrUnknown(data['patient_id']!, _patientIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_patientIdMeta);
+    }
+    if (data.containsKey('document_id')) {
+      context.handle(
+        _documentIdMeta,
+        documentId.isAcceptableOrUnknown(data['document_id']!, _documentIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_documentIdMeta);
+    }
+    if (data.containsKey('drug_name')) {
+      context.handle(
+        _drugNameMeta,
+        drugName.isAcceptableOrUnknown(data['drug_name']!, _drugNameMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_drugNameMeta);
+    }
+    if (data.containsKey('strength')) {
+      context.handle(
+        _strengthMeta,
+        strength.isAcceptableOrUnknown(data['strength']!, _strengthMeta),
+      );
+    }
+    if (data.containsKey('dosage_form')) {
+      context.handle(
+        _dosageFormMeta,
+        dosageForm.isAcceptableOrUnknown(data['dosage_form']!, _dosageFormMeta),
+      );
+    }
+    if (data.containsKey('route')) {
+      context.handle(
+        _routeMeta,
+        route.isAcceptableOrUnknown(data['route']!, _routeMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_routeMeta);
+    }
+    if (data.containsKey('frequency')) {
+      context.handle(
+        _frequencyMeta,
+        frequency.isAcceptableOrUnknown(data['frequency']!, _frequencyMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_frequencyMeta);
+    }
+    if (data.containsKey('diluent_and_rate')) {
+      context.handle(
+        _diluentAndRateMeta,
+        diluentAndRate.isAcceptableOrUnknown(
+          data['diluent_and_rate']!,
+          _diluentAndRateMeta,
+        ),
+      );
+    }
+    if (data.containsKey('is_active')) {
+      context.handle(
+        _isActiveMeta,
+        isActive.isAcceptableOrUnknown(data['is_active']!, _isActiveMeta),
+      );
+    }
+    if (data.containsKey('ordered_at')) {
+      context.handle(
+        _orderedAtMeta,
+        orderedAt.isAcceptableOrUnknown(data['ordered_at']!, _orderedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_orderedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  PrescriptionOrder map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return PrescriptionOrder(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      patientId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}patient_id'],
+      )!,
+      documentId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}document_id'],
+      )!,
+      drugName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}drug_name'],
+      )!,
+      strength: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}strength'],
+      ),
+      dosageForm: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}dosage_form'],
+      ),
+      route: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}route'],
+      )!,
+      frequency: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}frequency'],
+      )!,
+      diluentAndRate: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}diluent_and_rate'],
+      ),
+      isActive: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_active'],
+      )!,
+      orderedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}ordered_at'],
+      )!,
+    );
+  }
+
+  @override
+  $PrescriptionOrdersTable createAlias(String alias) {
+    return $PrescriptionOrdersTable(attachedDatabase, alias);
+  }
+}
+
+class PrescriptionOrder extends DataClass
+    implements Insertable<PrescriptionOrder> {
+  final String id;
+  final String patientId;
+  final String documentId;
+  final String drugName;
+  final String? strength;
+  final String? dosageForm;
+  final String route;
+  final String frequency;
+  final String? diluentAndRate;
+  final bool isActive;
+  final DateTime orderedAt;
+  const PrescriptionOrder({
+    required this.id,
+    required this.patientId,
+    required this.documentId,
+    required this.drugName,
+    this.strength,
+    this.dosageForm,
+    required this.route,
+    required this.frequency,
+    this.diluentAndRate,
+    required this.isActive,
+    required this.orderedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['patient_id'] = Variable<String>(patientId);
+    map['document_id'] = Variable<String>(documentId);
+    map['drug_name'] = Variable<String>(drugName);
+    if (!nullToAbsent || strength != null) {
+      map['strength'] = Variable<String>(strength);
+    }
+    if (!nullToAbsent || dosageForm != null) {
+      map['dosage_form'] = Variable<String>(dosageForm);
+    }
+    map['route'] = Variable<String>(route);
+    map['frequency'] = Variable<String>(frequency);
+    if (!nullToAbsent || diluentAndRate != null) {
+      map['diluent_and_rate'] = Variable<String>(diluentAndRate);
+    }
+    map['is_active'] = Variable<bool>(isActive);
+    map['ordered_at'] = Variable<DateTime>(orderedAt);
+    return map;
+  }
+
+  PrescriptionOrdersCompanion toCompanion(bool nullToAbsent) {
+    return PrescriptionOrdersCompanion(
+      id: Value(id),
+      patientId: Value(patientId),
+      documentId: Value(documentId),
+      drugName: Value(drugName),
+      strength: strength == null && nullToAbsent
+          ? const Value.absent()
+          : Value(strength),
+      dosageForm: dosageForm == null && nullToAbsent
+          ? const Value.absent()
+          : Value(dosageForm),
+      route: Value(route),
+      frequency: Value(frequency),
+      diluentAndRate: diluentAndRate == null && nullToAbsent
+          ? const Value.absent()
+          : Value(diluentAndRate),
+      isActive: Value(isActive),
+      orderedAt: Value(orderedAt),
+    );
+  }
+
+  factory PrescriptionOrder.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return PrescriptionOrder(
+      id: serializer.fromJson<String>(json['id']),
+      patientId: serializer.fromJson<String>(json['patientId']),
+      documentId: serializer.fromJson<String>(json['documentId']),
+      drugName: serializer.fromJson<String>(json['drugName']),
+      strength: serializer.fromJson<String?>(json['strength']),
+      dosageForm: serializer.fromJson<String?>(json['dosageForm']),
+      route: serializer.fromJson<String>(json['route']),
+      frequency: serializer.fromJson<String>(json['frequency']),
+      diluentAndRate: serializer.fromJson<String?>(json['diluentAndRate']),
+      isActive: serializer.fromJson<bool>(json['isActive']),
+      orderedAt: serializer.fromJson<DateTime>(json['orderedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'patientId': serializer.toJson<String>(patientId),
+      'documentId': serializer.toJson<String>(documentId),
+      'drugName': serializer.toJson<String>(drugName),
+      'strength': serializer.toJson<String?>(strength),
+      'dosageForm': serializer.toJson<String?>(dosageForm),
+      'route': serializer.toJson<String>(route),
+      'frequency': serializer.toJson<String>(frequency),
+      'diluentAndRate': serializer.toJson<String?>(diluentAndRate),
+      'isActive': serializer.toJson<bool>(isActive),
+      'orderedAt': serializer.toJson<DateTime>(orderedAt),
+    };
+  }
+
+  PrescriptionOrder copyWith({
+    String? id,
+    String? patientId,
+    String? documentId,
+    String? drugName,
+    Value<String?> strength = const Value.absent(),
+    Value<String?> dosageForm = const Value.absent(),
+    String? route,
+    String? frequency,
+    Value<String?> diluentAndRate = const Value.absent(),
+    bool? isActive,
+    DateTime? orderedAt,
+  }) => PrescriptionOrder(
+    id: id ?? this.id,
+    patientId: patientId ?? this.patientId,
+    documentId: documentId ?? this.documentId,
+    drugName: drugName ?? this.drugName,
+    strength: strength.present ? strength.value : this.strength,
+    dosageForm: dosageForm.present ? dosageForm.value : this.dosageForm,
+    route: route ?? this.route,
+    frequency: frequency ?? this.frequency,
+    diluentAndRate: diluentAndRate.present
+        ? diluentAndRate.value
+        : this.diluentAndRate,
+    isActive: isActive ?? this.isActive,
+    orderedAt: orderedAt ?? this.orderedAt,
+  );
+  PrescriptionOrder copyWithCompanion(PrescriptionOrdersCompanion data) {
+    return PrescriptionOrder(
+      id: data.id.present ? data.id.value : this.id,
+      patientId: data.patientId.present ? data.patientId.value : this.patientId,
+      documentId: data.documentId.present
+          ? data.documentId.value
+          : this.documentId,
+      drugName: data.drugName.present ? data.drugName.value : this.drugName,
+      strength: data.strength.present ? data.strength.value : this.strength,
+      dosageForm: data.dosageForm.present
+          ? data.dosageForm.value
+          : this.dosageForm,
+      route: data.route.present ? data.route.value : this.route,
+      frequency: data.frequency.present ? data.frequency.value : this.frequency,
+      diluentAndRate: data.diluentAndRate.present
+          ? data.diluentAndRate.value
+          : this.diluentAndRate,
+      isActive: data.isActive.present ? data.isActive.value : this.isActive,
+      orderedAt: data.orderedAt.present ? data.orderedAt.value : this.orderedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('PrescriptionOrder(')
+          ..write('id: $id, ')
+          ..write('patientId: $patientId, ')
+          ..write('documentId: $documentId, ')
+          ..write('drugName: $drugName, ')
+          ..write('strength: $strength, ')
+          ..write('dosageForm: $dosageForm, ')
+          ..write('route: $route, ')
+          ..write('frequency: $frequency, ')
+          ..write('diluentAndRate: $diluentAndRate, ')
+          ..write('isActive: $isActive, ')
+          ..write('orderedAt: $orderedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    patientId,
+    documentId,
+    drugName,
+    strength,
+    dosageForm,
+    route,
+    frequency,
+    diluentAndRate,
+    isActive,
+    orderedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is PrescriptionOrder &&
+          other.id == this.id &&
+          other.patientId == this.patientId &&
+          other.documentId == this.documentId &&
+          other.drugName == this.drugName &&
+          other.strength == this.strength &&
+          other.dosageForm == this.dosageForm &&
+          other.route == this.route &&
+          other.frequency == this.frequency &&
+          other.diluentAndRate == this.diluentAndRate &&
+          other.isActive == this.isActive &&
+          other.orderedAt == this.orderedAt);
+}
+
+class PrescriptionOrdersCompanion extends UpdateCompanion<PrescriptionOrder> {
+  final Value<String> id;
+  final Value<String> patientId;
+  final Value<String> documentId;
+  final Value<String> drugName;
+  final Value<String?> strength;
+  final Value<String?> dosageForm;
+  final Value<String> route;
+  final Value<String> frequency;
+  final Value<String?> diluentAndRate;
+  final Value<bool> isActive;
+  final Value<DateTime> orderedAt;
+  final Value<int> rowid;
+  const PrescriptionOrdersCompanion({
+    this.id = const Value.absent(),
+    this.patientId = const Value.absent(),
+    this.documentId = const Value.absent(),
+    this.drugName = const Value.absent(),
+    this.strength = const Value.absent(),
+    this.dosageForm = const Value.absent(),
+    this.route = const Value.absent(),
+    this.frequency = const Value.absent(),
+    this.diluentAndRate = const Value.absent(),
+    this.isActive = const Value.absent(),
+    this.orderedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  PrescriptionOrdersCompanion.insert({
+    required String id,
+    required String patientId,
+    required String documentId,
+    required String drugName,
+    this.strength = const Value.absent(),
+    this.dosageForm = const Value.absent(),
+    required String route,
+    required String frequency,
+    this.diluentAndRate = const Value.absent(),
+    this.isActive = const Value.absent(),
+    required DateTime orderedAt,
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       patientId = Value(patientId),
+       documentId = Value(documentId),
+       drugName = Value(drugName),
+       route = Value(route),
+       frequency = Value(frequency),
+       orderedAt = Value(orderedAt);
+  static Insertable<PrescriptionOrder> custom({
+    Expression<String>? id,
+    Expression<String>? patientId,
+    Expression<String>? documentId,
+    Expression<String>? drugName,
+    Expression<String>? strength,
+    Expression<String>? dosageForm,
+    Expression<String>? route,
+    Expression<String>? frequency,
+    Expression<String>? diluentAndRate,
+    Expression<bool>? isActive,
+    Expression<DateTime>? orderedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (patientId != null) 'patient_id': patientId,
+      if (documentId != null) 'document_id': documentId,
+      if (drugName != null) 'drug_name': drugName,
+      if (strength != null) 'strength': strength,
+      if (dosageForm != null) 'dosage_form': dosageForm,
+      if (route != null) 'route': route,
+      if (frequency != null) 'frequency': frequency,
+      if (diluentAndRate != null) 'diluent_and_rate': diluentAndRate,
+      if (isActive != null) 'is_active': isActive,
+      if (orderedAt != null) 'ordered_at': orderedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  PrescriptionOrdersCompanion copyWith({
+    Value<String>? id,
+    Value<String>? patientId,
+    Value<String>? documentId,
+    Value<String>? drugName,
+    Value<String?>? strength,
+    Value<String?>? dosageForm,
+    Value<String>? route,
+    Value<String>? frequency,
+    Value<String?>? diluentAndRate,
+    Value<bool>? isActive,
+    Value<DateTime>? orderedAt,
+    Value<int>? rowid,
+  }) {
+    return PrescriptionOrdersCompanion(
+      id: id ?? this.id,
+      patientId: patientId ?? this.patientId,
+      documentId: documentId ?? this.documentId,
+      drugName: drugName ?? this.drugName,
+      strength: strength ?? this.strength,
+      dosageForm: dosageForm ?? this.dosageForm,
+      route: route ?? this.route,
+      frequency: frequency ?? this.frequency,
+      diluentAndRate: diluentAndRate ?? this.diluentAndRate,
+      isActive: isActive ?? this.isActive,
+      orderedAt: orderedAt ?? this.orderedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (patientId.present) {
+      map['patient_id'] = Variable<String>(patientId.value);
+    }
+    if (documentId.present) {
+      map['document_id'] = Variable<String>(documentId.value);
+    }
+    if (drugName.present) {
+      map['drug_name'] = Variable<String>(drugName.value);
+    }
+    if (strength.present) {
+      map['strength'] = Variable<String>(strength.value);
+    }
+    if (dosageForm.present) {
+      map['dosage_form'] = Variable<String>(dosageForm.value);
+    }
+    if (route.present) {
+      map['route'] = Variable<String>(route.value);
+    }
+    if (frequency.present) {
+      map['frequency'] = Variable<String>(frequency.value);
+    }
+    if (diluentAndRate.present) {
+      map['diluent_and_rate'] = Variable<String>(diluentAndRate.value);
+    }
+    if (isActive.present) {
+      map['is_active'] = Variable<bool>(isActive.value);
+    }
+    if (orderedAt.present) {
+      map['ordered_at'] = Variable<DateTime>(orderedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('PrescriptionOrdersCompanion(')
+          ..write('id: $id, ')
+          ..write('patientId: $patientId, ')
+          ..write('documentId: $documentId, ')
+          ..write('drugName: $drugName, ')
+          ..write('strength: $strength, ')
+          ..write('dosageForm: $dosageForm, ')
+          ..write('route: $route, ')
+          ..write('frequency: $frequency, ')
+          ..write('diluentAndRate: $diluentAndRate, ')
+          ..write('isActive: $isActive, ')
+          ..write('orderedAt: $orderedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $MicrobiologyCulturesTable extends MicrobiologyCultures
+    with TableInfo<$MicrobiologyCulturesTable, MicrobiologyCulture> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $MicrobiologyCulturesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _patientIdMeta = const VerificationMeta(
+    'patientId',
+  );
+  @override
+  late final GeneratedColumn<String> patientId = GeneratedColumn<String>(
+    'patient_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES patients (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _documentIdMeta = const VerificationMeta(
+    'documentId',
+  );
+  @override
+  late final GeneratedColumn<String> documentId = GeneratedColumn<String>(
+    'document_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES document_registries (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _sampleTypeMeta = const VerificationMeta(
+    'sampleType',
+  );
+  @override
+  late final GeneratedColumn<String> sampleType = GeneratedColumn<String>(
+    'sample_type',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _organismIdentifiedMeta =
+      const VerificationMeta('organismIdentified');
+  @override
+  late final GeneratedColumn<String> organismIdentified =
+      GeneratedColumn<String>(
+        'organism_identified',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _colonyCountMeta = const VerificationMeta(
+    'colonyCount',
+  );
+  @override
+  late final GeneratedColumn<String> colonyCount = GeneratedColumn<String>(
+    'colony_count',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _antibiogramJsonMeta = const VerificationMeta(
+    'antibiogramJson',
+  );
+  @override
+  late final GeneratedColumn<String> antibiogramJson = GeneratedColumn<String>(
+    'antibiogram_json',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('{}'),
+  );
+  static const VerificationMeta _reportedAtMeta = const VerificationMeta(
+    'reportedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> reportedAt = GeneratedColumn<DateTime>(
+    'reported_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    patientId,
+    documentId,
+    sampleType,
+    organismIdentified,
+    colonyCount,
+    antibiogramJson,
+    reportedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'microbiology_cultures';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<MicrobiologyCulture> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('patient_id')) {
+      context.handle(
+        _patientIdMeta,
+        patientId.isAcceptableOrUnknown(data['patient_id']!, _patientIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_patientIdMeta);
+    }
+    if (data.containsKey('document_id')) {
+      context.handle(
+        _documentIdMeta,
+        documentId.isAcceptableOrUnknown(data['document_id']!, _documentIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_documentIdMeta);
+    }
+    if (data.containsKey('sample_type')) {
+      context.handle(
+        _sampleTypeMeta,
+        sampleType.isAcceptableOrUnknown(data['sample_type']!, _sampleTypeMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_sampleTypeMeta);
+    }
+    if (data.containsKey('organism_identified')) {
+      context.handle(
+        _organismIdentifiedMeta,
+        organismIdentified.isAcceptableOrUnknown(
+          data['organism_identified']!,
+          _organismIdentifiedMeta,
+        ),
+      );
+    }
+    if (data.containsKey('colony_count')) {
+      context.handle(
+        _colonyCountMeta,
+        colonyCount.isAcceptableOrUnknown(
+          data['colony_count']!,
+          _colonyCountMeta,
+        ),
+      );
+    }
+    if (data.containsKey('antibiogram_json')) {
+      context.handle(
+        _antibiogramJsonMeta,
+        antibiogramJson.isAcceptableOrUnknown(
+          data['antibiogram_json']!,
+          _antibiogramJsonMeta,
+        ),
+      );
+    }
+    if (data.containsKey('reported_at')) {
+      context.handle(
+        _reportedAtMeta,
+        reportedAt.isAcceptableOrUnknown(data['reported_at']!, _reportedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_reportedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  MicrobiologyCulture map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return MicrobiologyCulture(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      patientId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}patient_id'],
+      )!,
+      documentId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}document_id'],
+      )!,
+      sampleType: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}sample_type'],
+      )!,
+      organismIdentified: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}organism_identified'],
+      ),
+      colonyCount: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}colony_count'],
+      ),
+      antibiogramJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}antibiogram_json'],
+      )!,
+      reportedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}reported_at'],
+      )!,
+    );
+  }
+
+  @override
+  $MicrobiologyCulturesTable createAlias(String alias) {
+    return $MicrobiologyCulturesTable(attachedDatabase, alias);
+  }
+}
+
+class MicrobiologyCulture extends DataClass
+    implements Insertable<MicrobiologyCulture> {
+  final String id;
+  final String patientId;
+  final String documentId;
+  final String sampleType;
+  final String? organismIdentified;
+  final String? colonyCount;
+  final String antibiogramJson;
+  final DateTime reportedAt;
+  const MicrobiologyCulture({
+    required this.id,
+    required this.patientId,
+    required this.documentId,
+    required this.sampleType,
+    this.organismIdentified,
+    this.colonyCount,
+    required this.antibiogramJson,
+    required this.reportedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['patient_id'] = Variable<String>(patientId);
+    map['document_id'] = Variable<String>(documentId);
+    map['sample_type'] = Variable<String>(sampleType);
+    if (!nullToAbsent || organismIdentified != null) {
+      map['organism_identified'] = Variable<String>(organismIdentified);
+    }
+    if (!nullToAbsent || colonyCount != null) {
+      map['colony_count'] = Variable<String>(colonyCount);
+    }
+    map['antibiogram_json'] = Variable<String>(antibiogramJson);
+    map['reported_at'] = Variable<DateTime>(reportedAt);
+    return map;
+  }
+
+  MicrobiologyCulturesCompanion toCompanion(bool nullToAbsent) {
+    return MicrobiologyCulturesCompanion(
+      id: Value(id),
+      patientId: Value(patientId),
+      documentId: Value(documentId),
+      sampleType: Value(sampleType),
+      organismIdentified: organismIdentified == null && nullToAbsent
+          ? const Value.absent()
+          : Value(organismIdentified),
+      colonyCount: colonyCount == null && nullToAbsent
+          ? const Value.absent()
+          : Value(colonyCount),
+      antibiogramJson: Value(antibiogramJson),
+      reportedAt: Value(reportedAt),
+    );
+  }
+
+  factory MicrobiologyCulture.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return MicrobiologyCulture(
+      id: serializer.fromJson<String>(json['id']),
+      patientId: serializer.fromJson<String>(json['patientId']),
+      documentId: serializer.fromJson<String>(json['documentId']),
+      sampleType: serializer.fromJson<String>(json['sampleType']),
+      organismIdentified: serializer.fromJson<String?>(
+        json['organismIdentified'],
+      ),
+      colonyCount: serializer.fromJson<String?>(json['colonyCount']),
+      antibiogramJson: serializer.fromJson<String>(json['antibiogramJson']),
+      reportedAt: serializer.fromJson<DateTime>(json['reportedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'patientId': serializer.toJson<String>(patientId),
+      'documentId': serializer.toJson<String>(documentId),
+      'sampleType': serializer.toJson<String>(sampleType),
+      'organismIdentified': serializer.toJson<String?>(organismIdentified),
+      'colonyCount': serializer.toJson<String?>(colonyCount),
+      'antibiogramJson': serializer.toJson<String>(antibiogramJson),
+      'reportedAt': serializer.toJson<DateTime>(reportedAt),
+    };
+  }
+
+  MicrobiologyCulture copyWith({
+    String? id,
+    String? patientId,
+    String? documentId,
+    String? sampleType,
+    Value<String?> organismIdentified = const Value.absent(),
+    Value<String?> colonyCount = const Value.absent(),
+    String? antibiogramJson,
+    DateTime? reportedAt,
+  }) => MicrobiologyCulture(
+    id: id ?? this.id,
+    patientId: patientId ?? this.patientId,
+    documentId: documentId ?? this.documentId,
+    sampleType: sampleType ?? this.sampleType,
+    organismIdentified: organismIdentified.present
+        ? organismIdentified.value
+        : this.organismIdentified,
+    colonyCount: colonyCount.present ? colonyCount.value : this.colonyCount,
+    antibiogramJson: antibiogramJson ?? this.antibiogramJson,
+    reportedAt: reportedAt ?? this.reportedAt,
+  );
+  MicrobiologyCulture copyWithCompanion(MicrobiologyCulturesCompanion data) {
+    return MicrobiologyCulture(
+      id: data.id.present ? data.id.value : this.id,
+      patientId: data.patientId.present ? data.patientId.value : this.patientId,
+      documentId: data.documentId.present
+          ? data.documentId.value
+          : this.documentId,
+      sampleType: data.sampleType.present
+          ? data.sampleType.value
+          : this.sampleType,
+      organismIdentified: data.organismIdentified.present
+          ? data.organismIdentified.value
+          : this.organismIdentified,
+      colonyCount: data.colonyCount.present
+          ? data.colonyCount.value
+          : this.colonyCount,
+      antibiogramJson: data.antibiogramJson.present
+          ? data.antibiogramJson.value
+          : this.antibiogramJson,
+      reportedAt: data.reportedAt.present
+          ? data.reportedAt.value
+          : this.reportedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('MicrobiologyCulture(')
+          ..write('id: $id, ')
+          ..write('patientId: $patientId, ')
+          ..write('documentId: $documentId, ')
+          ..write('sampleType: $sampleType, ')
+          ..write('organismIdentified: $organismIdentified, ')
+          ..write('colonyCount: $colonyCount, ')
+          ..write('antibiogramJson: $antibiogramJson, ')
+          ..write('reportedAt: $reportedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    patientId,
+    documentId,
+    sampleType,
+    organismIdentified,
+    colonyCount,
+    antibiogramJson,
+    reportedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is MicrobiologyCulture &&
+          other.id == this.id &&
+          other.patientId == this.patientId &&
+          other.documentId == this.documentId &&
+          other.sampleType == this.sampleType &&
+          other.organismIdentified == this.organismIdentified &&
+          other.colonyCount == this.colonyCount &&
+          other.antibiogramJson == this.antibiogramJson &&
+          other.reportedAt == this.reportedAt);
+}
+
+class MicrobiologyCulturesCompanion
+    extends UpdateCompanion<MicrobiologyCulture> {
+  final Value<String> id;
+  final Value<String> patientId;
+  final Value<String> documentId;
+  final Value<String> sampleType;
+  final Value<String?> organismIdentified;
+  final Value<String?> colonyCount;
+  final Value<String> antibiogramJson;
+  final Value<DateTime> reportedAt;
+  final Value<int> rowid;
+  const MicrobiologyCulturesCompanion({
+    this.id = const Value.absent(),
+    this.patientId = const Value.absent(),
+    this.documentId = const Value.absent(),
+    this.sampleType = const Value.absent(),
+    this.organismIdentified = const Value.absent(),
+    this.colonyCount = const Value.absent(),
+    this.antibiogramJson = const Value.absent(),
+    this.reportedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  MicrobiologyCulturesCompanion.insert({
+    required String id,
+    required String patientId,
+    required String documentId,
+    required String sampleType,
+    this.organismIdentified = const Value.absent(),
+    this.colonyCount = const Value.absent(),
+    this.antibiogramJson = const Value.absent(),
+    required DateTime reportedAt,
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       patientId = Value(patientId),
+       documentId = Value(documentId),
+       sampleType = Value(sampleType),
+       reportedAt = Value(reportedAt);
+  static Insertable<MicrobiologyCulture> custom({
+    Expression<String>? id,
+    Expression<String>? patientId,
+    Expression<String>? documentId,
+    Expression<String>? sampleType,
+    Expression<String>? organismIdentified,
+    Expression<String>? colonyCount,
+    Expression<String>? antibiogramJson,
+    Expression<DateTime>? reportedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (patientId != null) 'patient_id': patientId,
+      if (documentId != null) 'document_id': documentId,
+      if (sampleType != null) 'sample_type': sampleType,
+      if (organismIdentified != null) 'organism_identified': organismIdentified,
+      if (colonyCount != null) 'colony_count': colonyCount,
+      if (antibiogramJson != null) 'antibiogram_json': antibiogramJson,
+      if (reportedAt != null) 'reported_at': reportedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  MicrobiologyCulturesCompanion copyWith({
+    Value<String>? id,
+    Value<String>? patientId,
+    Value<String>? documentId,
+    Value<String>? sampleType,
+    Value<String?>? organismIdentified,
+    Value<String?>? colonyCount,
+    Value<String>? antibiogramJson,
+    Value<DateTime>? reportedAt,
+    Value<int>? rowid,
+  }) {
+    return MicrobiologyCulturesCompanion(
+      id: id ?? this.id,
+      patientId: patientId ?? this.patientId,
+      documentId: documentId ?? this.documentId,
+      sampleType: sampleType ?? this.sampleType,
+      organismIdentified: organismIdentified ?? this.organismIdentified,
+      colonyCount: colonyCount ?? this.colonyCount,
+      antibiogramJson: antibiogramJson ?? this.antibiogramJson,
+      reportedAt: reportedAt ?? this.reportedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (patientId.present) {
+      map['patient_id'] = Variable<String>(patientId.value);
+    }
+    if (documentId.present) {
+      map['document_id'] = Variable<String>(documentId.value);
+    }
+    if (sampleType.present) {
+      map['sample_type'] = Variable<String>(sampleType.value);
+    }
+    if (organismIdentified.present) {
+      map['organism_identified'] = Variable<String>(organismIdentified.value);
+    }
+    if (colonyCount.present) {
+      map['colony_count'] = Variable<String>(colonyCount.value);
+    }
+    if (antibiogramJson.present) {
+      map['antibiogram_json'] = Variable<String>(antibiogramJson.value);
+    }
+    if (reportedAt.present) {
+      map['reported_at'] = Variable<DateTime>(reportedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('MicrobiologyCulturesCompanion(')
+          ..write('id: $id, ')
+          ..write('patientId: $patientId, ')
+          ..write('documentId: $documentId, ')
+          ..write('sampleType: $sampleType, ')
+          ..write('organismIdentified: $organismIdentified, ')
+          ..write('colonyCount: $colonyCount, ')
+          ..write('antibiogramJson: $antibiogramJson, ')
+          ..write('reportedAt: $reportedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $ImagingStudiesTable extends ImagingStudies
+    with TableInfo<$ImagingStudiesTable, ImagingStudy> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ImagingStudiesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _patientIdMeta = const VerificationMeta(
+    'patientId',
+  );
+  @override
+  late final GeneratedColumn<String> patientId = GeneratedColumn<String>(
+    'patient_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES patients (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _documentIdMeta = const VerificationMeta(
+    'documentId',
+  );
+  @override
+  late final GeneratedColumn<String> documentId = GeneratedColumn<String>(
+    'document_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES document_registries (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _modalityMeta = const VerificationMeta(
+    'modality',
+  );
+  @override
+  late final GeneratedColumn<String> modality = GeneratedColumn<String>(
+    'modality',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _anatomicalRegionMeta = const VerificationMeta(
+    'anatomicalRegion',
+  );
+  @override
+  late final GeneratedColumn<String> anatomicalRegion = GeneratedColumn<String>(
+    'anatomical_region',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _findingsMeta = const VerificationMeta(
+    'findings',
+  );
+  @override
+  late final GeneratedColumn<String> findings = GeneratedColumn<String>(
+    'findings',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _impressionMeta = const VerificationMeta(
+    'impression',
+  );
+  @override
+  late final GeneratedColumn<String> impression = GeneratedColumn<String>(
+    'impression',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _performedAtMeta = const VerificationMeta(
+    'performedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> performedAt = GeneratedColumn<DateTime>(
+    'performed_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    patientId,
+    documentId,
+    modality,
+    anatomicalRegion,
+    findings,
+    impression,
+    performedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'imaging_studies';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<ImagingStudy> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('patient_id')) {
+      context.handle(
+        _patientIdMeta,
+        patientId.isAcceptableOrUnknown(data['patient_id']!, _patientIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_patientIdMeta);
+    }
+    if (data.containsKey('document_id')) {
+      context.handle(
+        _documentIdMeta,
+        documentId.isAcceptableOrUnknown(data['document_id']!, _documentIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_documentIdMeta);
+    }
+    if (data.containsKey('modality')) {
+      context.handle(
+        _modalityMeta,
+        modality.isAcceptableOrUnknown(data['modality']!, _modalityMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_modalityMeta);
+    }
+    if (data.containsKey('anatomical_region')) {
+      context.handle(
+        _anatomicalRegionMeta,
+        anatomicalRegion.isAcceptableOrUnknown(
+          data['anatomical_region']!,
+          _anatomicalRegionMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_anatomicalRegionMeta);
+    }
+    if (data.containsKey('findings')) {
+      context.handle(
+        _findingsMeta,
+        findings.isAcceptableOrUnknown(data['findings']!, _findingsMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_findingsMeta);
+    }
+    if (data.containsKey('impression')) {
+      context.handle(
+        _impressionMeta,
+        impression.isAcceptableOrUnknown(data['impression']!, _impressionMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_impressionMeta);
+    }
+    if (data.containsKey('performed_at')) {
+      context.handle(
+        _performedAtMeta,
+        performedAt.isAcceptableOrUnknown(
+          data['performed_at']!,
+          _performedAtMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_performedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  ImagingStudy map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ImagingStudy(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      patientId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}patient_id'],
+      )!,
+      documentId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}document_id'],
+      )!,
+      modality: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}modality'],
+      )!,
+      anatomicalRegion: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}anatomical_region'],
+      )!,
+      findings: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}findings'],
+      )!,
+      impression: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}impression'],
+      )!,
+      performedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}performed_at'],
+      )!,
+    );
+  }
+
+  @override
+  $ImagingStudiesTable createAlias(String alias) {
+    return $ImagingStudiesTable(attachedDatabase, alias);
+  }
+}
+
+class ImagingStudy extends DataClass implements Insertable<ImagingStudy> {
+  final String id;
+  final String patientId;
+  final String documentId;
+  final String modality;
+  final String anatomicalRegion;
+  final String findings;
+  final String impression;
+  final DateTime performedAt;
+  const ImagingStudy({
+    required this.id,
+    required this.patientId,
+    required this.documentId,
+    required this.modality,
+    required this.anatomicalRegion,
+    required this.findings,
+    required this.impression,
+    required this.performedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['patient_id'] = Variable<String>(patientId);
+    map['document_id'] = Variable<String>(documentId);
+    map['modality'] = Variable<String>(modality);
+    map['anatomical_region'] = Variable<String>(anatomicalRegion);
+    map['findings'] = Variable<String>(findings);
+    map['impression'] = Variable<String>(impression);
+    map['performed_at'] = Variable<DateTime>(performedAt);
+    return map;
+  }
+
+  ImagingStudiesCompanion toCompanion(bool nullToAbsent) {
+    return ImagingStudiesCompanion(
+      id: Value(id),
+      patientId: Value(patientId),
+      documentId: Value(documentId),
+      modality: Value(modality),
+      anatomicalRegion: Value(anatomicalRegion),
+      findings: Value(findings),
+      impression: Value(impression),
+      performedAt: Value(performedAt),
+    );
+  }
+
+  factory ImagingStudy.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ImagingStudy(
+      id: serializer.fromJson<String>(json['id']),
+      patientId: serializer.fromJson<String>(json['patientId']),
+      documentId: serializer.fromJson<String>(json['documentId']),
+      modality: serializer.fromJson<String>(json['modality']),
+      anatomicalRegion: serializer.fromJson<String>(json['anatomicalRegion']),
+      findings: serializer.fromJson<String>(json['findings']),
+      impression: serializer.fromJson<String>(json['impression']),
+      performedAt: serializer.fromJson<DateTime>(json['performedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'patientId': serializer.toJson<String>(patientId),
+      'documentId': serializer.toJson<String>(documentId),
+      'modality': serializer.toJson<String>(modality),
+      'anatomicalRegion': serializer.toJson<String>(anatomicalRegion),
+      'findings': serializer.toJson<String>(findings),
+      'impression': serializer.toJson<String>(impression),
+      'performedAt': serializer.toJson<DateTime>(performedAt),
+    };
+  }
+
+  ImagingStudy copyWith({
+    String? id,
+    String? patientId,
+    String? documentId,
+    String? modality,
+    String? anatomicalRegion,
+    String? findings,
+    String? impression,
+    DateTime? performedAt,
+  }) => ImagingStudy(
+    id: id ?? this.id,
+    patientId: patientId ?? this.patientId,
+    documentId: documentId ?? this.documentId,
+    modality: modality ?? this.modality,
+    anatomicalRegion: anatomicalRegion ?? this.anatomicalRegion,
+    findings: findings ?? this.findings,
+    impression: impression ?? this.impression,
+    performedAt: performedAt ?? this.performedAt,
+  );
+  ImagingStudy copyWithCompanion(ImagingStudiesCompanion data) {
+    return ImagingStudy(
+      id: data.id.present ? data.id.value : this.id,
+      patientId: data.patientId.present ? data.patientId.value : this.patientId,
+      documentId: data.documentId.present
+          ? data.documentId.value
+          : this.documentId,
+      modality: data.modality.present ? data.modality.value : this.modality,
+      anatomicalRegion: data.anatomicalRegion.present
+          ? data.anatomicalRegion.value
+          : this.anatomicalRegion,
+      findings: data.findings.present ? data.findings.value : this.findings,
+      impression: data.impression.present
+          ? data.impression.value
+          : this.impression,
+      performedAt: data.performedAt.present
+          ? data.performedAt.value
+          : this.performedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ImagingStudy(')
+          ..write('id: $id, ')
+          ..write('patientId: $patientId, ')
+          ..write('documentId: $documentId, ')
+          ..write('modality: $modality, ')
+          ..write('anatomicalRegion: $anatomicalRegion, ')
+          ..write('findings: $findings, ')
+          ..write('impression: $impression, ')
+          ..write('performedAt: $performedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    patientId,
+    documentId,
+    modality,
+    anatomicalRegion,
+    findings,
+    impression,
+    performedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ImagingStudy &&
+          other.id == this.id &&
+          other.patientId == this.patientId &&
+          other.documentId == this.documentId &&
+          other.modality == this.modality &&
+          other.anatomicalRegion == this.anatomicalRegion &&
+          other.findings == this.findings &&
+          other.impression == this.impression &&
+          other.performedAt == this.performedAt);
+}
+
+class ImagingStudiesCompanion extends UpdateCompanion<ImagingStudy> {
+  final Value<String> id;
+  final Value<String> patientId;
+  final Value<String> documentId;
+  final Value<String> modality;
+  final Value<String> anatomicalRegion;
+  final Value<String> findings;
+  final Value<String> impression;
+  final Value<DateTime> performedAt;
+  final Value<int> rowid;
+  const ImagingStudiesCompanion({
+    this.id = const Value.absent(),
+    this.patientId = const Value.absent(),
+    this.documentId = const Value.absent(),
+    this.modality = const Value.absent(),
+    this.anatomicalRegion = const Value.absent(),
+    this.findings = const Value.absent(),
+    this.impression = const Value.absent(),
+    this.performedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  ImagingStudiesCompanion.insert({
+    required String id,
+    required String patientId,
+    required String documentId,
+    required String modality,
+    required String anatomicalRegion,
+    required String findings,
+    required String impression,
+    required DateTime performedAt,
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       patientId = Value(patientId),
+       documentId = Value(documentId),
+       modality = Value(modality),
+       anatomicalRegion = Value(anatomicalRegion),
+       findings = Value(findings),
+       impression = Value(impression),
+       performedAt = Value(performedAt);
+  static Insertable<ImagingStudy> custom({
+    Expression<String>? id,
+    Expression<String>? patientId,
+    Expression<String>? documentId,
+    Expression<String>? modality,
+    Expression<String>? anatomicalRegion,
+    Expression<String>? findings,
+    Expression<String>? impression,
+    Expression<DateTime>? performedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (patientId != null) 'patient_id': patientId,
+      if (documentId != null) 'document_id': documentId,
+      if (modality != null) 'modality': modality,
+      if (anatomicalRegion != null) 'anatomical_region': anatomicalRegion,
+      if (findings != null) 'findings': findings,
+      if (impression != null) 'impression': impression,
+      if (performedAt != null) 'performed_at': performedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  ImagingStudiesCompanion copyWith({
+    Value<String>? id,
+    Value<String>? patientId,
+    Value<String>? documentId,
+    Value<String>? modality,
+    Value<String>? anatomicalRegion,
+    Value<String>? findings,
+    Value<String>? impression,
+    Value<DateTime>? performedAt,
+    Value<int>? rowid,
+  }) {
+    return ImagingStudiesCompanion(
+      id: id ?? this.id,
+      patientId: patientId ?? this.patientId,
+      documentId: documentId ?? this.documentId,
+      modality: modality ?? this.modality,
+      anatomicalRegion: anatomicalRegion ?? this.anatomicalRegion,
+      findings: findings ?? this.findings,
+      impression: impression ?? this.impression,
+      performedAt: performedAt ?? this.performedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (patientId.present) {
+      map['patient_id'] = Variable<String>(patientId.value);
+    }
+    if (documentId.present) {
+      map['document_id'] = Variable<String>(documentId.value);
+    }
+    if (modality.present) {
+      map['modality'] = Variable<String>(modality.value);
+    }
+    if (anatomicalRegion.present) {
+      map['anatomical_region'] = Variable<String>(anatomicalRegion.value);
+    }
+    if (findings.present) {
+      map['findings'] = Variable<String>(findings.value);
+    }
+    if (impression.present) {
+      map['impression'] = Variable<String>(impression.value);
+    }
+    if (performedAt.present) {
+      map['performed_at'] = Variable<DateTime>(performedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ImagingStudiesCompanion(')
+          ..write('id: $id, ')
+          ..write('patientId: $patientId, ')
+          ..write('documentId: $documentId, ')
+          ..write('modality: $modality, ')
+          ..write('anatomicalRegion: $anatomicalRegion, ')
+          ..write('findings: $findings, ')
+          ..write('impression: $impression, ')
+          ..write('performedAt: $performedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -9732,6 +12870,15 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $HbpImplantsTable hbpImplants = $HbpImplantsTable(this);
   late final $HbpStratificationsTable hbpStratifications =
       $HbpStratificationsTable(this);
+  late final $DocumentRegistriesTable documentRegistries =
+      $DocumentRegistriesTable(this);
+  late final $ClinicalObservationsTable clinicalObservations =
+      $ClinicalObservationsTable(this);
+  late final $PrescriptionOrdersTable prescriptionOrders =
+      $PrescriptionOrdersTable(this);
+  late final $MicrobiologyCulturesTable microbiologyCultures =
+      $MicrobiologyCulturesTable(this);
+  late final $ImagingStudiesTable imagingStudies = $ImagingStudiesTable(this);
   late final Index patientsHospitalRegNoIdx = Index(
     'patients_hospital_reg_no_idx',
     'CREATE INDEX patients_hospital_reg_no_idx ON patients (hospital_reg_no)',
@@ -9775,6 +12922,11 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     hbpProcedures,
     hbpImplants,
     hbpStratifications,
+    documentRegistries,
+    clinicalObservations,
+    prescriptionOrders,
+    microbiologyCultures,
+    imagingStudies,
     patientsHospitalRegNoIdx,
     patientsAdmissionDateIdx,
     clinicalEncountersPatientOccurredIdx,
@@ -9825,6 +12977,69 @@ abstract class _$AppDatabase extends GeneratedDatabase {
         limitUpdateKind: UpdateKind.delete,
       ),
       result: [TableUpdate('clinical_outcomes', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'patients',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('document_registries', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'patients',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('clinical_observations', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'document_registries',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('clinical_observations', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'patients',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('prescription_orders', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'document_registries',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('prescription_orders', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'patients',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('microbiology_cultures', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'document_registries',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('microbiology_cultures', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'patients',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('imaging_studies', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'document_registries',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('imaging_studies', kind: UpdateKind.delete)],
     ),
   ]);
 }
@@ -9956,6 +13171,116 @@ final class $$PatientsTableReferences
     final cache = $_typedResult.readTableOrNull(
       _clinicalActionsRefsTable($_db),
     );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$DocumentRegistriesTable, List<DocumentRegistry>>
+  _documentRegistriesRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.documentRegistries,
+        aliasName: 'patients__id__document_registries__patient_id',
+      );
+
+  $$DocumentRegistriesTableProcessedTableManager get documentRegistriesRefs {
+    final manager = $$DocumentRegistriesTableTableManager(
+      $_db,
+      $_db.documentRegistries,
+    ).filter((f) => f.patientId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _documentRegistriesRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<
+    $ClinicalObservationsTable,
+    List<ClinicalObservation>
+  >
+  _clinicalObservationsRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.clinicalObservations,
+        aliasName: 'patients__id__clinical_observations__patient_id',
+      );
+
+  $$ClinicalObservationsTableProcessedTableManager
+  get clinicalObservationsRefs {
+    final manager = $$ClinicalObservationsTableTableManager(
+      $_db,
+      $_db.clinicalObservations,
+    ).filter((f) => f.patientId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _clinicalObservationsRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$PrescriptionOrdersTable, List<PrescriptionOrder>>
+  _prescriptionOrdersRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.prescriptionOrders,
+        aliasName: 'patients__id__prescription_orders__patient_id',
+      );
+
+  $$PrescriptionOrdersTableProcessedTableManager get prescriptionOrdersRefs {
+    final manager = $$PrescriptionOrdersTableTableManager(
+      $_db,
+      $_db.prescriptionOrders,
+    ).filter((f) => f.patientId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _prescriptionOrdersRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<
+    $MicrobiologyCulturesTable,
+    List<MicrobiologyCulture>
+  >
+  _microbiologyCulturesRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.microbiologyCultures,
+        aliasName: 'patients__id__microbiology_cultures__patient_id',
+      );
+
+  $$MicrobiologyCulturesTableProcessedTableManager
+  get microbiologyCulturesRefs {
+    final manager = $$MicrobiologyCulturesTableTableManager(
+      $_db,
+      $_db.microbiologyCultures,
+    ).filter((f) => f.patientId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _microbiologyCulturesRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$ImagingStudiesTable, List<ImagingStudy>>
+  _imagingStudiesRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.imagingStudies,
+    aliasName: 'patients__id__imaging_studies__patient_id',
+  );
+
+  $$ImagingStudiesTableProcessedTableManager get imagingStudiesRefs {
+    final manager = $$ImagingStudiesTableTableManager(
+      $_db,
+      $_db.imagingStudies,
+    ).filter((f) => f.patientId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_imagingStudiesRefsTable($_db));
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: cache),
     );
@@ -10162,6 +13487,131 @@ class $$PatientsTableFilterComposer
           }) => $$ClinicalActionsTableFilterComposer(
             $db: $db,
             $table: $db.clinicalActions,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> documentRegistriesRefs(
+    Expression<bool> Function($$DocumentRegistriesTableFilterComposer f) f,
+  ) {
+    final $$DocumentRegistriesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.documentRegistries,
+      getReferencedColumn: (t) => t.patientId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$DocumentRegistriesTableFilterComposer(
+            $db: $db,
+            $table: $db.documentRegistries,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> clinicalObservationsRefs(
+    Expression<bool> Function($$ClinicalObservationsTableFilterComposer f) f,
+  ) {
+    final $$ClinicalObservationsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.clinicalObservations,
+      getReferencedColumn: (t) => t.patientId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ClinicalObservationsTableFilterComposer(
+            $db: $db,
+            $table: $db.clinicalObservations,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> prescriptionOrdersRefs(
+    Expression<bool> Function($$PrescriptionOrdersTableFilterComposer f) f,
+  ) {
+    final $$PrescriptionOrdersTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.prescriptionOrders,
+      getReferencedColumn: (t) => t.patientId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PrescriptionOrdersTableFilterComposer(
+            $db: $db,
+            $table: $db.prescriptionOrders,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> microbiologyCulturesRefs(
+    Expression<bool> Function($$MicrobiologyCulturesTableFilterComposer f) f,
+  ) {
+    final $$MicrobiologyCulturesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.microbiologyCultures,
+      getReferencedColumn: (t) => t.patientId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$MicrobiologyCulturesTableFilterComposer(
+            $db: $db,
+            $table: $db.microbiologyCultures,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> imagingStudiesRefs(
+    Expression<bool> Function($$ImagingStudiesTableFilterComposer f) f,
+  ) {
+    final $$ImagingStudiesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.imagingStudies,
+      getReferencedColumn: (t) => t.patientId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ImagingStudiesTableFilterComposer(
+            $db: $db,
+            $table: $db.imagingStudies,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -10471,6 +13921,135 @@ class $$PatientsTableAnnotationComposer
     );
     return f(composer);
   }
+
+  Expression<T> documentRegistriesRefs<T extends Object>(
+    Expression<T> Function($$DocumentRegistriesTableAnnotationComposer a) f,
+  ) {
+    final $$DocumentRegistriesTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.documentRegistries,
+          getReferencedColumn: (t) => t.patientId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$DocumentRegistriesTableAnnotationComposer(
+                $db: $db,
+                $table: $db.documentRegistries,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
+
+  Expression<T> clinicalObservationsRefs<T extends Object>(
+    Expression<T> Function($$ClinicalObservationsTableAnnotationComposer a) f,
+  ) {
+    final $$ClinicalObservationsTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.clinicalObservations,
+          getReferencedColumn: (t) => t.patientId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$ClinicalObservationsTableAnnotationComposer(
+                $db: $db,
+                $table: $db.clinicalObservations,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
+
+  Expression<T> prescriptionOrdersRefs<T extends Object>(
+    Expression<T> Function($$PrescriptionOrdersTableAnnotationComposer a) f,
+  ) {
+    final $$PrescriptionOrdersTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.prescriptionOrders,
+          getReferencedColumn: (t) => t.patientId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$PrescriptionOrdersTableAnnotationComposer(
+                $db: $db,
+                $table: $db.prescriptionOrders,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
+
+  Expression<T> microbiologyCulturesRefs<T extends Object>(
+    Expression<T> Function($$MicrobiologyCulturesTableAnnotationComposer a) f,
+  ) {
+    final $$MicrobiologyCulturesTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.microbiologyCultures,
+          getReferencedColumn: (t) => t.patientId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$MicrobiologyCulturesTableAnnotationComposer(
+                $db: $db,
+                $table: $db.microbiologyCultures,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
+
+  Expression<T> imagingStudiesRefs<T extends Object>(
+    Expression<T> Function($$ImagingStudiesTableAnnotationComposer a) f,
+  ) {
+    final $$ImagingStudiesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.imagingStudies,
+      getReferencedColumn: (t) => t.patientId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ImagingStudiesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.imagingStudies,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$PatientsTableTableManager
@@ -10491,6 +14070,11 @@ class $$PatientsTableTableManager
             bool investigationsRefs,
             bool patientProblemsRefs,
             bool clinicalActionsRefs,
+            bool documentRegistriesRefs,
+            bool clinicalObservationsRefs,
+            bool prescriptionOrdersRefs,
+            bool microbiologyCulturesRefs,
+            bool imagingStudiesRefs,
           })
         > {
   $$PatientsTableTableManager(_$AppDatabase db, $PatientsTable table)
@@ -10610,6 +14194,11 @@ class $$PatientsTableTableManager
                 investigationsRefs = false,
                 patientProblemsRefs = false,
                 clinicalActionsRefs = false,
+                documentRegistriesRefs = false,
+                clinicalObservationsRefs = false,
+                prescriptionOrdersRefs = false,
+                microbiologyCulturesRefs = false,
+                imagingStudiesRefs = false,
               }) {
                 return PrefetchHooks(
                   db: db,
@@ -10618,6 +14207,11 @@ class $$PatientsTableTableManager
                     if (investigationsRefs) db.investigations,
                     if (patientProblemsRefs) db.patientProblems,
                     if (clinicalActionsRefs) db.clinicalActions,
+                    if (documentRegistriesRefs) db.documentRegistries,
+                    if (clinicalObservationsRefs) db.clinicalObservations,
+                    if (prescriptionOrdersRefs) db.prescriptionOrders,
+                    if (microbiologyCulturesRefs) db.microbiologyCultures,
+                    if (imagingStudiesRefs) db.imagingStudies,
                   ],
                   addJoins: null,
                   getPrefetchedDataCallback: (items) async {
@@ -10706,6 +14300,111 @@ class $$PatientsTableTableManager
                               ),
                           typedResults: items,
                         ),
+                      if (documentRegistriesRefs)
+                        await $_getPrefetchedData<
+                          Patient,
+                          $PatientsTable,
+                          DocumentRegistry
+                        >(
+                          currentTable: table,
+                          referencedTable: $$PatientsTableReferences
+                              ._documentRegistriesRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$PatientsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).documentRegistriesRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.patientId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (clinicalObservationsRefs)
+                        await $_getPrefetchedData<
+                          Patient,
+                          $PatientsTable,
+                          ClinicalObservation
+                        >(
+                          currentTable: table,
+                          referencedTable: $$PatientsTableReferences
+                              ._clinicalObservationsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$PatientsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).clinicalObservationsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.patientId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (prescriptionOrdersRefs)
+                        await $_getPrefetchedData<
+                          Patient,
+                          $PatientsTable,
+                          PrescriptionOrder
+                        >(
+                          currentTable: table,
+                          referencedTable: $$PatientsTableReferences
+                              ._prescriptionOrdersRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$PatientsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).prescriptionOrdersRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.patientId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (microbiologyCulturesRefs)
+                        await $_getPrefetchedData<
+                          Patient,
+                          $PatientsTable,
+                          MicrobiologyCulture
+                        >(
+                          currentTable: table,
+                          referencedTable: $$PatientsTableReferences
+                              ._microbiologyCulturesRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$PatientsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).microbiologyCulturesRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.patientId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (imagingStudiesRefs)
+                        await $_getPrefetchedData<
+                          Patient,
+                          $PatientsTable,
+                          ImagingStudy
+                        >(
+                          currentTable: table,
+                          referencedTable: $$PatientsTableReferences
+                              ._imagingStudiesRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$PatientsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).imagingStudiesRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.patientId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                     ];
                   },
                 );
@@ -10731,6 +14430,11 @@ typedef $$PatientsTableProcessedTableManager =
         bool investigationsRefs,
         bool patientProblemsRefs,
         bool clinicalActionsRefs,
+        bool documentRegistriesRefs,
+        bool clinicalObservationsRefs,
+        bool prescriptionOrdersRefs,
+        bool microbiologyCulturesRefs,
+        bool imagingStudiesRefs,
       })
     >;
 typedef $$ClinicalEncountersTableCreateCompanionBuilder =
@@ -15778,6 +19482,2932 @@ typedef $$HbpStratificationsTableProcessedTableManager =
       HbpStratification,
       PrefetchHooks Function()
     >;
+typedef $$DocumentRegistriesTableCreateCompanionBuilder =
+    DocumentRegistriesCompanion Function({
+      required String id,
+      required String patientId,
+      required String documentCategory,
+      required String imagePath,
+      Value<String> rawOcrTranscript,
+      Value<double> confidenceScore,
+      required DateTime documentedAt,
+      Value<DateTime> createdAt,
+      Value<int> rowid,
+    });
+typedef $$DocumentRegistriesTableUpdateCompanionBuilder =
+    DocumentRegistriesCompanion Function({
+      Value<String> id,
+      Value<String> patientId,
+      Value<String> documentCategory,
+      Value<String> imagePath,
+      Value<String> rawOcrTranscript,
+      Value<double> confidenceScore,
+      Value<DateTime> documentedAt,
+      Value<DateTime> createdAt,
+      Value<int> rowid,
+    });
+
+final class $$DocumentRegistriesTableReferences
+    extends
+        BaseReferences<
+          _$AppDatabase,
+          $DocumentRegistriesTable,
+          DocumentRegistry
+        > {
+  $$DocumentRegistriesTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $PatientsTable _patientIdTable(_$AppDatabase db) =>
+      db.patients.createAlias('document_registries__patient_id__patients__id');
+
+  $$PatientsTableProcessedTableManager get patientId {
+    final $_column = $_itemColumn<String>('patient_id')!;
+
+    final manager = $$PatientsTableTableManager(
+      $_db,
+      $_db.patients,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_patientIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static MultiTypedResultKey<
+    $ClinicalObservationsTable,
+    List<ClinicalObservation>
+  >
+  _clinicalObservationsRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.clinicalObservations,
+        aliasName:
+            'document_registries__id__clinical_observations__document_id',
+      );
+
+  $$ClinicalObservationsTableProcessedTableManager
+  get clinicalObservationsRefs {
+    final manager = $$ClinicalObservationsTableTableManager(
+      $_db,
+      $_db.clinicalObservations,
+    ).filter((f) => f.documentId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _clinicalObservationsRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$PrescriptionOrdersTable, List<PrescriptionOrder>>
+  _prescriptionOrdersRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.prescriptionOrders,
+        aliasName: 'document_registries__id__prescription_orders__document_id',
+      );
+
+  $$PrescriptionOrdersTableProcessedTableManager get prescriptionOrdersRefs {
+    final manager = $$PrescriptionOrdersTableTableManager(
+      $_db,
+      $_db.prescriptionOrders,
+    ).filter((f) => f.documentId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _prescriptionOrdersRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<
+    $MicrobiologyCulturesTable,
+    List<MicrobiologyCulture>
+  >
+  _microbiologyCulturesRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.microbiologyCultures,
+        aliasName:
+            'document_registries__id__microbiology_cultures__document_id',
+      );
+
+  $$MicrobiologyCulturesTableProcessedTableManager
+  get microbiologyCulturesRefs {
+    final manager = $$MicrobiologyCulturesTableTableManager(
+      $_db,
+      $_db.microbiologyCultures,
+    ).filter((f) => f.documentId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _microbiologyCulturesRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$ImagingStudiesTable, List<ImagingStudy>>
+  _imagingStudiesRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.imagingStudies,
+    aliasName: 'document_registries__id__imaging_studies__document_id',
+  );
+
+  $$ImagingStudiesTableProcessedTableManager get imagingStudiesRefs {
+    final manager = $$ImagingStudiesTableTableManager(
+      $_db,
+      $_db.imagingStudies,
+    ).filter((f) => f.documentId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_imagingStudiesRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+}
+
+class $$DocumentRegistriesTableFilterComposer
+    extends Composer<_$AppDatabase, $DocumentRegistriesTable> {
+  $$DocumentRegistriesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get documentCategory => $composableBuilder(
+    column: $table.documentCategory,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get imagePath => $composableBuilder(
+    column: $table.imagePath,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get rawOcrTranscript => $composableBuilder(
+    column: $table.rawOcrTranscript,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get confidenceScore => $composableBuilder(
+    column: $table.confidenceScore,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get documentedAt => $composableBuilder(
+    column: $table.documentedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$PatientsTableFilterComposer get patientId {
+    final $$PatientsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.patientId,
+      referencedTable: $db.patients,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PatientsTableFilterComposer(
+            $db: $db,
+            $table: $db.patients,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  Expression<bool> clinicalObservationsRefs(
+    Expression<bool> Function($$ClinicalObservationsTableFilterComposer f) f,
+  ) {
+    final $$ClinicalObservationsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.clinicalObservations,
+      getReferencedColumn: (t) => t.documentId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ClinicalObservationsTableFilterComposer(
+            $db: $db,
+            $table: $db.clinicalObservations,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> prescriptionOrdersRefs(
+    Expression<bool> Function($$PrescriptionOrdersTableFilterComposer f) f,
+  ) {
+    final $$PrescriptionOrdersTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.prescriptionOrders,
+      getReferencedColumn: (t) => t.documentId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PrescriptionOrdersTableFilterComposer(
+            $db: $db,
+            $table: $db.prescriptionOrders,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> microbiologyCulturesRefs(
+    Expression<bool> Function($$MicrobiologyCulturesTableFilterComposer f) f,
+  ) {
+    final $$MicrobiologyCulturesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.microbiologyCultures,
+      getReferencedColumn: (t) => t.documentId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$MicrobiologyCulturesTableFilterComposer(
+            $db: $db,
+            $table: $db.microbiologyCultures,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> imagingStudiesRefs(
+    Expression<bool> Function($$ImagingStudiesTableFilterComposer f) f,
+  ) {
+    final $$ImagingStudiesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.imagingStudies,
+      getReferencedColumn: (t) => t.documentId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ImagingStudiesTableFilterComposer(
+            $db: $db,
+            $table: $db.imagingStudies,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+}
+
+class $$DocumentRegistriesTableOrderingComposer
+    extends Composer<_$AppDatabase, $DocumentRegistriesTable> {
+  $$DocumentRegistriesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get documentCategory => $composableBuilder(
+    column: $table.documentCategory,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get imagePath => $composableBuilder(
+    column: $table.imagePath,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get rawOcrTranscript => $composableBuilder(
+    column: $table.rawOcrTranscript,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get confidenceScore => $composableBuilder(
+    column: $table.confidenceScore,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get documentedAt => $composableBuilder(
+    column: $table.documentedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$PatientsTableOrderingComposer get patientId {
+    final $$PatientsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.patientId,
+      referencedTable: $db.patients,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PatientsTableOrderingComposer(
+            $db: $db,
+            $table: $db.patients,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$DocumentRegistriesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $DocumentRegistriesTable> {
+  $$DocumentRegistriesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get documentCategory => $composableBuilder(
+    column: $table.documentCategory,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get imagePath =>
+      $composableBuilder(column: $table.imagePath, builder: (column) => column);
+
+  GeneratedColumn<String> get rawOcrTranscript => $composableBuilder(
+    column: $table.rawOcrTranscript,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get confidenceScore => $composableBuilder(
+    column: $table.confidenceScore,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get documentedAt => $composableBuilder(
+    column: $table.documentedAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  $$PatientsTableAnnotationComposer get patientId {
+    final $$PatientsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.patientId,
+      referencedTable: $db.patients,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PatientsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.patients,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  Expression<T> clinicalObservationsRefs<T extends Object>(
+    Expression<T> Function($$ClinicalObservationsTableAnnotationComposer a) f,
+  ) {
+    final $$ClinicalObservationsTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.clinicalObservations,
+          getReferencedColumn: (t) => t.documentId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$ClinicalObservationsTableAnnotationComposer(
+                $db: $db,
+                $table: $db.clinicalObservations,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
+
+  Expression<T> prescriptionOrdersRefs<T extends Object>(
+    Expression<T> Function($$PrescriptionOrdersTableAnnotationComposer a) f,
+  ) {
+    final $$PrescriptionOrdersTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.prescriptionOrders,
+          getReferencedColumn: (t) => t.documentId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$PrescriptionOrdersTableAnnotationComposer(
+                $db: $db,
+                $table: $db.prescriptionOrders,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
+
+  Expression<T> microbiologyCulturesRefs<T extends Object>(
+    Expression<T> Function($$MicrobiologyCulturesTableAnnotationComposer a) f,
+  ) {
+    final $$MicrobiologyCulturesTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.microbiologyCultures,
+          getReferencedColumn: (t) => t.documentId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$MicrobiologyCulturesTableAnnotationComposer(
+                $db: $db,
+                $table: $db.microbiologyCultures,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
+
+  Expression<T> imagingStudiesRefs<T extends Object>(
+    Expression<T> Function($$ImagingStudiesTableAnnotationComposer a) f,
+  ) {
+    final $$ImagingStudiesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.imagingStudies,
+      getReferencedColumn: (t) => t.documentId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ImagingStudiesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.imagingStudies,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+}
+
+class $$DocumentRegistriesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $DocumentRegistriesTable,
+          DocumentRegistry,
+          $$DocumentRegistriesTableFilterComposer,
+          $$DocumentRegistriesTableOrderingComposer,
+          $$DocumentRegistriesTableAnnotationComposer,
+          $$DocumentRegistriesTableCreateCompanionBuilder,
+          $$DocumentRegistriesTableUpdateCompanionBuilder,
+          (DocumentRegistry, $$DocumentRegistriesTableReferences),
+          DocumentRegistry,
+          PrefetchHooks Function({
+            bool patientId,
+            bool clinicalObservationsRefs,
+            bool prescriptionOrdersRefs,
+            bool microbiologyCulturesRefs,
+            bool imagingStudiesRefs,
+          })
+        > {
+  $$DocumentRegistriesTableTableManager(
+    _$AppDatabase db,
+    $DocumentRegistriesTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$DocumentRegistriesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$DocumentRegistriesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$DocumentRegistriesTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> patientId = const Value.absent(),
+                Value<String> documentCategory = const Value.absent(),
+                Value<String> imagePath = const Value.absent(),
+                Value<String> rawOcrTranscript = const Value.absent(),
+                Value<double> confidenceScore = const Value.absent(),
+                Value<DateTime> documentedAt = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => DocumentRegistriesCompanion(
+                id: id,
+                patientId: patientId,
+                documentCategory: documentCategory,
+                imagePath: imagePath,
+                rawOcrTranscript: rawOcrTranscript,
+                confidenceScore: confidenceScore,
+                documentedAt: documentedAt,
+                createdAt: createdAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String patientId,
+                required String documentCategory,
+                required String imagePath,
+                Value<String> rawOcrTranscript = const Value.absent(),
+                Value<double> confidenceScore = const Value.absent(),
+                required DateTime documentedAt,
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => DocumentRegistriesCompanion.insert(
+                id: id,
+                patientId: patientId,
+                documentCategory: documentCategory,
+                imagePath: imagePath,
+                rawOcrTranscript: rawOcrTranscript,
+                confidenceScore: confidenceScore,
+                documentedAt: documentedAt,
+                createdAt: createdAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$DocumentRegistriesTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback:
+              ({
+                patientId = false,
+                clinicalObservationsRefs = false,
+                prescriptionOrdersRefs = false,
+                microbiologyCulturesRefs = false,
+                imagingStudiesRefs = false,
+              }) {
+                return PrefetchHooks(
+                  db: db,
+                  explicitlyWatchedTables: [
+                    if (clinicalObservationsRefs) db.clinicalObservations,
+                    if (prescriptionOrdersRefs) db.prescriptionOrders,
+                    if (microbiologyCulturesRefs) db.microbiologyCultures,
+                    if (imagingStudiesRefs) db.imagingStudies,
+                  ],
+                  addJoins:
+                      <
+                        T extends TableManagerState<
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic
+                        >
+                      >(state) {
+                        if (patientId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.patientId,
+                                    referencedTable:
+                                        $$DocumentRegistriesTableReferences
+                                            ._patientIdTable(db),
+                                    referencedColumn:
+                                        $$DocumentRegistriesTableReferences
+                                            ._patientIdTable(db)
+                                            .id,
+                                  )
+                                  as T;
+                        }
+
+                        return state;
+                      },
+                  getPrefetchedDataCallback: (items) async {
+                    return [
+                      if (clinicalObservationsRefs)
+                        await $_getPrefetchedData<
+                          DocumentRegistry,
+                          $DocumentRegistriesTable,
+                          ClinicalObservation
+                        >(
+                          currentTable: table,
+                          referencedTable: $$DocumentRegistriesTableReferences
+                              ._clinicalObservationsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$DocumentRegistriesTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).clinicalObservationsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.documentId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (prescriptionOrdersRefs)
+                        await $_getPrefetchedData<
+                          DocumentRegistry,
+                          $DocumentRegistriesTable,
+                          PrescriptionOrder
+                        >(
+                          currentTable: table,
+                          referencedTable: $$DocumentRegistriesTableReferences
+                              ._prescriptionOrdersRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$DocumentRegistriesTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).prescriptionOrdersRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.documentId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (microbiologyCulturesRefs)
+                        await $_getPrefetchedData<
+                          DocumentRegistry,
+                          $DocumentRegistriesTable,
+                          MicrobiologyCulture
+                        >(
+                          currentTable: table,
+                          referencedTable: $$DocumentRegistriesTableReferences
+                              ._microbiologyCulturesRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$DocumentRegistriesTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).microbiologyCulturesRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.documentId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (imagingStudiesRefs)
+                        await $_getPrefetchedData<
+                          DocumentRegistry,
+                          $DocumentRegistriesTable,
+                          ImagingStudy
+                        >(
+                          currentTable: table,
+                          referencedTable: $$DocumentRegistriesTableReferences
+                              ._imagingStudiesRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$DocumentRegistriesTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).imagingStudiesRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.documentId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                    ];
+                  },
+                );
+              },
+        ),
+      );
+}
+
+typedef $$DocumentRegistriesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $DocumentRegistriesTable,
+      DocumentRegistry,
+      $$DocumentRegistriesTableFilterComposer,
+      $$DocumentRegistriesTableOrderingComposer,
+      $$DocumentRegistriesTableAnnotationComposer,
+      $$DocumentRegistriesTableCreateCompanionBuilder,
+      $$DocumentRegistriesTableUpdateCompanionBuilder,
+      (DocumentRegistry, $$DocumentRegistriesTableReferences),
+      DocumentRegistry,
+      PrefetchHooks Function({
+        bool patientId,
+        bool clinicalObservationsRefs,
+        bool prescriptionOrdersRefs,
+        bool microbiologyCulturesRefs,
+        bool imagingStudiesRefs,
+      })
+    >;
+typedef $$ClinicalObservationsTableCreateCompanionBuilder =
+    ClinicalObservationsCompanion Function({
+      required String id,
+      required String patientId,
+      required String documentId,
+      required String observationCategory,
+      required String code,
+      required String displayName,
+      Value<double?> numericValue,
+      Value<String?> textValue,
+      Value<String?> unit,
+      Value<double?> referenceLow,
+      Value<double?> referenceHigh,
+      Value<bool> isAbnormal,
+      required DateTime recordedAt,
+      Value<String?> corroborationNote,
+      Value<int> rowid,
+    });
+typedef $$ClinicalObservationsTableUpdateCompanionBuilder =
+    ClinicalObservationsCompanion Function({
+      Value<String> id,
+      Value<String> patientId,
+      Value<String> documentId,
+      Value<String> observationCategory,
+      Value<String> code,
+      Value<String> displayName,
+      Value<double?> numericValue,
+      Value<String?> textValue,
+      Value<String?> unit,
+      Value<double?> referenceLow,
+      Value<double?> referenceHigh,
+      Value<bool> isAbnormal,
+      Value<DateTime> recordedAt,
+      Value<String?> corroborationNote,
+      Value<int> rowid,
+    });
+
+final class $$ClinicalObservationsTableReferences
+    extends
+        BaseReferences<
+          _$AppDatabase,
+          $ClinicalObservationsTable,
+          ClinicalObservation
+        > {
+  $$ClinicalObservationsTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $PatientsTable _patientIdTable(_$AppDatabase db) => db.patients
+      .createAlias('clinical_observations__patient_id__patients__id');
+
+  $$PatientsTableProcessedTableManager get patientId {
+    final $_column = $_itemColumn<String>('patient_id')!;
+
+    final manager = $$PatientsTableTableManager(
+      $_db,
+      $_db.patients,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_patientIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $DocumentRegistriesTable _documentIdTable(_$AppDatabase db) =>
+      db.documentRegistries.createAlias(
+        'clinical_observations__document_id__document_registries__id',
+      );
+
+  $$DocumentRegistriesTableProcessedTableManager get documentId {
+    final $_column = $_itemColumn<String>('document_id')!;
+
+    final manager = $$DocumentRegistriesTableTableManager(
+      $_db,
+      $_db.documentRegistries,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_documentIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$ClinicalObservationsTableFilterComposer
+    extends Composer<_$AppDatabase, $ClinicalObservationsTable> {
+  $$ClinicalObservationsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get observationCategory => $composableBuilder(
+    column: $table.observationCategory,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get code => $composableBuilder(
+    column: $table.code,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get displayName => $composableBuilder(
+    column: $table.displayName,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get numericValue => $composableBuilder(
+    column: $table.numericValue,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get textValue => $composableBuilder(
+    column: $table.textValue,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get unit => $composableBuilder(
+    column: $table.unit,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get referenceLow => $composableBuilder(
+    column: $table.referenceLow,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get referenceHigh => $composableBuilder(
+    column: $table.referenceHigh,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isAbnormal => $composableBuilder(
+    column: $table.isAbnormal,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get recordedAt => $composableBuilder(
+    column: $table.recordedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get corroborationNote => $composableBuilder(
+    column: $table.corroborationNote,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$PatientsTableFilterComposer get patientId {
+    final $$PatientsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.patientId,
+      referencedTable: $db.patients,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PatientsTableFilterComposer(
+            $db: $db,
+            $table: $db.patients,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$DocumentRegistriesTableFilterComposer get documentId {
+    final $$DocumentRegistriesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.documentId,
+      referencedTable: $db.documentRegistries,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$DocumentRegistriesTableFilterComposer(
+            $db: $db,
+            $table: $db.documentRegistries,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$ClinicalObservationsTableOrderingComposer
+    extends Composer<_$AppDatabase, $ClinicalObservationsTable> {
+  $$ClinicalObservationsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get observationCategory => $composableBuilder(
+    column: $table.observationCategory,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get code => $composableBuilder(
+    column: $table.code,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get displayName => $composableBuilder(
+    column: $table.displayName,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get numericValue => $composableBuilder(
+    column: $table.numericValue,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get textValue => $composableBuilder(
+    column: $table.textValue,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get unit => $composableBuilder(
+    column: $table.unit,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get referenceLow => $composableBuilder(
+    column: $table.referenceLow,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get referenceHigh => $composableBuilder(
+    column: $table.referenceHigh,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get isAbnormal => $composableBuilder(
+    column: $table.isAbnormal,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get recordedAt => $composableBuilder(
+    column: $table.recordedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get corroborationNote => $composableBuilder(
+    column: $table.corroborationNote,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$PatientsTableOrderingComposer get patientId {
+    final $$PatientsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.patientId,
+      referencedTable: $db.patients,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PatientsTableOrderingComposer(
+            $db: $db,
+            $table: $db.patients,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$DocumentRegistriesTableOrderingComposer get documentId {
+    final $$DocumentRegistriesTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.documentId,
+      referencedTable: $db.documentRegistries,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$DocumentRegistriesTableOrderingComposer(
+            $db: $db,
+            $table: $db.documentRegistries,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$ClinicalObservationsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $ClinicalObservationsTable> {
+  $$ClinicalObservationsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get observationCategory => $composableBuilder(
+    column: $table.observationCategory,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get code =>
+      $composableBuilder(column: $table.code, builder: (column) => column);
+
+  GeneratedColumn<String> get displayName => $composableBuilder(
+    column: $table.displayName,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get numericValue => $composableBuilder(
+    column: $table.numericValue,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get textValue =>
+      $composableBuilder(column: $table.textValue, builder: (column) => column);
+
+  GeneratedColumn<String> get unit =>
+      $composableBuilder(column: $table.unit, builder: (column) => column);
+
+  GeneratedColumn<double> get referenceLow => $composableBuilder(
+    column: $table.referenceLow,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get referenceHigh => $composableBuilder(
+    column: $table.referenceHigh,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get isAbnormal => $composableBuilder(
+    column: $table.isAbnormal,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get recordedAt => $composableBuilder(
+    column: $table.recordedAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get corroborationNote => $composableBuilder(
+    column: $table.corroborationNote,
+    builder: (column) => column,
+  );
+
+  $$PatientsTableAnnotationComposer get patientId {
+    final $$PatientsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.patientId,
+      referencedTable: $db.patients,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PatientsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.patients,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$DocumentRegistriesTableAnnotationComposer get documentId {
+    final $$DocumentRegistriesTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.documentId,
+          referencedTable: $db.documentRegistries,
+          getReferencedColumn: (t) => t.id,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$DocumentRegistriesTableAnnotationComposer(
+                $db: $db,
+                $table: $db.documentRegistries,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return composer;
+  }
+}
+
+class $$ClinicalObservationsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $ClinicalObservationsTable,
+          ClinicalObservation,
+          $$ClinicalObservationsTableFilterComposer,
+          $$ClinicalObservationsTableOrderingComposer,
+          $$ClinicalObservationsTableAnnotationComposer,
+          $$ClinicalObservationsTableCreateCompanionBuilder,
+          $$ClinicalObservationsTableUpdateCompanionBuilder,
+          (ClinicalObservation, $$ClinicalObservationsTableReferences),
+          ClinicalObservation,
+          PrefetchHooks Function({bool patientId, bool documentId})
+        > {
+  $$ClinicalObservationsTableTableManager(
+    _$AppDatabase db,
+    $ClinicalObservationsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ClinicalObservationsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$ClinicalObservationsTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$ClinicalObservationsTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> patientId = const Value.absent(),
+                Value<String> documentId = const Value.absent(),
+                Value<String> observationCategory = const Value.absent(),
+                Value<String> code = const Value.absent(),
+                Value<String> displayName = const Value.absent(),
+                Value<double?> numericValue = const Value.absent(),
+                Value<String?> textValue = const Value.absent(),
+                Value<String?> unit = const Value.absent(),
+                Value<double?> referenceLow = const Value.absent(),
+                Value<double?> referenceHigh = const Value.absent(),
+                Value<bool> isAbnormal = const Value.absent(),
+                Value<DateTime> recordedAt = const Value.absent(),
+                Value<String?> corroborationNote = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ClinicalObservationsCompanion(
+                id: id,
+                patientId: patientId,
+                documentId: documentId,
+                observationCategory: observationCategory,
+                code: code,
+                displayName: displayName,
+                numericValue: numericValue,
+                textValue: textValue,
+                unit: unit,
+                referenceLow: referenceLow,
+                referenceHigh: referenceHigh,
+                isAbnormal: isAbnormal,
+                recordedAt: recordedAt,
+                corroborationNote: corroborationNote,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String patientId,
+                required String documentId,
+                required String observationCategory,
+                required String code,
+                required String displayName,
+                Value<double?> numericValue = const Value.absent(),
+                Value<String?> textValue = const Value.absent(),
+                Value<String?> unit = const Value.absent(),
+                Value<double?> referenceLow = const Value.absent(),
+                Value<double?> referenceHigh = const Value.absent(),
+                Value<bool> isAbnormal = const Value.absent(),
+                required DateTime recordedAt,
+                Value<String?> corroborationNote = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ClinicalObservationsCompanion.insert(
+                id: id,
+                patientId: patientId,
+                documentId: documentId,
+                observationCategory: observationCategory,
+                code: code,
+                displayName: displayName,
+                numericValue: numericValue,
+                textValue: textValue,
+                unit: unit,
+                referenceLow: referenceLow,
+                referenceHigh: referenceHigh,
+                isAbnormal: isAbnormal,
+                recordedAt: recordedAt,
+                corroborationNote: corroborationNote,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$ClinicalObservationsTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({patientId = false, documentId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (patientId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.patientId,
+                                referencedTable:
+                                    $$ClinicalObservationsTableReferences
+                                        ._patientIdTable(db),
+                                referencedColumn:
+                                    $$ClinicalObservationsTableReferences
+                                        ._patientIdTable(db)
+                                        .id,
+                              )
+                              as T;
+                    }
+                    if (documentId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.documentId,
+                                referencedTable:
+                                    $$ClinicalObservationsTableReferences
+                                        ._documentIdTable(db),
+                                referencedColumn:
+                                    $$ClinicalObservationsTableReferences
+                                        ._documentIdTable(db)
+                                        .id,
+                              )
+                              as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$ClinicalObservationsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $ClinicalObservationsTable,
+      ClinicalObservation,
+      $$ClinicalObservationsTableFilterComposer,
+      $$ClinicalObservationsTableOrderingComposer,
+      $$ClinicalObservationsTableAnnotationComposer,
+      $$ClinicalObservationsTableCreateCompanionBuilder,
+      $$ClinicalObservationsTableUpdateCompanionBuilder,
+      (ClinicalObservation, $$ClinicalObservationsTableReferences),
+      ClinicalObservation,
+      PrefetchHooks Function({bool patientId, bool documentId})
+    >;
+typedef $$PrescriptionOrdersTableCreateCompanionBuilder =
+    PrescriptionOrdersCompanion Function({
+      required String id,
+      required String patientId,
+      required String documentId,
+      required String drugName,
+      Value<String?> strength,
+      Value<String?> dosageForm,
+      required String route,
+      required String frequency,
+      Value<String?> diluentAndRate,
+      Value<bool> isActive,
+      required DateTime orderedAt,
+      Value<int> rowid,
+    });
+typedef $$PrescriptionOrdersTableUpdateCompanionBuilder =
+    PrescriptionOrdersCompanion Function({
+      Value<String> id,
+      Value<String> patientId,
+      Value<String> documentId,
+      Value<String> drugName,
+      Value<String?> strength,
+      Value<String?> dosageForm,
+      Value<String> route,
+      Value<String> frequency,
+      Value<String?> diluentAndRate,
+      Value<bool> isActive,
+      Value<DateTime> orderedAt,
+      Value<int> rowid,
+    });
+
+final class $$PrescriptionOrdersTableReferences
+    extends
+        BaseReferences<
+          _$AppDatabase,
+          $PrescriptionOrdersTable,
+          PrescriptionOrder
+        > {
+  $$PrescriptionOrdersTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $PatientsTable _patientIdTable(_$AppDatabase db) =>
+      db.patients.createAlias('prescription_orders__patient_id__patients__id');
+
+  $$PatientsTableProcessedTableManager get patientId {
+    final $_column = $_itemColumn<String>('patient_id')!;
+
+    final manager = $$PatientsTableTableManager(
+      $_db,
+      $_db.patients,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_patientIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $DocumentRegistriesTable _documentIdTable(_$AppDatabase db) => db
+      .documentRegistries
+      .createAlias('prescription_orders__document_id__document_registries__id');
+
+  $$DocumentRegistriesTableProcessedTableManager get documentId {
+    final $_column = $_itemColumn<String>('document_id')!;
+
+    final manager = $$DocumentRegistriesTableTableManager(
+      $_db,
+      $_db.documentRegistries,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_documentIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$PrescriptionOrdersTableFilterComposer
+    extends Composer<_$AppDatabase, $PrescriptionOrdersTable> {
+  $$PrescriptionOrdersTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get drugName => $composableBuilder(
+    column: $table.drugName,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get strength => $composableBuilder(
+    column: $table.strength,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get dosageForm => $composableBuilder(
+    column: $table.dosageForm,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get route => $composableBuilder(
+    column: $table.route,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get frequency => $composableBuilder(
+    column: $table.frequency,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get diluentAndRate => $composableBuilder(
+    column: $table.diluentAndRate,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isActive => $composableBuilder(
+    column: $table.isActive,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get orderedAt => $composableBuilder(
+    column: $table.orderedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$PatientsTableFilterComposer get patientId {
+    final $$PatientsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.patientId,
+      referencedTable: $db.patients,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PatientsTableFilterComposer(
+            $db: $db,
+            $table: $db.patients,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$DocumentRegistriesTableFilterComposer get documentId {
+    final $$DocumentRegistriesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.documentId,
+      referencedTable: $db.documentRegistries,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$DocumentRegistriesTableFilterComposer(
+            $db: $db,
+            $table: $db.documentRegistries,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$PrescriptionOrdersTableOrderingComposer
+    extends Composer<_$AppDatabase, $PrescriptionOrdersTable> {
+  $$PrescriptionOrdersTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get drugName => $composableBuilder(
+    column: $table.drugName,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get strength => $composableBuilder(
+    column: $table.strength,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get dosageForm => $composableBuilder(
+    column: $table.dosageForm,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get route => $composableBuilder(
+    column: $table.route,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get frequency => $composableBuilder(
+    column: $table.frequency,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get diluentAndRate => $composableBuilder(
+    column: $table.diluentAndRate,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get isActive => $composableBuilder(
+    column: $table.isActive,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get orderedAt => $composableBuilder(
+    column: $table.orderedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$PatientsTableOrderingComposer get patientId {
+    final $$PatientsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.patientId,
+      referencedTable: $db.patients,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PatientsTableOrderingComposer(
+            $db: $db,
+            $table: $db.patients,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$DocumentRegistriesTableOrderingComposer get documentId {
+    final $$DocumentRegistriesTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.documentId,
+      referencedTable: $db.documentRegistries,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$DocumentRegistriesTableOrderingComposer(
+            $db: $db,
+            $table: $db.documentRegistries,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$PrescriptionOrdersTableAnnotationComposer
+    extends Composer<_$AppDatabase, $PrescriptionOrdersTable> {
+  $$PrescriptionOrdersTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get drugName =>
+      $composableBuilder(column: $table.drugName, builder: (column) => column);
+
+  GeneratedColumn<String> get strength =>
+      $composableBuilder(column: $table.strength, builder: (column) => column);
+
+  GeneratedColumn<String> get dosageForm => $composableBuilder(
+    column: $table.dosageForm,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get route =>
+      $composableBuilder(column: $table.route, builder: (column) => column);
+
+  GeneratedColumn<String> get frequency =>
+      $composableBuilder(column: $table.frequency, builder: (column) => column);
+
+  GeneratedColumn<String> get diluentAndRate => $composableBuilder(
+    column: $table.diluentAndRate,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get isActive =>
+      $composableBuilder(column: $table.isActive, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get orderedAt =>
+      $composableBuilder(column: $table.orderedAt, builder: (column) => column);
+
+  $$PatientsTableAnnotationComposer get patientId {
+    final $$PatientsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.patientId,
+      referencedTable: $db.patients,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PatientsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.patients,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$DocumentRegistriesTableAnnotationComposer get documentId {
+    final $$DocumentRegistriesTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.documentId,
+          referencedTable: $db.documentRegistries,
+          getReferencedColumn: (t) => t.id,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$DocumentRegistriesTableAnnotationComposer(
+                $db: $db,
+                $table: $db.documentRegistries,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return composer;
+  }
+}
+
+class $$PrescriptionOrdersTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $PrescriptionOrdersTable,
+          PrescriptionOrder,
+          $$PrescriptionOrdersTableFilterComposer,
+          $$PrescriptionOrdersTableOrderingComposer,
+          $$PrescriptionOrdersTableAnnotationComposer,
+          $$PrescriptionOrdersTableCreateCompanionBuilder,
+          $$PrescriptionOrdersTableUpdateCompanionBuilder,
+          (PrescriptionOrder, $$PrescriptionOrdersTableReferences),
+          PrescriptionOrder,
+          PrefetchHooks Function({bool patientId, bool documentId})
+        > {
+  $$PrescriptionOrdersTableTableManager(
+    _$AppDatabase db,
+    $PrescriptionOrdersTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$PrescriptionOrdersTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$PrescriptionOrdersTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$PrescriptionOrdersTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> patientId = const Value.absent(),
+                Value<String> documentId = const Value.absent(),
+                Value<String> drugName = const Value.absent(),
+                Value<String?> strength = const Value.absent(),
+                Value<String?> dosageForm = const Value.absent(),
+                Value<String> route = const Value.absent(),
+                Value<String> frequency = const Value.absent(),
+                Value<String?> diluentAndRate = const Value.absent(),
+                Value<bool> isActive = const Value.absent(),
+                Value<DateTime> orderedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => PrescriptionOrdersCompanion(
+                id: id,
+                patientId: patientId,
+                documentId: documentId,
+                drugName: drugName,
+                strength: strength,
+                dosageForm: dosageForm,
+                route: route,
+                frequency: frequency,
+                diluentAndRate: diluentAndRate,
+                isActive: isActive,
+                orderedAt: orderedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String patientId,
+                required String documentId,
+                required String drugName,
+                Value<String?> strength = const Value.absent(),
+                Value<String?> dosageForm = const Value.absent(),
+                required String route,
+                required String frequency,
+                Value<String?> diluentAndRate = const Value.absent(),
+                Value<bool> isActive = const Value.absent(),
+                required DateTime orderedAt,
+                Value<int> rowid = const Value.absent(),
+              }) => PrescriptionOrdersCompanion.insert(
+                id: id,
+                patientId: patientId,
+                documentId: documentId,
+                drugName: drugName,
+                strength: strength,
+                dosageForm: dosageForm,
+                route: route,
+                frequency: frequency,
+                diluentAndRate: diluentAndRate,
+                isActive: isActive,
+                orderedAt: orderedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$PrescriptionOrdersTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({patientId = false, documentId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (patientId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.patientId,
+                                referencedTable:
+                                    $$PrescriptionOrdersTableReferences
+                                        ._patientIdTable(db),
+                                referencedColumn:
+                                    $$PrescriptionOrdersTableReferences
+                                        ._patientIdTable(db)
+                                        .id,
+                              )
+                              as T;
+                    }
+                    if (documentId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.documentId,
+                                referencedTable:
+                                    $$PrescriptionOrdersTableReferences
+                                        ._documentIdTable(db),
+                                referencedColumn:
+                                    $$PrescriptionOrdersTableReferences
+                                        ._documentIdTable(db)
+                                        .id,
+                              )
+                              as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$PrescriptionOrdersTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $PrescriptionOrdersTable,
+      PrescriptionOrder,
+      $$PrescriptionOrdersTableFilterComposer,
+      $$PrescriptionOrdersTableOrderingComposer,
+      $$PrescriptionOrdersTableAnnotationComposer,
+      $$PrescriptionOrdersTableCreateCompanionBuilder,
+      $$PrescriptionOrdersTableUpdateCompanionBuilder,
+      (PrescriptionOrder, $$PrescriptionOrdersTableReferences),
+      PrescriptionOrder,
+      PrefetchHooks Function({bool patientId, bool documentId})
+    >;
+typedef $$MicrobiologyCulturesTableCreateCompanionBuilder =
+    MicrobiologyCulturesCompanion Function({
+      required String id,
+      required String patientId,
+      required String documentId,
+      required String sampleType,
+      Value<String?> organismIdentified,
+      Value<String?> colonyCount,
+      Value<String> antibiogramJson,
+      required DateTime reportedAt,
+      Value<int> rowid,
+    });
+typedef $$MicrobiologyCulturesTableUpdateCompanionBuilder =
+    MicrobiologyCulturesCompanion Function({
+      Value<String> id,
+      Value<String> patientId,
+      Value<String> documentId,
+      Value<String> sampleType,
+      Value<String?> organismIdentified,
+      Value<String?> colonyCount,
+      Value<String> antibiogramJson,
+      Value<DateTime> reportedAt,
+      Value<int> rowid,
+    });
+
+final class $$MicrobiologyCulturesTableReferences
+    extends
+        BaseReferences<
+          _$AppDatabase,
+          $MicrobiologyCulturesTable,
+          MicrobiologyCulture
+        > {
+  $$MicrobiologyCulturesTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $PatientsTable _patientIdTable(_$AppDatabase db) => db.patients
+      .createAlias('microbiology_cultures__patient_id__patients__id');
+
+  $$PatientsTableProcessedTableManager get patientId {
+    final $_column = $_itemColumn<String>('patient_id')!;
+
+    final manager = $$PatientsTableTableManager(
+      $_db,
+      $_db.patients,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_patientIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $DocumentRegistriesTable _documentIdTable(_$AppDatabase db) =>
+      db.documentRegistries.createAlias(
+        'microbiology_cultures__document_id__document_registries__id',
+      );
+
+  $$DocumentRegistriesTableProcessedTableManager get documentId {
+    final $_column = $_itemColumn<String>('document_id')!;
+
+    final manager = $$DocumentRegistriesTableTableManager(
+      $_db,
+      $_db.documentRegistries,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_documentIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$MicrobiologyCulturesTableFilterComposer
+    extends Composer<_$AppDatabase, $MicrobiologyCulturesTable> {
+  $$MicrobiologyCulturesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get sampleType => $composableBuilder(
+    column: $table.sampleType,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get organismIdentified => $composableBuilder(
+    column: $table.organismIdentified,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get colonyCount => $composableBuilder(
+    column: $table.colonyCount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get antibiogramJson => $composableBuilder(
+    column: $table.antibiogramJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get reportedAt => $composableBuilder(
+    column: $table.reportedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$PatientsTableFilterComposer get patientId {
+    final $$PatientsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.patientId,
+      referencedTable: $db.patients,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PatientsTableFilterComposer(
+            $db: $db,
+            $table: $db.patients,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$DocumentRegistriesTableFilterComposer get documentId {
+    final $$DocumentRegistriesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.documentId,
+      referencedTable: $db.documentRegistries,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$DocumentRegistriesTableFilterComposer(
+            $db: $db,
+            $table: $db.documentRegistries,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$MicrobiologyCulturesTableOrderingComposer
+    extends Composer<_$AppDatabase, $MicrobiologyCulturesTable> {
+  $$MicrobiologyCulturesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get sampleType => $composableBuilder(
+    column: $table.sampleType,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get organismIdentified => $composableBuilder(
+    column: $table.organismIdentified,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get colonyCount => $composableBuilder(
+    column: $table.colonyCount,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get antibiogramJson => $composableBuilder(
+    column: $table.antibiogramJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get reportedAt => $composableBuilder(
+    column: $table.reportedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$PatientsTableOrderingComposer get patientId {
+    final $$PatientsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.patientId,
+      referencedTable: $db.patients,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PatientsTableOrderingComposer(
+            $db: $db,
+            $table: $db.patients,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$DocumentRegistriesTableOrderingComposer get documentId {
+    final $$DocumentRegistriesTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.documentId,
+      referencedTable: $db.documentRegistries,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$DocumentRegistriesTableOrderingComposer(
+            $db: $db,
+            $table: $db.documentRegistries,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$MicrobiologyCulturesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $MicrobiologyCulturesTable> {
+  $$MicrobiologyCulturesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get sampleType => $composableBuilder(
+    column: $table.sampleType,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get organismIdentified => $composableBuilder(
+    column: $table.organismIdentified,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get colonyCount => $composableBuilder(
+    column: $table.colonyCount,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get antibiogramJson => $composableBuilder(
+    column: $table.antibiogramJson,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get reportedAt => $composableBuilder(
+    column: $table.reportedAt,
+    builder: (column) => column,
+  );
+
+  $$PatientsTableAnnotationComposer get patientId {
+    final $$PatientsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.patientId,
+      referencedTable: $db.patients,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PatientsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.patients,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$DocumentRegistriesTableAnnotationComposer get documentId {
+    final $$DocumentRegistriesTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.documentId,
+          referencedTable: $db.documentRegistries,
+          getReferencedColumn: (t) => t.id,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$DocumentRegistriesTableAnnotationComposer(
+                $db: $db,
+                $table: $db.documentRegistries,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return composer;
+  }
+}
+
+class $$MicrobiologyCulturesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $MicrobiologyCulturesTable,
+          MicrobiologyCulture,
+          $$MicrobiologyCulturesTableFilterComposer,
+          $$MicrobiologyCulturesTableOrderingComposer,
+          $$MicrobiologyCulturesTableAnnotationComposer,
+          $$MicrobiologyCulturesTableCreateCompanionBuilder,
+          $$MicrobiologyCulturesTableUpdateCompanionBuilder,
+          (MicrobiologyCulture, $$MicrobiologyCulturesTableReferences),
+          MicrobiologyCulture,
+          PrefetchHooks Function({bool patientId, bool documentId})
+        > {
+  $$MicrobiologyCulturesTableTableManager(
+    _$AppDatabase db,
+    $MicrobiologyCulturesTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$MicrobiologyCulturesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$MicrobiologyCulturesTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$MicrobiologyCulturesTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> patientId = const Value.absent(),
+                Value<String> documentId = const Value.absent(),
+                Value<String> sampleType = const Value.absent(),
+                Value<String?> organismIdentified = const Value.absent(),
+                Value<String?> colonyCount = const Value.absent(),
+                Value<String> antibiogramJson = const Value.absent(),
+                Value<DateTime> reportedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => MicrobiologyCulturesCompanion(
+                id: id,
+                patientId: patientId,
+                documentId: documentId,
+                sampleType: sampleType,
+                organismIdentified: organismIdentified,
+                colonyCount: colonyCount,
+                antibiogramJson: antibiogramJson,
+                reportedAt: reportedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String patientId,
+                required String documentId,
+                required String sampleType,
+                Value<String?> organismIdentified = const Value.absent(),
+                Value<String?> colonyCount = const Value.absent(),
+                Value<String> antibiogramJson = const Value.absent(),
+                required DateTime reportedAt,
+                Value<int> rowid = const Value.absent(),
+              }) => MicrobiologyCulturesCompanion.insert(
+                id: id,
+                patientId: patientId,
+                documentId: documentId,
+                sampleType: sampleType,
+                organismIdentified: organismIdentified,
+                colonyCount: colonyCount,
+                antibiogramJson: antibiogramJson,
+                reportedAt: reportedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$MicrobiologyCulturesTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({patientId = false, documentId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (patientId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.patientId,
+                                referencedTable:
+                                    $$MicrobiologyCulturesTableReferences
+                                        ._patientIdTable(db),
+                                referencedColumn:
+                                    $$MicrobiologyCulturesTableReferences
+                                        ._patientIdTable(db)
+                                        .id,
+                              )
+                              as T;
+                    }
+                    if (documentId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.documentId,
+                                referencedTable:
+                                    $$MicrobiologyCulturesTableReferences
+                                        ._documentIdTable(db),
+                                referencedColumn:
+                                    $$MicrobiologyCulturesTableReferences
+                                        ._documentIdTable(db)
+                                        .id,
+                              )
+                              as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$MicrobiologyCulturesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $MicrobiologyCulturesTable,
+      MicrobiologyCulture,
+      $$MicrobiologyCulturesTableFilterComposer,
+      $$MicrobiologyCulturesTableOrderingComposer,
+      $$MicrobiologyCulturesTableAnnotationComposer,
+      $$MicrobiologyCulturesTableCreateCompanionBuilder,
+      $$MicrobiologyCulturesTableUpdateCompanionBuilder,
+      (MicrobiologyCulture, $$MicrobiologyCulturesTableReferences),
+      MicrobiologyCulture,
+      PrefetchHooks Function({bool patientId, bool documentId})
+    >;
+typedef $$ImagingStudiesTableCreateCompanionBuilder =
+    ImagingStudiesCompanion Function({
+      required String id,
+      required String patientId,
+      required String documentId,
+      required String modality,
+      required String anatomicalRegion,
+      required String findings,
+      required String impression,
+      required DateTime performedAt,
+      Value<int> rowid,
+    });
+typedef $$ImagingStudiesTableUpdateCompanionBuilder =
+    ImagingStudiesCompanion Function({
+      Value<String> id,
+      Value<String> patientId,
+      Value<String> documentId,
+      Value<String> modality,
+      Value<String> anatomicalRegion,
+      Value<String> findings,
+      Value<String> impression,
+      Value<DateTime> performedAt,
+      Value<int> rowid,
+    });
+
+final class $$ImagingStudiesTableReferences
+    extends BaseReferences<_$AppDatabase, $ImagingStudiesTable, ImagingStudy> {
+  $$ImagingStudiesTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $PatientsTable _patientIdTable(_$AppDatabase db) =>
+      db.patients.createAlias('imaging_studies__patient_id__patients__id');
+
+  $$PatientsTableProcessedTableManager get patientId {
+    final $_column = $_itemColumn<String>('patient_id')!;
+
+    final manager = $$PatientsTableTableManager(
+      $_db,
+      $_db.patients,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_patientIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $DocumentRegistriesTable _documentIdTable(_$AppDatabase db) => db
+      .documentRegistries
+      .createAlias('imaging_studies__document_id__document_registries__id');
+
+  $$DocumentRegistriesTableProcessedTableManager get documentId {
+    final $_column = $_itemColumn<String>('document_id')!;
+
+    final manager = $$DocumentRegistriesTableTableManager(
+      $_db,
+      $_db.documentRegistries,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_documentIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$ImagingStudiesTableFilterComposer
+    extends Composer<_$AppDatabase, $ImagingStudiesTable> {
+  $$ImagingStudiesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get modality => $composableBuilder(
+    column: $table.modality,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get anatomicalRegion => $composableBuilder(
+    column: $table.anatomicalRegion,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get findings => $composableBuilder(
+    column: $table.findings,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get impression => $composableBuilder(
+    column: $table.impression,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get performedAt => $composableBuilder(
+    column: $table.performedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$PatientsTableFilterComposer get patientId {
+    final $$PatientsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.patientId,
+      referencedTable: $db.patients,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PatientsTableFilterComposer(
+            $db: $db,
+            $table: $db.patients,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$DocumentRegistriesTableFilterComposer get documentId {
+    final $$DocumentRegistriesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.documentId,
+      referencedTable: $db.documentRegistries,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$DocumentRegistriesTableFilterComposer(
+            $db: $db,
+            $table: $db.documentRegistries,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$ImagingStudiesTableOrderingComposer
+    extends Composer<_$AppDatabase, $ImagingStudiesTable> {
+  $$ImagingStudiesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get modality => $composableBuilder(
+    column: $table.modality,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get anatomicalRegion => $composableBuilder(
+    column: $table.anatomicalRegion,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get findings => $composableBuilder(
+    column: $table.findings,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get impression => $composableBuilder(
+    column: $table.impression,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get performedAt => $composableBuilder(
+    column: $table.performedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$PatientsTableOrderingComposer get patientId {
+    final $$PatientsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.patientId,
+      referencedTable: $db.patients,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PatientsTableOrderingComposer(
+            $db: $db,
+            $table: $db.patients,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$DocumentRegistriesTableOrderingComposer get documentId {
+    final $$DocumentRegistriesTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.documentId,
+      referencedTable: $db.documentRegistries,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$DocumentRegistriesTableOrderingComposer(
+            $db: $db,
+            $table: $db.documentRegistries,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$ImagingStudiesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $ImagingStudiesTable> {
+  $$ImagingStudiesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get modality =>
+      $composableBuilder(column: $table.modality, builder: (column) => column);
+
+  GeneratedColumn<String> get anatomicalRegion => $composableBuilder(
+    column: $table.anatomicalRegion,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get findings =>
+      $composableBuilder(column: $table.findings, builder: (column) => column);
+
+  GeneratedColumn<String> get impression => $composableBuilder(
+    column: $table.impression,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get performedAt => $composableBuilder(
+    column: $table.performedAt,
+    builder: (column) => column,
+  );
+
+  $$PatientsTableAnnotationComposer get patientId {
+    final $$PatientsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.patientId,
+      referencedTable: $db.patients,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PatientsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.patients,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$DocumentRegistriesTableAnnotationComposer get documentId {
+    final $$DocumentRegistriesTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.documentId,
+          referencedTable: $db.documentRegistries,
+          getReferencedColumn: (t) => t.id,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$DocumentRegistriesTableAnnotationComposer(
+                $db: $db,
+                $table: $db.documentRegistries,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return composer;
+  }
+}
+
+class $$ImagingStudiesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $ImagingStudiesTable,
+          ImagingStudy,
+          $$ImagingStudiesTableFilterComposer,
+          $$ImagingStudiesTableOrderingComposer,
+          $$ImagingStudiesTableAnnotationComposer,
+          $$ImagingStudiesTableCreateCompanionBuilder,
+          $$ImagingStudiesTableUpdateCompanionBuilder,
+          (ImagingStudy, $$ImagingStudiesTableReferences),
+          ImagingStudy,
+          PrefetchHooks Function({bool patientId, bool documentId})
+        > {
+  $$ImagingStudiesTableTableManager(
+    _$AppDatabase db,
+    $ImagingStudiesTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ImagingStudiesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$ImagingStudiesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$ImagingStudiesTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> patientId = const Value.absent(),
+                Value<String> documentId = const Value.absent(),
+                Value<String> modality = const Value.absent(),
+                Value<String> anatomicalRegion = const Value.absent(),
+                Value<String> findings = const Value.absent(),
+                Value<String> impression = const Value.absent(),
+                Value<DateTime> performedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ImagingStudiesCompanion(
+                id: id,
+                patientId: patientId,
+                documentId: documentId,
+                modality: modality,
+                anatomicalRegion: anatomicalRegion,
+                findings: findings,
+                impression: impression,
+                performedAt: performedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String patientId,
+                required String documentId,
+                required String modality,
+                required String anatomicalRegion,
+                required String findings,
+                required String impression,
+                required DateTime performedAt,
+                Value<int> rowid = const Value.absent(),
+              }) => ImagingStudiesCompanion.insert(
+                id: id,
+                patientId: patientId,
+                documentId: documentId,
+                modality: modality,
+                anatomicalRegion: anatomicalRegion,
+                findings: findings,
+                impression: impression,
+                performedAt: performedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$ImagingStudiesTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({patientId = false, documentId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (patientId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.patientId,
+                                referencedTable: $$ImagingStudiesTableReferences
+                                    ._patientIdTable(db),
+                                referencedColumn:
+                                    $$ImagingStudiesTableReferences
+                                        ._patientIdTable(db)
+                                        .id,
+                              )
+                              as T;
+                    }
+                    if (documentId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.documentId,
+                                referencedTable: $$ImagingStudiesTableReferences
+                                    ._documentIdTable(db),
+                                referencedColumn:
+                                    $$ImagingStudiesTableReferences
+                                        ._documentIdTable(db)
+                                        .id,
+                              )
+                              as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$ImagingStudiesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $ImagingStudiesTable,
+      ImagingStudy,
+      $$ImagingStudiesTableFilterComposer,
+      $$ImagingStudiesTableOrderingComposer,
+      $$ImagingStudiesTableAnnotationComposer,
+      $$ImagingStudiesTableCreateCompanionBuilder,
+      $$ImagingStudiesTableUpdateCompanionBuilder,
+      (ImagingStudy, $$ImagingStudiesTableReferences),
+      ImagingStudy,
+      PrefetchHooks Function({bool patientId, bool documentId})
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -15810,4 +22440,14 @@ class $AppDatabaseManager {
       $$HbpImplantsTableTableManager(_db, _db.hbpImplants);
   $$HbpStratificationsTableTableManager get hbpStratifications =>
       $$HbpStratificationsTableTableManager(_db, _db.hbpStratifications);
+  $$DocumentRegistriesTableTableManager get documentRegistries =>
+      $$DocumentRegistriesTableTableManager(_db, _db.documentRegistries);
+  $$ClinicalObservationsTableTableManager get clinicalObservations =>
+      $$ClinicalObservationsTableTableManager(_db, _db.clinicalObservations);
+  $$PrescriptionOrdersTableTableManager get prescriptionOrders =>
+      $$PrescriptionOrdersTableTableManager(_db, _db.prescriptionOrders);
+  $$MicrobiologyCulturesTableTableManager get microbiologyCultures =>
+      $$MicrobiologyCulturesTableTableManager(_db, _db.microbiologyCultures);
+  $$ImagingStudiesTableTableManager get imagingStudies =>
+      $$ImagingStudiesTableTableManager(_db, _db.imagingStudies);
 }

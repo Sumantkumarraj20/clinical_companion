@@ -22,6 +22,7 @@ import '../../features/cdss/screens/rule_builder_screen.dart';
 import '../../features/admin/screens/data_management_screen.dart';
 import '../../features/settings/screens/configuration_screen.dart';
 import '../../features/bedside/screens/manual_entry_screen.dart';
+import '../../features/ingestion/screens/adaptive_review_screen.dart';
 
 final appRouterProvider = Provider<GoRouter>((ref) {
   final configuration = ref.watch(appConfigurationProvider);
@@ -92,6 +93,15 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                   : const _RouteMessage(
                       message: 'Select a patient before capturing a document.',
                     );
+            },
+          ),
+          GoRoute(
+            path: '/adaptive-review',
+            builder: (context, state) {
+              final patient = state.extra;
+              return patient is Patient
+                  ? AdaptiveReviewScreen(patient: patient)
+                  : const _RouteMessage(message: 'Select a patient before reviewing a document.');
             },
           ),
           GoRoute(
@@ -273,6 +283,22 @@ class _CaptureSpeedDial extends ConsumerWidget {
         child: const Icon(Icons.camera_alt_outlined),
         label: 'AI Smart Capture',
         onTap: () => _selectPatient(context),
+      ),
+      SpeedDialChild(
+        child: const Icon(Icons.document_scanner_outlined),
+        label: 'Adaptive document review',
+        onTap: () async {
+          final patients = await ref.read(clinicalDaoProvider).watchAllPatients().first;
+          if (!context.mounted) return;
+          final selected = await showModalBottomSheet<Patient>(
+            context: context,
+            builder: (sheetContext) => ListView(children: [
+              const ListTile(title: Text('Select a patient')),
+              for (final patient in patients) ListTile(title: Text(patient.fullName), subtitle: Text(patient.hospitalRegNo), onTap: () => Navigator.pop(sheetContext, patient)),
+            ]),
+          );
+          if (selected != null && context.mounted) context.push('/adaptive-review', extra: selected);
+        },
       ),
       SpeedDialChild(
         child: const Icon(Icons.edit_note_outlined),
