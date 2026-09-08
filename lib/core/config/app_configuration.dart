@@ -13,8 +13,36 @@ class AppConfiguration {
     required this.ownerId,
     this.geminiApiKey = '',
     this.databasePassword = '',
-  }) : supabasePublishableKey =
-           supabasePublishableKey ?? supabaseAnonKey ?? '';
+  }) : supabasePublishableKey = supabasePublishableKey ?? supabaseAnonKey ?? '';
+
+  static String normalizeSupabaseUrl(String rawValue) {
+    final trimmed = rawValue.trim();
+    if (trimmed.isEmpty) return '';
+    final withoutWhitespace = trimmed.replaceAll(RegExp(r'\s+'), '');
+    if (!withoutWhitespace.startsWith('http://') &&
+        !withoutWhitespace.startsWith('https://')) {
+      return trimmed;
+    }
+
+    final uri = Uri.tryParse(withoutWhitespace);
+    if (uri == null || uri.host.isEmpty) {
+      return trimmed;
+    }
+
+    final portSuffix = uri.hasPort ? ':${uri.port}' : '';
+    final normalizedPath = uri.pathSegments.isNotEmpty
+        ? uri.pathSegments
+              .where((segment) => segment.toLowerCase() != 'rest')
+              .where((segment) => segment.toLowerCase() != 'v1')
+              .join('/')
+        : '';
+
+    if (normalizedPath.isNotEmpty && normalizedPath != '/') {
+      return '${uri.scheme}://${uri.host}$portSuffix/$normalizedPath';
+    }
+
+    return '${uri.scheme}://${uri.host}$portSuffix';
+  }
 
   factory AppConfiguration.fromEnvironment() => const AppConfiguration(
     supabaseUrl: String.fromEnvironment('SUPABASE_URL'),
@@ -28,7 +56,7 @@ class AppConfiguration {
   );
 
   factory AppConfiguration.fromStoredKeys(StoredKeys keys) => AppConfiguration(
-    supabaseUrl: keys.supabaseUrl,
+    supabaseUrl: normalizeSupabaseUrl(keys.supabaseUrl),
     supabasePublishableKey: keys.supabasePublishableKey,
     ownerId: 'local-practitioner',
     geminiApiKey: keys.geminiKey,
@@ -45,11 +73,12 @@ class AppConfiguration {
   String get supabaseAnonKey => supabasePublishableKey;
 
   bool get hasSupabase {
-    final uri = Uri.tryParse(supabaseUrl.trim());
+    final normalizedUrl = normalizeSupabaseUrl(supabaseUrl);
+    final uri = Uri.tryParse(normalizedUrl);
     return uri != null &&
         (uri.scheme == 'https' || uri.scheme == 'http') &&
         uri.host.isNotEmpty &&
-        (uri.path.isEmpty || uri.path == '/') &&
+        uri.path.isEmpty &&
         supabasePublishableKey.trim().isNotEmpty;
   }
 

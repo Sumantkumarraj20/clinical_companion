@@ -61,32 +61,42 @@ class _ConfigurationScreenState extends ConsumerState<ConfigurationScreen> {
       );
       return;
     }
-    final supabaseUri = Uri.tryParse(_supabaseUrl.text.trim());
+
+    final normalizedSupabaseUrl = AppConfiguration.normalizeSupabaseUrl(
+      _supabaseUrl.text,
+    );
+    final supabaseUri = Uri.tryParse(normalizedSupabaseUrl);
     if (supabaseUri == null ||
         (supabaseUri.scheme != 'https' && supabaseUri.scheme != 'http') ||
         supabaseUri.host.isEmpty ||
-        (supabaseUri.path.isNotEmpty && supabaseUri.path != '/')) {
+        supabaseUri.path.isNotEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Use a Supabase project URL such as https://your-project.supabase.co.')),
+        const SnackBar(
+          content: Text(
+            'Use a Supabase project URL such as https://your-project.supabase.co.',
+          ),
+        ),
       );
       return;
     }
     setState(() => _saving = true);
     try {
       await SecureConfigService().saveKeys(
-        _supabaseUrl.text,
+        normalizedSupabaseUrl,
         _supabaseKey.text,
         _geminiKey.text,
         _databasePassword.text,
       );
       final configuration = AppConfiguration(
-        supabaseUrl: _supabaseUrl.text.trim(),
+        supabaseUrl: normalizedSupabaseUrl,
         supabasePublishableKey: _supabaseKey.text.trim(),
         ownerId: ref.read(appConfigurationProvider).ownerId,
         geminiApiKey: _geminiKey.text.trim(),
         databasePassword: _databasePassword.text.trim(),
       );
-      ref.read(appConfigurationProvider.notifier).setConfiguration(configuration);
+      ref
+          .read(appConfigurationProvider.notifier)
+          .setConfiguration(configuration);
       try {
         await Supabase.initialize(
           url: configuration.supabaseUrl,
@@ -149,39 +159,79 @@ class _ConfigurationScreenState extends ConsumerState<ConfigurationScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text('Connect clinical services', style: Theme.of(context).textTheme.headlineSmall),
+                Text(
+                  'Connect clinical services',
+                  style: Theme.of(context).textTheme.headlineSmall,
+                ),
                 const SizedBox(height: 8),
-                const Text('Configuration is encrypted into config.aes inside the portable clinical_data folder.'),
+                const Text(
+                  'Configuration is encrypted into config.aes inside the portable clinical_data folder.',
+                ),
                 const SizedBox(height: 24),
-                TextField(controller: _supabaseUrl, decoration: const InputDecoration(labelText: 'Supabase URL')),
+                TextField(
+                  controller: _supabaseUrl,
+                  decoration: const InputDecoration(labelText: 'Supabase URL'),
+                ),
                 const SizedBox(height: 12),
-                TextField(controller: _supabaseKey, obscureText: true, decoration: const InputDecoration(labelText: 'Supabase publishable key')),
+                TextField(
+                  controller: _supabaseKey,
+                  obscureText: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Supabase publishable key',
+                  ),
+                ),
                 const SizedBox(height: 12),
-                TextField(controller: _geminiKey, obscureText: true, decoration: const InputDecoration(labelText: 'Gemini API key')),
+                TextField(
+                  controller: _geminiKey,
+                  obscureText: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Gemini API key',
+                  ),
+                ),
                 const SizedBox(height: 12),
-                TextField(controller: _databasePassword, obscureText: true, decoration: const InputDecoration(labelText: 'Database password')),
+                TextField(
+                  controller: _databasePassword,
+                  obscureText: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Database password',
+                  ),
+                ),
                 const SizedBox(height: 20),
                 SizedBox(
                   height: 56,
                   child: FilledButton.icon(
                     onPressed: _saving ? null : _save,
-                    icon: _saving ? const SizedBox.square(dimension: 20, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.lock_outline),
+                    icon: _saving
+                        ? const SizedBox.square(
+                            dimension: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.lock_outline),
                     label: Text(_saving ? 'Saving...' : 'Save & Initialize'),
                   ),
                 ),
                 const SizedBox(height: 36),
-                Text('Sideload databases', style: Theme.of(context).textTheme.titleLarge),
+                Text(
+                  'Sideload databases',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
                 const SizedBox(height: 8),
-                const Text('Use this when a platform build cannot extract the bundled SQLite catalog.'),
+                const Text(
+                  'Use this when a platform build cannot extract the bundled SQLite catalog.',
+                ),
                 const SizedBox(height: 12),
                 OutlinedButton.icon(
-                  onPressed: () => _importDatabase('clinical_drugs.sqlite', 'Pharmacopeia database'),
+                  onPressed: () => _importDatabase(
+                    'clinical_drugs.sqlite',
+                    'Pharmacopeia database',
+                  ),
                   icon: const Icon(Icons.medication_outlined),
                   label: const Text('Import Pharmacopeia Database'),
                 ),
                 const SizedBox(height: 8),
                 OutlinedButton.icon(
-                  onPressed: () => _importDatabase('pmjay_hbp.sqlite', 'PM-JAY database'),
+                  onPressed: () =>
+                      _importDatabase('pmjay_hbp.sqlite', 'PM-JAY database'),
                   icon: const Icon(Icons.account_balance_outlined),
                   label: const Text('Import PM-JAY Database'),
                 ),
