@@ -1,12 +1,10 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../../../core/database/local_database.dart';
 import '../../../core/database/daos/clinical_dao.dart';
+import '../../../core/database/local_database.dart';
 import '../../../core/providers/app_providers.dart';
 import '../../../core/widgets/shimmer_loading.dart';
 
@@ -23,48 +21,130 @@ class PatientTimelineScreen extends ConsumerStatefulWidget {
 class _PatientTimelineScreenState extends ConsumerState<PatientTimelineScreen> {
   final _expanded = <String>{};
   bool _showFinancialAlert = false;
-  late final Future<(List<ClinicalEncounter>, List<Investigation>)>
-  _timelineFuture;
+  bool _hasMedicolegalAlert = false;
+
+  late final Future<_AggregatedTimelineData> _timelineFuture;
 
   @override
   void initState() {
     super.initState();
     final dao = ref.read(clinicalDaoProvider);
-    _timelineFuture =
-        Future.wait([
-          dao.getEncountersForPatient(widget.patient.id),
-          dao.getInvestigationsForPatient(widget.patient.id),
-        ]).then(
-          (items) => (
-            items[0] as List<ClinicalEncounter>,
-            items[1] as List<Investigation>,
-          ),
-        );
+    _timelineFuture = _loadAggregatedTimeline(dao);
+  }
+
+  Future<_AggregatedTimelineData> _loadAggregatedTimeline(
+    ClinicalDao dao,
+  ) async {
+    final results = await Future.wait([
+      dao.getEncountersForPatient(widget.patient.id),
+      dao.getInvestigationsForPatient(widget.patient.id),
+      dao.watchPatientProblems(widget.patient.id).first,
+      (dao.select(
+        dao.clinicalInterventions,
+      )..where((t) => t.patientId.equals(widget.patient.id))).get(),
+      (dao.select(
+        dao.prescriptionOrders,
+      )..where((t) => t.patientId.equals(widget.patient.id))).get(),
+    ]);
+
+    final encounters = results[0] as List<ClinicalEncounter>;
+    final investigations = results[1] as List<InvestigationOrder>;
+    final problems = results[2] as List<PatientProblem>;
+    final interventions = results[3] as List<ClinicalIntervention>;
+    final prescriptions = results[4] as List<PrescriptionOrder>;
+
+    // Check for trauma/poison/burn medicolegal keywords across problems and encounters
+    final isMlCase =
+        problems.any((p) {
+          final name = p.problemName.toLowerCase();
+          return name.contains('trauma') ||
+              name.contains('poison') ||
+              name.contains('assault') ||
+              name.contains('rto') ||
+              name.contains('rta') ||
+              name.contains('burn') ||
+              name.contains('stab');
+        }) ||
+        encounters.any((e) {
+          final diag = (e.clinicalDiagnosis ?? '').toLowerCase();
+          final cc = (e.chiefComplaints ?? '').toLowerCase();
+          return diag.contains('trauma') ||
+              diag.contains('poison') ||
+              diag.contains('assault') ||
+              diag.contains('rto') ||
+              diag.contains('rta') ||
+              cc.contains('assault') ||
+              cc.contains('poison');
+        });
+
+    if (mounted && isMlCase) {
+      setState(() => _hasMedicolegalAlert = true);
+    }
+
+    return _AggregatedTimelineData(
+      encounters: encounters,
+      investigations: investigations,
+      problems: problems,
+      interventions: interventions,
+      prescriptions: prescriptions,
+    );
   }
 
   @override
   Widget build(BuildContext context) {
+    final dao = ref.watch(clinicalDaoProvider);
+
     return Scaffold(
       appBar: AppBar(
         title: Row(
           children: [
             Hero(
               tag: widget.heroTag ?? 'patient-${widget.patient.id}',
-              child: CircleAvatar(child: Text(widget.patient.fullName.substring(0, 1).toUpperCase())),
+              child: CircleAvatar(
+                child: Text(
+                  widget.patient.fullName.trim().isNotEmpty
+                      ? widget.patient.fullName.trim()[0].toUpperCase()
+                      : '?',
+                ),
+              ),
             ),
             const SizedBox(width: 10),
-            Expanded(child: Text('${widget.patient.fullName} · timeline')),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    widget.patient.fullName,
+                    style: const TextStyle(fontSize: 16),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  FutureBuilder<String>(
+                    future: dao.getPatientHospitalRegNo(widget.patient.id),
+                    builder: (context, snapshot) {
+                      return Text(
+                        'CR: ${snapshot.data ?? '…'} · Chronological Ledger',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: Colors.white70,
+                        ),
+                      );
+                    },
+                  ),
+                ],
+              ),
+            ),
           ],
         ),
         actions: [
-          if ((widget.patient.phoneNumber ?? widget.patient.phone)?.isNotEmpty == true)
+          if (widget.patient.phone?.isNotEmpty == true)
             IconButton(
               tooltip: 'Call patient',
               icon: const Icon(Icons.call_outlined),
-              onPressed: () => launchUrl(Uri(scheme: 'tel', path: widget.patient.phoneNumber ?? widget.patient.phone)),
+              onPressed: () =>
+                  launchUrl(Uri(scheme: 'tel', path: widget.patient.phone)),
             ),
           IconButton(
-            tooltip: 'Select PM-JAY procedure',
+            tooltip: 'PM-JAY Pre-Auth Check',
             icon: const Icon(Icons.account_balance_wallet_outlined),
             onPressed: _selectProcedure,
           ),
@@ -75,7 +155,7 @@ class _PatientTimelineScreenState extends ConsumerState<PatientTimelineScreen> {
                 context.push('/smart-capture', extra: widget.patient),
           ),
           IconButton(
-            tooltip: 'Problem-oriented record',
+            tooltip: 'Problem-oriented record (POMR)',
             icon: const Icon(Icons.account_tree_outlined),
             onPressed: () => context.push(
               '/patients/${widget.patient.id}/problems',
@@ -84,7 +164,7 @@ class _PatientTimelineScreenState extends ConsumerState<PatientTimelineScreen> {
           ),
         ],
       ),
-      body: FutureBuilder<(List<ClinicalEncounter>, List<Investigation>)>(
+      body: FutureBuilder<_AggregatedTimelineData>(
         future: _timelineFuture,
         builder: (context, snapshot) {
           if (snapshot.connectionState != ConnectionState.done) {
@@ -92,34 +172,88 @@ class _PatientTimelineScreenState extends ConsumerState<PatientTimelineScreen> {
           }
           if (snapshot.hasError) {
             return Center(
-              child: Text('Unable to load timeline: ${snapshot.error}'),
+              child: SelectableText(
+                'Unable to load chronological ledger:\n${snapshot.error}',
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.red),
+              ),
             );
           }
-          final events = _events(snapshot.data!.$1, snapshot.data!.$2);
+
+          final data = snapshot.data!;
+          final events = _buildEvents(data);
+
           if (events.isEmpty) {
-            return const Center(child: Text('No clinical history recorded'));
+            return Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.history_toggle_off_outlined,
+                    size: 64,
+                    color: Theme.of(context).colorScheme.outline,
+                  ),
+                  const SizedBox(height: 14),
+                  Text(
+                    'No Clinical History Recorded',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: 6),
+                  const Text(
+                    'Encounters, bedside rounds, investigations, and procedures appear here.',
+                    style: TextStyle(color: Colors.grey, fontSize: 13),
+                  ),
+                ],
+              ),
+            );
           }
+
           return Column(
             children: [
               if (_showFinancialAlert)
-                const MaterialBanner(
-                  backgroundColor: Color(0xfffff3cd),
-                  leading: Icon(Icons.account_balance_wallet_outlined, color: Colors.black87),
-                  content: Text(
-                    'FINANCIAL ALERT: This procedure requires pre-authorization under PM-JAY. Ensure clinical photographs and baseline labs are uploaded to TMS.',
-                    style: TextStyle(color: Colors.black87),
+                MaterialBanner(
+                  backgroundColor: const Color(0xfffff3cd),
+                  leading: const Icon(
+                    Icons.warning_amber_rounded,
+                    color: Colors.amber,
                   ),
-                  actions: [SizedBox.shrink()],
+                  content: const Text(
+                    'FINANCIAL / PRE-AUTH ALERT: This procedure requires pre-authorization under PM-JAY. '
+                    'Ensure baseline pre-op photographs and diagnostic reports are uploaded to TMS portal.',
+                    style: TextStyle(
+                      color: Colors.black87,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () =>
+                          setState(() => _showFinancialAlert = false),
+                      child: const Text('DISMISS'),
+                    ),
+                  ],
                 ),
-              if (_isMedicoLegal)
-                const MaterialBanner(
-                  backgroundColor: Color(0xffffd7d7),
-                  leading: Icon(Icons.gavel_outlined, color: Colors.red),
-                  content: Text(
-                    'MEDICOLEGAL ALERT: Ensure MLC (Medico-Legal Case) stamp is present on the physical file and police intimation is recorded.',
-                    style: TextStyle(color: Colors.black87),
+              if (_hasMedicolegalAlert)
+                MaterialBanner(
+                  backgroundColor: const Color(0xffffd7d7),
+                  leading: const Icon(Icons.gavel_outlined, color: Colors.red),
+                  content: const Text(
+                    'MEDICOLEGAL ALERT: High-risk presentation (Trauma/Burn/Poisoning detected). '
+                    'Verify MLC registration, chain of custody, and mandatory police intimation.',
+                    style: TextStyle(
+                      color: Colors.black87,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
-                  actions: [SizedBox.shrink()],
+                  actions: [
+                    TextButton(
+                      onPressed: () =>
+                          setState(() => _hasMedicolegalAlert = false),
+                      child: const Text('ACKNOWLEDGE'),
+                    ),
+                  ],
                 ),
               Expanded(
                 child: ListView.builder(
@@ -143,62 +277,129 @@ class _PatientTimelineScreenState extends ConsumerState<PatientTimelineScreen> {
     );
   }
 
-  List<_TimelineEvent> _events(
-    List<ClinicalEncounter> encounters,
-    List<Investigation> investigations,
-  ) {
+  List<_TimelineEvent> _buildEvents(_AggregatedTimelineData data) {
     final events = <_TimelineEvent>[
-      for (final encounter in encounters)
+      // 1. Clinical Encounters
+      for (final encounter in data.encounters)
         _TimelineEvent(
           id: 'encounter-${encounter.id}',
           timestamp: encounter.occurredAt,
           title: encounter.encounterType,
-          subtitle: encounter.chiefComplaint ?? 'Clinical encounter',
+          subtitle:
+              encounter.clinicalDiagnosis ??
+              encounter.chiefComplaints ??
+              'Clinical Bedside Encounter',
+          category: 'Encounter',
           color: encounter.encounterType == 'Procedure'
-              ? Colors.green
-              : Colors.blue,
+              ? Colors.teal
+              : Colors.blue.shade700,
           details: {
-            'SBP': encounter.sbp,
-            'DBP': encounter.dbp,
-            'Pulse': encounter.pulse,
-            'Advice': encounter.consultantAdvice,
-            'Dynamic data': encounter.dynamicData,
+            'Diagnosis / Impression': encounter.clinicalDiagnosis,
+            'Chief Complaints': encounter.chiefComplaints,
+            'Blood Pressure': (encounter.sbp != null && encounter.dbp != null)
+                ? '${encounter.sbp}/${encounter.dbp} mmHg'
+                : null,
+            'Pulse Rate': encounter.pulse != null
+                ? '${encounter.pulse} bpm'
+                : null,
+            'SpO2': encounter.spo2 != null ? '${encounter.spo2}%' : null,
+            'Temperature': encounter.temperatureC != null
+                ? '${encounter.temperatureC}°C'
+                : null,
+            'Assessment & Plan': encounter.clinicalAssessment,
+            'Consultant Advice': encounter.consultantAdvice,
+            'Ward / Bed':
+                '${encounter.wardName ?? ''} ${encounter.bedNumber ?? ''}'
+                    .trim(),
           },
         ),
-      for (final investigation in investigations)
+
+      // 2. Problem Trajectory Milestones
+      for (final prob in data.problems)
         _TimelineEvent(
-          id: 'investigation-${investigation.id}',
-          timestamp: investigation.resultReceivedAt ?? investigation.orderedAt,
-          title: investigation.testName,
-          subtitle: investigation.status.replaceAll('_', ' '),
-          color: Colors.red,
+          id: 'problem-${prob.id}',
+          timestamp: prob.onsetDate ?? prob.createdAt,
+          title: 'Problem Registered: ${prob.problemName}',
+          subtitle: 'Trajectory Status: ${prob.currentStatus}',
+          category: 'POMR Problem',
+          color: prob.currentStatus == 'Resolved'
+              ? Colors.green.shade700
+              : Colors.amber.shade800,
           details: {
-            'Result': investigation.resultValue,
-            'Unit': investigation.resultUnit,
-            'Organism': investigation.organism,
-            'Sensitive': _decodeList(investigation.sensitiveAntibiotics),
-            'Resistant': _decodeList(investigation.resistantAntibiotics),
+            'Current Status': prob.currentStatus,
+            'ICD-11 Code': prob.icd11Code,
+            'Onset Date': prob.onsetDate?.toIso8601String().split('T').first,
+            'Resolved Date': prob.resolvedDate
+                ?.toIso8601String()
+                .split('T')
+                .first,
+          },
+        ),
+
+      // 3. Clinical Interventions & Surgical Procedures
+      for (final procedure in data.interventions)
+        _TimelineEvent(
+          id: 'intervention-${procedure.id}',
+          timestamp: procedure.performedAt,
+          title: 'Intervention: ${procedure.procedureName}',
+          subtitle:
+              'Role: ${procedure.interventionRole} · ${procedure.procedureCode ?? 'Local'}',
+          category: 'Procedure',
+          color: Colors.purple.shade700,
+          details: {
+            'Procedure Code': procedure.procedureCode,
+            'Coding System': procedure.codingSystem,
+            'Anatomical Site': procedure.anatomicalSite,
+            'Operative Findings': procedure.operativeFindings,
+            'Performed By': procedure.performedBy,
+          },
+        ),
+
+      // 4. Laboratory Investigations
+      for (final inv in data.investigations)
+        _TimelineEvent(
+          id: 'investigation-${inv.id}',
+          timestamp: inv.resultReceivedAt ?? inv.orderedAt,
+          title: 'Lab: ${inv.testName}',
+          subtitle: 'Status: ${inv.status.replaceAll('_', ' ').toUpperCase()}',
+          category: 'Investigation',
+          color: inv.status == 'result_received'
+              ? Colors.indigo.shade700
+              : Colors.deepOrange.shade600,
+          details: {
+            'Clinical Indication': inv.clinicalIndication,
+            'Workorder Status': inv.status,
+            'Ordered At': inv.orderedAt.toIso8601String().split('T').first,
+            'Result Received At': inv.resultReceivedAt
+                ?.toIso8601String()
+                .split('T')
+                .first,
+          },
+        ),
+
+      // 5. Prescriptions
+      for (final rx in data.prescriptions)
+        _TimelineEvent(
+          id: 'prescription-${rx.id}',
+          timestamp: rx.orderedAt,
+          title: 'Rx: ${rx.drugName}',
+          subtitle:
+              '${rx.doseStrength ?? ''} ${rx.route ?? 'Oral'} · ${rx.frequency ?? ''}',
+          category: 'Medication',
+          color: Colors.cyan.shade800,
+          details: {
+            'Dose Strength': rx.doseStrength,
+            'Dosage Form': rx.dosageForm,
+            'Route': rx.route,
+            'Frequency': rx.frequency,
+            'Duration': rx.duration,
+            'Special Instructions': rx.specialInstructions,
           },
         ),
     ];
+
     events.sort((a, b) => b.timestamp.compareTo(a.timestamp));
     return events;
-  }
-
-  List<String> _decodeList(String value) {
-    try {
-      final decoded = jsonDecode(value);
-      return decoded is List
-          ? decoded.map((item) => item.toString()).toList(growable: false)
-          : const [];
-    } catch (_) {
-      return const [];
-    }
-  }
-
-  bool get _isMedicoLegal {
-    final diagnosis = widget.patient.diagnosis?.toLowerCase() ?? '';
-    return diagnosis.contains('trauma') || diagnosis.contains('poison');
   }
 
   Future<void> _selectProcedure() async {
@@ -208,14 +409,33 @@ class _PatientTimelineScreenState extends ConsumerState<PatientTimelineScreen> {
       builder: (_) => _ProcedureSearchSheet(dao: ref.read(clinicalDaoProvider)),
     );
     if (selected != null && mounted) {
-      final rules = await ref.read(cdssDaoProvider).rulesForProblem(selected.code);
-      final namedRules = await ref.read(cdssDaoProvider).rulesForProblem(selected.packageName);
-      setState(() => _showFinancialAlert = [
-        ...rules,
-        ...namedRules,
-      ].any((rule) => rule.requiresPreAuth));
+      final cdss = ref.read(cdssDaoProvider);
+      final rules = await cdss.rulesForProblem(selected.code);
+      final namedRules = await cdss.rulesForProblem(selected.packageName);
+      setState(
+        () => _showFinancialAlert = [
+          ...rules,
+          ...namedRules,
+        ].any((rule) => rule.requiresPreAuth),
+      );
     }
   }
+}
+
+class _AggregatedTimelineData {
+  _AggregatedTimelineData({
+    required this.encounters,
+    required this.investigations,
+    required this.problems,
+    required this.interventions,
+    required this.prescriptions,
+  });
+
+  final List<ClinicalEncounter> encounters;
+  final List<InvestigationOrder> investigations;
+  final List<PatientProblem> problems;
+  final List<ClinicalIntervention> interventions;
+  final List<PrescriptionOrder> prescriptions;
 }
 
 class _ProcedureSearchSheet extends StatefulWidget {
@@ -231,7 +451,10 @@ class _ProcedureSearchSheetState extends State<_ProcedureSearchSheet> {
   Future<List<AyushmanPackage>>? _results;
 
   @override
-  void dispose() { _query.dispose(); super.dispose(); }
+  void dispose() {
+    _query.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) => SafeArea(
@@ -243,8 +466,14 @@ class _ProcedureSearchSheetState extends State<_ProcedureSearchSheet> {
           TextField(
             controller: _query,
             autofocus: true,
-            decoration: const InputDecoration(labelText: 'Search PM-JAY package', prefixIcon: Icon(Icons.search)),
-            onChanged: (value) => setState(() => _results = widget.dao.searchAyushmanPackages(value)),
+            decoration: const InputDecoration(
+              labelText: 'Search PM-JAY / TMS HBP Package',
+              prefixIcon: Icon(Icons.search),
+              isDense: true,
+            ),
+            onChanged: (value) => setState(
+              () => _results = widget.dao.searchAyushmanPackages(value),
+            ),
           ),
           const SizedBox(height: 12),
           SizedBox(
@@ -253,10 +482,13 @@ class _ProcedureSearchSheetState extends State<_ProcedureSearchSheet> {
               future: _results,
               builder: (context, snapshot) => ListView(
                 children: [
-                  for (final package in snapshot.data ?? const <AyushmanPackage>[])
+                  for (final package
+                      in snapshot.data ?? const <AyushmanPackage>[])
                     ListTile(
                       title: Text(package.packageName),
-                      subtitle: Text('${package.code} · ₹${package.rate?.toStringAsFixed(2) ?? 'rate unavailable'}'),
+                      subtitle: Text(
+                        '${package.code} · ₹${package.rate?.toStringAsFixed(2) ?? 'Rate Unavailable'}',
+                      ),
                       onTap: () => Navigator.pop(context, package),
                     ),
                 ],
@@ -275,13 +507,16 @@ class _TimelineEvent {
     required this.timestamp,
     required this.title,
     required this.subtitle,
+    required this.category,
     required this.color,
     required this.details,
   });
+
   final String id;
   final DateTime timestamp;
   final String title;
   final String subtitle;
+  final String category;
   final Color color;
   final Map<String, Object?> details;
 }
@@ -293,6 +528,7 @@ class _TimelineRow extends StatelessWidget {
     required this.expanded,
     required this.onTap,
   });
+
   final _TimelineEvent event;
   final bool isLast;
   final bool expanded;
@@ -317,7 +553,7 @@ class _TimelineRow extends StatelessWidget {
                     border: Border.all(color: Colors.white, width: 3),
                     boxShadow: [
                       BoxShadow(
-                        color: event.color.withAlpha(80),
+                        color: event.color.withValues(alpha: 0.3),
                         blurRadius: 4,
                       ),
                     ],
@@ -326,8 +562,8 @@ class _TimelineRow extends StatelessWidget {
                 if (!isLast)
                   Expanded(
                     child: Container(
-                      width: 3,
-                      color: event.color.withAlpha(100),
+                      width: 2,
+                      color: event.color.withValues(alpha: 0.3),
                     ),
                   ),
               ],
@@ -335,40 +571,94 @@ class _TimelineRow extends StatelessWidget {
           ),
           Expanded(
             child: Card(
+              elevation: 0.5,
               margin: const EdgeInsets.only(bottom: 14),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+                side: BorderSide(
+                  color: Theme.of(context).dividerColor.withValues(alpha: 0.2),
+                ),
+              ),
               child: InkWell(
                 onTap: onTap,
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(10),
                 child: Padding(
-                  padding: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.all(14),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Row(
                         children: [
-                          Expanded(
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: event.color.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
                             child: Text(
-                              event.title,
-                              style: Theme.of(context).textTheme.titleMedium
-                                  ?.copyWith(fontWeight: FontWeight.w700),
+                              event.category.toUpperCase(),
+                              style: TextStyle(
+                                fontSize: 9,
+                                fontWeight: FontWeight.bold,
+                                color: event.color,
+                              ),
                             ),
                           ),
+                          const Spacer(),
                           Text(
                             _format(event.timestamp),
-                            style: Theme.of(context).textTheme.labelSmall,
+                            style: Theme.of(context).textTheme.labelSmall
+                                ?.copyWith(
+                                  color: Theme.of(context).colorScheme.outline,
+                                ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 4),
-                      Text(event.subtitle),
+                      const SizedBox(height: 6),
+                      Text(
+                        event.title,
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 15,
+                            ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        event.subtitle,
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                      ),
                       if (expanded) ...[
-                        const Divider(height: 24),
+                        const Divider(height: 20),
                         for (final item in event.details.entries)
                           if (item.value != null &&
-                              item.value.toString().isNotEmpty)
+                              item.value.toString().trim().isNotEmpty)
                             Padding(
-                              padding: const EdgeInsets.only(bottom: 6),
-                              child: Text('${item.key}: ${item.value}'),
+                              padding: const EdgeInsets.only(bottom: 4),
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    '${item.key}: ',
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                  Expanded(
+                                    child: Text(
+                                      '${item.value}',
+                                      style: const TextStyle(fontSize: 12),
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                       ],
                     ],
@@ -382,6 +672,13 @@ class _TimelineRow extends StatelessWidget {
     );
   }
 
-  String _format(DateTime value) =>
-      '${value.day.toString().padLeft(2, '0')}/${value.month.toString().padLeft(2, '0')}/${value.year} ${value.hour.toString().padLeft(2, '0')}:${value.minute.toString().padLeft(2, '0')}';
+  String _format(DateTime value) {
+    final local = value.toLocal();
+    final d = local.day.toString().padLeft(2, '0');
+    final m = local.month.toString().padLeft(2, '0');
+    final y = local.year;
+    final h = local.hour.toString().padLeft(2, '0');
+    final min = local.minute.toString().padLeft(2, '0');
+    return '$d/$m/$y $h:$min';
+  }
 }

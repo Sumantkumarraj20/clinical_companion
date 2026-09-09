@@ -17,13 +17,22 @@ class IdentityResolutionService {
   Future<Patient?> findExistingPatient(PatientIdentity extractedData) async {
     final registrationNumber = extractedData.hospitalRegNo?.trim();
     if (registrationNumber != null && registrationNumber.isNotEmpty) {
-      final exact = await (_database.select(_database.patients)
-            ..where(
-              (patient) =>
-                  patient.ownerId.equals(ownerId) &
-                  patient.hospitalRegNo.equals(registrationNumber),
-            ))
-          .getSingleOrNull();
+      final exactQuery = _database.select(_database.patients).join([
+        innerJoin(
+          _database.patientHospitalIdentifiers,
+          _database.patientHospitalIdentifiers.patientId.equalsExp(
+            _database.patients.id,
+          ),
+        ),
+      ])..where(
+          _database.patients.ownerId.equals(ownerId) &
+              _database.patientHospitalIdentifiers.hospitalRegNo.equals(
+                registrationNumber,
+              ),
+        );
+      final exact = (await exactQuery.getSingleOrNull())?.readTable(
+        _database.patients,
+      );
       if (exact != null) return exact;
     }
     final name = extractedData.name?.trim();
@@ -37,11 +46,12 @@ class IdentityResolutionService {
             (patient) =>
                 patient.ownerId.equals(ownerId) &
                 patient.fullName.equals(name) &
-                patient.sex.equals(gender),
+                patient.gender.equals(gender),
           ))
         .get();
     for (final candidate in candidates) {
-      final candidateAge = _ageOn(candidate.dateOfBirth, DateTime.now());
+        final candidateAge = candidate.approximateAge ??
+          _ageOn(candidate.dateOfBirth, DateTime.now());
       if (candidateAge != null && (candidateAge - age).abs() <= 2) {
         return candidate;
       }
@@ -63,11 +73,12 @@ class IdentityResolutionService {
               (patient) =>
                   patient.ownerId.equals(ownerId) &
                   patient.fullName.equals(name) &
-                  patient.sex.equals(gender),
+                  patient.gender.equals(gender),
             ))
           .get();
       for (final candidate in candidates) {
-        final age = _ageOn(candidate.dateOfBirth, DateTime.now());
+        final age = candidate.approximateAge ??
+          _ageOn(candidate.dateOfBirth, DateTime.now());
         if (age != null && (age - extractedData.age!).abs() <= 2) {
           return candidate.id;
         }
@@ -79,18 +90,38 @@ class IdentityResolutionService {
     final generatedRegistration =
         'AUTO-$dateStamp-${id.substring(0, 4).toUpperCase()}';
     final now = DateTime.now().toUtc();
-    await _database.into(_database.patients).insert(
-      PatientsCompanion.insert(
+    await _database.transaction(() async {
+      await _database.into(_database.patients).insert(
+        PatientsCompanion.insert(
         id: Value(id),
         ownerId: ownerId,
-        hospitalRegNo: registrationNumber?.isNotEmpty == true
-            ? registrationNumber!
-            : generatedRegistration,
         fullName: name?.isNotEmpty == true ? name! : 'Unknown patient',
+        approximateAge: Value(extractedData.age),
+        gender: Value(gender?.isNotEmpty == true ? gender : null),
         dateOfBirth: Value(_dateOfBirthFromAge(extractedData.age)),
-        sex: Value(gender?.isNotEmpty == true ? gender : null),
-      ),
-    );
+        ),
+      );
+      final hospital = await (_database.select(_database.hospitals)
+            ..where((row) => row.isActive.equals(true))
+            ..limit(1))
+          .getSingleOrNull();
+      final hospitalId = hospital?.id ?? _uuid.v4();
+      if (hospital == null) {
+        await _database.into(_database.hospitals).insert(
+          HospitalsCompanion.insert(id: Value(hospitalId), name: 'Primary Hospital'),
+        );
+      }
+      await _database.into(_database.patientHospitalIdentifiers).insert(
+        PatientHospitalIdentifiersCompanion.insert(
+          patientId: id,
+          hospitalId: hospitalId,
+          hospitalRegNo: registrationNumber?.isNotEmpty == true
+              ? registrationNumber!
+              : generatedRegistration,
+          isPrimary: const Value(true),
+        ),
+      );
+    });
     await _database.into(_database.offlineSyncQueue).insert(
       OfflineSyncQueueCompanion.insert(
         ownerId: ownerId,

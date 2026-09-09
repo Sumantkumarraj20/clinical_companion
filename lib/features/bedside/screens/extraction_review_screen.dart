@@ -37,7 +37,7 @@ class _ExtractionReviewScreenState
   late final TextEditingController _dbp;
   late final TextEditingController _pulse;
   late final TextEditingController _spo2;
-  late final TextEditingController _tempF;
+  late final TextEditingController _temp;
 
   late final Future<Patient?> _matchedPatient;
   late final List<_EditableLab> _labs;
@@ -53,11 +53,13 @@ class _ExtractionReviewScreenState
     _name = TextEditingController(text: identity.name ?? '');
     _age = TextEditingController(text: identity.age?.toString() ?? '');
     _registration = TextEditingController(text: identity.hospitalRegNo ?? '');
-    _gender = TextEditingController(text: identity.gender ?? '');
+    _gender = TextEditingController(text: identity.gender ?? 'Unspecified');
 
     _summary = TextEditingController(text: widget.extraction.clinicalSummary);
     _documentType = TextEditingController(
-      text: widget.extraction.encounterContext.documentType,
+      text: widget.extraction.encounterContext.documentType.isEmpty
+          ? 'Clinical Document'
+          : widget.extraction.encounterContext.documentType,
     );
 
     final vitals = widget.extraction.vitals;
@@ -65,7 +67,7 @@ class _ExtractionReviewScreenState
     _dbp = TextEditingController(text: vitals.dbp?.toString() ?? '');
     _pulse = TextEditingController(text: vitals.pr?.toString() ?? '');
     _spo2 = TextEditingController(text: vitals.spo2?.toString() ?? '');
-    _tempF = TextEditingController(text: vitals.temperatureC?.toString() ?? '');
+    _temp = TextEditingController(text: vitals.temperatureC?.toString() ?? '');
 
     _matchedPatient = IdentityResolutionService(
       database: ref.read(appDatabaseProvider),
@@ -93,7 +95,7 @@ class _ExtractionReviewScreenState
     _dbp.dispose();
     _pulse.dispose();
     _spo2.dispose();
-    _tempF.dispose();
+    _temp.dispose();
     for (final lab in _labs) {
       lab.dispose();
     }
@@ -114,16 +116,19 @@ class _ExtractionReviewScreenState
             : _registration.text.trim(),
       ),
       encounterContext: widget.extraction.encounterContext.copyWith(
-        documentType: _documentType.text.trim(),
+        documentType: _documentType.text.trim().isEmpty
+            ? 'Clinical Document'
+            : _documentType.text.trim(),
       ),
       vitals: widget.extraction.vitals.copyWith(
         sbp: int.tryParse(_sbp.text.trim()),
         dbp: int.tryParse(_dbp.text.trim()),
         pr: int.tryParse(_pulse.text.trim()),
         spo2: int.tryParse(_spo2.text.trim()),
-        temperatureC: double.tryParse(_tempF.text.trim()),
+        temperatureC: double.tryParse(_temp.text.trim()),
       ),
       labResults: _labs
+          .where((l) => l.testName.text.trim().isNotEmpty)
           .map(
             (lab) => AiLabResult(
               testName: lab.testName.text.trim(),
@@ -134,6 +139,7 @@ class _ExtractionReviewScreenState
           )
           .toList(),
       medicationsOrdered: _medications
+          .where((m) => m.drugName.text.trim().isNotEmpty)
           .map(
             (med) => OrderedMedication(
               drugName: med.drugName.text.trim(),
@@ -164,16 +170,16 @@ class _ExtractionReviewScreenState
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Document successfully saved to clinical record'),
+          content: Text('Document successfully committed to clinical ledger'),
           backgroundColor: Colors.green,
         ),
       );
-      Navigator.of(context).pop();
+      Navigator.of(context).pop(true);
     } catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Could not save document: $error'),
+            content: Text('Could not commit extraction: $error'),
             backgroundColor: Colors.red,
           ),
         );
@@ -183,31 +189,65 @@ class _ExtractionReviewScreenState
     }
   }
 
-  InputDecoration _decoration(String label, {required bool missing}) {
+  InputDecoration _decoration(
+    String label, {
+    required bool missing,
+    String? hintText,
+    String? suffixText,
+  }) {
     return InputDecoration(
       labelText: label,
-      helperText: missing ? 'Missing or not confidently identified' : null,
+      hintText: hintText,
+      suffixText: suffixText,
+      helperText: missing ? 'Not detected on document' : null,
       prefixIcon: missing
-          ? const Icon(Icons.warning_amber_rounded, size: 20)
+          ? const Icon(
+              Icons.warning_amber_rounded,
+              size: 18,
+              color: Colors.amber,
+            )
           : null,
       filled: missing,
-      fillColor: missing ? Colors.amber.withValues(alpha: 0.08) : null,
+      fillColor: missing ? Colors.amber.withValues(alpha: 0.06) : null,
       enabledBorder: missing
-          ? const OutlineInputBorder(
-              borderSide: BorderSide(color: Colors.amber),
+          ? OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: const BorderSide(color: Colors.amber),
             )
-          : const OutlineInputBorder(),
-      border: const OutlineInputBorder(),
+          : OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
       isDense: true,
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    final patientsStream = ref.watch(clinicalDaoProvider).watchAllPatients();
+    final dao = ref.watch(clinicalDaoProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Review AI Extraction')),
+      appBar: AppBar(
+        title: const Text('Review AI Extraction'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.add_chart_outlined),
+            tooltip: 'Add Lab Item',
+            onPressed: () {
+              setState(() {
+                _labs.add(_EditableLab.empty());
+              });
+            },
+          ),
+          IconButton(
+            icon: const Icon(Icons.medication_outlined),
+            tooltip: 'Add Medication Item',
+            onPressed: () {
+              setState(() {
+                _medications.add(_EditableMedication.empty());
+              });
+            },
+          ),
+        ],
+      ),
       bottomNavigationBar: BottomAppBar(
         child: FilledButton.icon(
           onPressed: _saving ? null : _save,
@@ -219,9 +259,9 @@ class _ExtractionReviewScreenState
                     color: Colors.white,
                   ),
                 )
-              : const Icon(Icons.save_rounded),
+              : const Icon(Icons.check_circle_outline),
           label: Text(
-            _saving ? 'Processing & Saving...' : 'Confirm & Save Record',
+            _saving ? 'Committing to Database…' : 'Confirm & Save Record',
             style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
           ),
         ),
@@ -229,19 +269,57 @@ class _ExtractionReviewScreenState
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
+            final isDesktop = constraints.maxWidth >= 900;
+
             final imageViewer = Container(
-              height: constraints.maxWidth > 900 ? double.infinity : 250,
+              height: isDesktop ? double.infinity : 260,
               decoration: BoxDecoration(
                 border: Border(
-                  bottom: BorderSide(color: Theme.of(context).dividerColor),
+                  bottom: BorderSide(
+                    color: Theme.of(
+                      context,
+                    ).dividerColor.withValues(alpha: 0.3),
+                  ),
+                  right: isDesktop
+                      ? BorderSide(
+                          color: Theme.of(
+                            context,
+                          ).dividerColor.withValues(alpha: 0.3),
+                        )
+                      : BorderSide.none,
                 ),
               ),
-              child: PhotoView(
-                imageProvider: FileImage(File(widget.imagePath)),
-                backgroundDecoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                ),
-                minScale: PhotoViewComputedScale.contained,
+              child: Stack(
+                children: [
+                  PhotoView(
+                    imageProvider: FileImage(File(widget.imagePath)),
+                    backgroundDecoration: BoxDecoration(
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.surfaceContainerHighest,
+                    ),
+                    minScale: PhotoViewComputedScale.contained,
+                    maxScale: PhotoViewComputedScale.covered * 4.0,
+                  ),
+                  Positioned(
+                    top: 10,
+                    right: 10,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.6),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: const Text(
+                        'Pinch / Scroll to Zoom',
+                        style: TextStyle(color: Colors.white, fontSize: 11),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             );
 
@@ -251,49 +329,63 @@ class _ExtractionReviewScreenState
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  // 1. PATIENT LINKING & IDENTITY SECTION
                   Text(
-                    'Patient Link',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      color: Theme.of(context).primaryColor,
+                    'Patient Association',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: Theme.of(context).colorScheme.primary,
                     ),
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 8),
                   FutureBuilder<Patient?>(
                     future: _matchedPatient,
                     builder: (context, matchSnapshot) {
                       final matched = matchSnapshot.data;
 
                       return StreamBuilder<List<Patient>>(
-                        stream: patientsStream,
+                        stream: dao.watchAllPatients(),
                         builder: (context, snapshot) {
                           final patientsList = snapshot.data ?? const [];
 
-                          if (_selectedPatientId != null &&
-                              !patientsList.any(
-                                (p) => p.id == _selectedPatientId,
-                              )) {
-                            _selectedPatientId = null;
-                          }
+                          final effectiveSelectedId =
+                              _selectedPatientId ?? matched?.id;
 
-                          return DropdownButtonFormField<String>(
-                            initialValue: _selectedPatientId ?? matched?.id,
+                          return DropdownButtonFormField<String?>(
+                            initialValue:
+                                patientsList.any(
+                                  (p) => p.id == effectiveSelectedId,
+                                )
+                                ? effectiveSelectedId
+                                : null,
                             isExpanded: true,
-                            decoration: const InputDecoration(
-                              labelText: 'Attach to Patient Record',
-                              border: OutlineInputBorder(),
+                            decoration: InputDecoration(
+                              labelText: 'Attach To Patient',
+                              prefixIcon: const Icon(Icons.link_outlined),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
                             ),
                             items: [
-                              const DropdownMenuItem<String>(
+                              const DropdownMenuItem<String?>(
                                 value: null,
                                 child: Text(
-                                  '✨ Create New Patient Profile (AUTO-GEN)',
+                                  '✨ Create New Profile (Auto-Assign CR)',
+                                  style: TextStyle(fontWeight: FontWeight.bold),
                                 ),
                               ),
                               ...patientsList.map(
-                                (p) => DropdownMenuItem(
+                                (p) => DropdownMenuItem<String?>(
                                   value: p.id,
-                                  child: Text(
-                                    '${p.fullName} | ${p.hospitalRegNo}',
+                                  child: FutureBuilder<String>(
+                                    future: dao.getPatientHospitalRegNo(p.id),
+                                    builder: (context, regSnap) {
+                                      final reg = regSnap.data ?? '…';
+                                      return Text(
+                                        '${p.fullName} (CR: $reg) · ${p.gender ?? '?'}, ${p.approximateAge ?? '--'}y',
+                                        overflow: TextOverflow.ellipsis,
+                                      );
+                                    },
                                   ),
                                 ),
                               ),
@@ -305,21 +397,25 @@ class _ExtractionReviewScreenState
                       );
                     },
                   ),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 16),
+
+                  // 2. EXTRACTED DEMOGRAPHICS
                   Text(
-                    'Extracted Identity',
-                    style: Theme.of(context).textTheme.titleMedium,
+                    'Extracted Demographics',
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 8),
                   TextField(
                     controller: _name,
                     decoration: _decoration(
-                      'Patient Name',
+                      'Patient Full Name',
                       missing: _name.text.isEmpty,
                     ),
                     onChanged: (_) => setState(() {}),
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 10),
                   Row(
                     children: [
                       Expanded(
@@ -327,18 +423,18 @@ class _ExtractionReviewScreenState
                           controller: _age,
                           keyboardType: TextInputType.number,
                           decoration: _decoration(
-                            'Age',
+                            'Age (Years)',
                             missing: _age.text.isEmpty,
                           ),
                           onChanged: (_) => setState(() {}),
                         ),
                       ),
-                      const SizedBox(width: 12),
+                      const SizedBox(width: 10),
                       Expanded(
                         child: TextField(
                           controller: _gender,
                           decoration: _decoration(
-                            'Gender',
+                            'Gender (M/F/O)',
                             missing: _gender.text.isEmpty,
                           ),
                           onChanged: (_) => setState(() {}),
@@ -346,75 +442,159 @@ class _ExtractionReviewScreenState
                       ),
                     ],
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 10),
                   TextField(
                     controller: _registration,
                     decoration: _decoration(
-                      'Hospital Reg Number (CR No.)',
+                      'Hospital Reg Number (CR / OPD No.)',
                       missing: _registration.text.isEmpty,
                     ),
                     onChanged: (_) => setState(() {}),
                   ),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 20),
+
+                  // 3. ENCOUNTER CONTEXT & VITALS
                   Text(
-                    'Vitals & Context',
-                    style: Theme.of(context).textTheme.titleMedium,
+                    'Encounter Context & Vitals',
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 8),
                   TextField(
                     controller: _documentType,
                     decoration: _decoration(
-                      'Document Type (e.g. CBC, Progress Note)',
+                      'Document Type / Classification',
                       missing: _documentType.text.isEmpty,
                     ),
                     onChanged: (_) => setState(() {}),
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 10),
                   Row(
                     children: [
-                      Expanded(child: _numberField('SBP', _sbp)),
-                      const SizedBox(width: 8),
-                      Expanded(child: _numberField('DBP', _dbp)),
-                      const SizedBox(width: 8),
-                      Expanded(child: _numberField('Pulse', _pulse)),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(child: _numberField('SpO2', _spo2)),
+                      Expanded(
+                        child: _numberField(
+                          'Systolic BP',
+                          _sbp,
+                          suffix: 'mmHg',
+                        ),
+                      ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: _numberField(
-                          'Temp (°C/F)',
-                          _tempF,
+                          'Diastolic BP',
+                          _dbp,
+                          suffix: 'mmHg',
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _numberField('Pulse', _pulse, suffix: 'bpm'),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Expanded(child: _numberField('SpO2', _spo2, suffix: '%')),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _numberField(
+                          'Temp (°C)',
+                          _temp,
                           decimal: true,
+                          suffix: '°C',
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 24),
-                  if (_labs.isNotEmpty) ...[
-                    Text(
-                      'Labs Extracted',
-                      style: Theme.of(context).textTheme.titleMedium,
+                  const SizedBox(height: 20),
+
+                  // 4. EXTRACTED LAB RESULTS
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Extracted Lab Panels (${_labs.length})',
+                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      TextButton.icon(
+                        icon: const Icon(Icons.add, size: 16),
+                        label: const Text('Add Test'),
+                        onPressed: () =>
+                            setState(() => _labs.add(_EditableLab.empty())),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  if (_labs.isEmpty)
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.surfaceContainerHighest,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Text(
+                        'No laboratory tests parsed from this page.',
+                        style: TextStyle(color: Colors.grey, fontSize: 13),
+                      ),
+                    )
+                  else
+                    ..._labs.asMap().entries.map(
+                      (entry) => _labEditor(entry.key, entry.value),
                     ),
-                    const SizedBox(height: 12),
-                    ..._labs.map((lab) => _labEditor(lab)),
-                    const SizedBox(height: 12),
-                  ],
-                  if (_medications.isNotEmpty) ...[
-                    Text(
-                      'Medications Ordered',
-                      style: Theme.of(context).textTheme.titleMedium,
+                  const SizedBox(height: 20),
+
+                  // 5. EXTRACTED MEDICATIONS
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Medications Prescribed (${_medications.length})',
+                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      TextButton.icon(
+                        icon: const Icon(Icons.add, size: 16),
+                        label: const Text('Add Drug'),
+                        onPressed: () => setState(
+                          () => _medications.add(_EditableMedication.empty()),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  if (_medications.isEmpty)
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.surfaceContainerHighest,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Text(
+                        'No medications detected on this document.',
+                        style: TextStyle(color: Colors.grey, fontSize: 13),
+                      ),
+                    )
+                  else
+                    ..._medications.asMap().entries.map(
+                      (entry) => _medicationEditor(entry.key, entry.value),
                     ),
-                    const SizedBox(height: 12),
-                    ..._medications.map((med) => _medicationEditor(med)),
-                    const SizedBox(height: 12),
-                  ],
+                  const SizedBox(height: 20),
+
+                  // 6. CLINICAL SUMMARY
                   Text(
-                    'AI Clinical Summary',
-                    style: Theme.of(context).textTheme.titleMedium,
+                    'AI Clinical Summary & Findings',
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                   const SizedBox(height: 8),
                   TextField(
@@ -422,7 +602,7 @@ class _ExtractionReviewScreenState
                     minLines: 3,
                     maxLines: 6,
                     decoration: _decoration(
-                      'Summary of findings',
+                      'Narrative Summary',
                       missing: _summary.text.isEmpty,
                     ),
                   ),
@@ -431,11 +611,11 @@ class _ExtractionReviewScreenState
               ),
             );
 
-            if (constraints.maxWidth >= 900) {
+            if (isDesktop) {
               return Row(
                 children: [
-                  Expanded(child: imageViewer),
-                  Expanded(child: formContent),
+                  Expanded(flex: 5, child: imageViewer),
+                  Expanded(flex: 6, child: formContent),
                 ],
               );
             } else {
@@ -456,53 +636,92 @@ class _ExtractionReviewScreenState
     String label,
     TextEditingController controller, {
     bool decimal = false,
+    String? suffix,
   }) {
     return TextField(
       controller: controller,
       keyboardType: TextInputType.numberWithOptions(decimal: decimal),
-      decoration: _decoration(label, missing: controller.text.isEmpty),
+      decoration: _decoration(
+        label,
+        missing: controller.text.isEmpty,
+        suffixText: suffix,
+      ),
       onChanged: (_) => setState(() {}),
     );
   }
 
-  Widget _labEditor(_EditableLab lab) {
+  Widget _labEditor(int index, _EditableLab lab) {
     return Card(
       elevation: 0,
-      color: Theme.of(context).colorScheme.surfaceContainerHighest,
       margin: const EdgeInsets.only(bottom: 8),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(8),
+        side: BorderSide(
+          color: lab.isAbnormal
+              ? Colors.red.withValues(alpha: 0.5)
+              : Theme.of(context).dividerColor.withValues(alpha: 0.3),
+        ),
+      ),
       child: Padding(
-        padding: const EdgeInsets.all(8.0),
+        padding: const EdgeInsets.fromLTRB(10, 8, 4, 8),
         child: Row(
           children: [
             Expanded(
-              flex: 2,
+              flex: 3,
               child: TextField(
                 controller: lab.testName,
                 decoration: const InputDecoration(
                   labelText: 'Test Name',
                   isDense: true,
+                  border: InputBorder.none,
                 ),
               ),
             ),
             const SizedBox(width: 8),
             Expanded(
+              flex: 2,
               child: TextField(
                 controller: lab.value,
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: lab.isAbnormal ? Colors.red : null,
+                ),
                 decoration: const InputDecoration(
                   labelText: 'Value',
                   isDense: true,
+                  border: InputBorder.none,
                 ),
               ),
             ),
             const SizedBox(width: 8),
             Expanded(
+              flex: 2,
               child: TextField(
                 controller: lab.unit,
                 decoration: const InputDecoration(
                   labelText: 'Unit',
                   isDense: true,
+                  border: InputBorder.none,
                 ),
               ),
+            ),
+            IconButton(
+              icon: Icon(
+                lab.isAbnormal ? Icons.flag : Icons.outlined_flag,
+                color: lab.isAbnormal ? Colors.red : Colors.grey,
+                size: 20,
+              ),
+              tooltip: lab.isAbnormal ? 'Flagged Abnormal' : 'Mark Abnormal',
+              onPressed: () => setState(() => lab.isAbnormal = !lab.isAbnormal),
+            ),
+            IconButton(
+              icon: const Icon(Icons.close, size: 18, color: Colors.grey),
+              tooltip: 'Delete Item',
+              onPressed: () {
+                setState(() {
+                  _labs.removeAt(index);
+                });
+              },
             ),
           ],
         ),
@@ -510,34 +729,65 @@ class _ExtractionReviewScreenState
     );
   }
 
-  Widget _medicationEditor(_EditableMedication med) {
+  Widget _medicationEditor(int index, _EditableMedication med) {
     return Card(
       elevation: 0,
-      color: Theme.of(context).colorScheme.surfaceContainerHighest,
       margin: const EdgeInsets.only(bottom: 8),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(8),
+        side: BorderSide(
+          color: Theme.of(context).dividerColor.withValues(alpha: 0.3),
+        ),
+      ),
       child: Padding(
-        padding: const EdgeInsets.all(8.0),
+        padding: const EdgeInsets.fromLTRB(10, 8, 4, 8),
         child: Row(
           children: [
             Expanded(
-              flex: 2,
+              flex: 4,
               child: TextField(
                 controller: med.drugName,
                 decoration: const InputDecoration(
-                  labelText: 'Drug',
+                  labelText: 'Drug Name',
                   isDense: true,
+                  border: InputBorder.none,
                 ),
               ),
             ),
             const SizedBox(width: 8),
             Expanded(
+              flex: 2,
               child: TextField(
                 controller: med.dosage,
                 decoration: const InputDecoration(
                   labelText: 'Dose',
+                  hintText: '500mg',
                   isDense: true,
+                  border: InputBorder.none,
                 ),
               ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              flex: 2,
+              child: TextField(
+                controller: med.frequency,
+                decoration: const InputDecoration(
+                  labelText: 'Freq',
+                  hintText: 'TID / BD',
+                  isDense: true,
+                  border: InputBorder.none,
+                ),
+              ),
+            ),
+            IconButton(
+              icon: const Icon(Icons.close, size: 18, color: Colors.grey),
+              tooltip: 'Delete Item',
+              onPressed: () {
+                setState(() {
+                  _medications.removeAt(index);
+                });
+              },
             ),
           ],
         ),
@@ -559,6 +809,13 @@ class _EditableLab {
     value: TextEditingController(text: lab.value),
     unit: TextEditingController(text: lab.unit ?? ''),
     isAbnormal: lab.isAbnormal,
+  );
+
+  factory _EditableLab.empty() => _EditableLab(
+    testName: TextEditingController(),
+    value: TextEditingController(),
+    unit: TextEditingController(),
+    isAbnormal: false,
   );
 
   final TextEditingController testName;
@@ -586,6 +843,12 @@ class _EditableMedication {
         dosage: TextEditingController(text: med.dosage ?? ''),
         frequency: TextEditingController(text: med.frequency ?? ''),
       );
+
+  factory _EditableMedication.empty() => _EditableMedication(
+    drugName: TextEditingController(),
+    dosage: TextEditingController(),
+    frequency: TextEditingController(),
+  );
 
   final TextEditingController drugName;
   final TextEditingController dosage;

@@ -144,7 +144,7 @@ final pendingInvestigationsProvider =
           .watchPendingInvestigationsWithPatients(),
     );
 final todayPatientNotesProvider = StreamProvider<List<ClinicalEncounter>>(
-  (ref) => ref.watch(clinicalDaoProvider).watchNotesForDay(DateTime.now()),
+  (ref) => ref.watch(clinicalDaoProvider).watchClinicalEncounters(DateTime.now()),
 );
 final wikiSearchQueryProvider = NotifierProvider<WikiSearchQuery, String>(
   WikiSearchQuery.new,
@@ -163,7 +163,7 @@ final currentOwnerIdProvider = Provider<String>(
       ref.watch(appConfigurationProvider).ownerId,
 );
 
-final wikiEntriesProvider = StreamProvider<List<WikiEntry>>(
+final wikiEntriesProvider = StreamProvider<List<PersonalWikiEntry>>(
   (ref) => ref
       .watch(clinicalDaoProvider)
       .watchWikiEntries(

@@ -62,11 +62,36 @@ class DocumentAiException implements Exception {
 class DocumentAiService {
   DocumentAiService({this.apiKey = ''});
 
-  static const String _defaultModel = 'gemini-2.5-flash-lite';
-  static const String _fallbackModel = 'gemini-2.5-flash';
-  static const int _maxAttempts = 3;
+  static const String defaultModel = 'gemini-2.5-flash-lite';
+  static const String fallbackModel = 'gemini-2.5-flash';
+  static const int maxAttempts = 3;
 
   final String apiKey;
+
+  static bool shouldEscalateToFallback(Object error) {
+    if (error is DocumentAiException) {
+      if (error.type == DocumentAiErrorType.modelNotFound) {
+        return true;
+      }
+    }
+
+    final text = error.toString().toLowerCase();
+    if (text.contains('model not found') ||
+        text.contains('model unavailable') ||
+        text.contains('unsupported model')) {
+      return true;
+    }
+    if (text.contains('404') &&
+        (text.contains('model') || text.contains('resource'))) {
+      return true;
+    }
+    return false;
+  }
+
+  static DocumentAiException classifyError(
+    Object error, {
+    required String model,
+  }) => _classifyError(error, model: model);
 
   String _mimeType(File image) {
     final extension = path.extension(image.path).toLowerCase();
@@ -114,7 +139,7 @@ class DocumentAiService {
     return image;
   }
 
-  DocumentAiException _classifyError(Object error, {required String model}) {
+  static DocumentAiException _classifyError(Object error, {required String model}) {
     final text = error.toString().toLowerCase();
     if (text.contains('api key') || text.contains('api_key')) {
       return const DocumentAiException(
@@ -140,9 +165,11 @@ class DocumentAiService {
         type: DocumentAiErrorType.authentication,
       );
     }
-    if (text.contains('404') ||
-        text.contains('not found') ||
-        text.contains('model')) {
+    if ((text.contains('404') &&
+            (text.contains('model') || text.contains('resource'))) ||
+        text.contains('model not found') ||
+        text.contains('model unavailable') ||
+        text.contains('unsupported model')) {
       return const DocumentAiException(
         'The configured AI model is unavailable.',
         type: DocumentAiErrorType.modelNotFound,
@@ -197,16 +224,28 @@ class DocumentAiService {
     required Future<T> Function(String model) request,
     required String modelName,
   }) async {
-    for (var attempt = 1; attempt <= _maxAttempts; attempt++) {
+    var currentModel = modelName;
+    for (var attempt = 1; attempt <= maxAttempts; attempt++) {
       try {
-        return await request(attempt == 1 ? modelName : _fallbackModel);
+        return await request(currentModel);
       } on DocumentAiException catch (error) {
-        final shouldRetry = error.retryable && attempt < _maxAttempts;
-        if (!shouldRetry || error.type == DocumentAiErrorType.invalidRequest) {
-          rethrow;
+        final shouldRetrySameModel =
+            error.retryable &&
+            attempt < maxAttempts &&
+            !shouldEscalateToFallback(error);
+        final shouldEscalate =
+            currentModel == modelName && shouldEscalateToFallback(error);
+
+        if (shouldRetrySameModel) {
+          final backoffMs = 250 * (1 << (attempt - 1));
+          await Future<void>.delayed(Duration(milliseconds: backoffMs));
+          continue;
         }
-        final backoffMs = 250 * (1 << (attempt - 1));
-        await Future<void>.delayed(Duration(milliseconds: backoffMs));
+        if (shouldEscalate) {
+          currentModel = fallbackModel;
+          continue;
+        }
+        rethrow;
       }
     }
 
@@ -293,11 +332,11 @@ class DocumentAiService {
       } on DocumentAiException {
         rethrow;
       } catch (error) {
-        throw _classifyError(error, model: modelName);
+        throw classifyError(error, model: modelName);
       }
     }
 
-    return _executeWithRetry(request: request, modelName: _defaultModel);
+    return _executeWithRetry(request: request, modelName: defaultModel);
   }
 
   Future<AiExtractionResult> extractDocument({

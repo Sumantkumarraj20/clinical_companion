@@ -37,5 +37,21 @@ void main() {
         expect(error.message, contains('AI extraction failed'));
       },
     );
+
+    test('only treats true model/resource 404s as a model-not-found error', () {
+      final modelNotFound = DocumentAiService.classifyError(
+        '404: model not found for gemini-2.5-flash-lite',
+        model: 'gemini-2.5-flash-lite',
+      );
+      final unrelated404 = DocumentAiService.classifyError(
+        '404: patient record not found',
+        model: 'gemini-2.5-flash-lite',
+      );
+
+      expect(modelNotFound.type, DocumentAiErrorType.modelNotFound);
+      expect(unrelated404.type, isNot(DocumentAiErrorType.modelNotFound));
+      expect(DocumentAiService.shouldEscalateToFallback(modelNotFound), isTrue);
+      expect(DocumentAiService.shouldEscalateToFallback(unrelated404), isFalse);
+    });
   });
 }

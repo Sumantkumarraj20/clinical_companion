@@ -10,6 +10,9 @@ part 'local_database.g.dart';
 
 final _uuid = Uuid();
 
+// ==========================================
+// TYPE CONVERTERS
+// ==========================================
 class JsonMapConverter extends TypeConverter<Map<String, dynamic>, String>
     with
         JsonTypeConverter2<Map<String, dynamic>, String, Map<String, Object?>> {
@@ -66,30 +69,27 @@ class StringListConverter extends TypeConverter<List<String>, String>
   List<Object?> toJson(List<String> value) => List<Object?>.from(value);
 }
 
+// ==========================================
+// 1. PATIENT DEMOGRAPHICS (STRICTLY INVARIANT)
+// ==========================================
 @DataClassName('Patient')
-@TableIndex(name: 'patients_hospital_reg_no_idx', columns: {#hospitalRegNo})
-@TableIndex(name: 'patients_admission_date_idx', columns: {#admissionDate})
+@TableIndex(name: 'patients_full_name_idx', columns: {#fullName})
 class Patients extends Table {
   @override
   String get tableName => 'patients';
 
   TextColumn get id => text().clientDefault(() => _uuid.v4())();
-
   TextColumn get ownerId => text()();
-  TextColumn get hospitalRegNo => text()();
   TextColumn get fullName => text()();
   DateTimeColumn get dateOfBirth => dateTime().nullable()();
-  TextColumn get sex => text().nullable()();
+  IntColumn get approximateAge => integer().nullable()();
+  TextColumn get gender => text().nullable()();
+  RealColumn get heightCm => real().nullable()();
+  RealColumn get weightKg => real().nullable()();
+  TextColumn get addressOrLocation => text().nullable()();
+  TextColumn get occupation => text().nullable()();
   TextColumn get phone => text().nullable()();
-  TextColumn get phoneNumber => text().nullable()();
-  TextColumn get alternateContact => text().nullable()();
-  TextColumn get diagnosis => text().nullable()();
-  TextColumn get currentDepartment =>
-      text().withDefault(const Constant('Surgery'))();
-  TextColumn get surgeryType => text().nullable()();
-  TextColumn get complications => text().nullable()();
-  DateTimeColumn get admissionDate => dateTime().nullable()();
-  DateTimeColumn get dischargeDate => dateTime().nullable()();
+  TextColumn get alternatePhone => text().nullable()();
   BoolColumn get isActive => boolean().withDefault(const Constant(true))();
   TextColumn get metadata => text().withDefault(const Constant('{}'))();
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
@@ -98,13 +98,72 @@ class Patients extends Table {
 
   @override
   Set<Column<Object>> get primaryKey => {id};
-
-  @override
-  List<Set<Column<Object>>>? get uniqueKeys => [
-    {ownerId, hospitalRegNo},
-  ];
 }
 
+// ==========================================
+// 2. FACILITY MASTERS
+// ==========================================
+@DataClassName('Hospital')
+class Hospitals extends Table {
+  @override
+  String get tableName => 'hospitals';
+
+  TextColumn get id => text().clientDefault(() => _uuid.v4())();
+  TextColumn get name => text()();
+  TextColumn get shortName => text().nullable()();
+  TextColumn get address => text().nullable()();
+  BoolColumn get isActive => boolean().withDefault(const Constant(true))();
+  DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
+  DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
+@DataClassName('Ward')
+class Wards extends Table {
+  @override
+  String get tableName => 'wards';
+
+  TextColumn get id => text().clientDefault(() => _uuid.v4())();
+  TextColumn get hospitalId =>
+      text().references(Hospitals, #id, onDelete: KeyAction.cascade)();
+  TextColumn get department => text().nullable()();
+  TextColumn get wardName => text()();
+  IntColumn get bedCount => integer().withDefault(const Constant(0))();
+  DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
+  DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
+@DataClassName('PatientHospitalIdentifier')
+@TableIndex(
+  name: 'patient_hosp_reg_idx',
+  columns: {#hospitalId, #hospitalRegNo},
+)
+class PatientHospitalIdentifiers extends Table {
+  @override
+  String get tableName => 'patient_hospital_identifiers';
+
+  TextColumn get id => text().clientDefault(() => _uuid.v4())();
+  TextColumn get patientId =>
+      text().references(Patients, #id, onDelete: KeyAction.cascade)();
+  TextColumn get hospitalId =>
+      text().references(Hospitals, #id, onDelete: KeyAction.cascade)();
+  TextColumn get hospitalRegNo => text()();
+  BoolColumn get isPrimary => boolean().withDefault(const Constant(false))();
+  DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
+  DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
+// ==========================================
+// 3. CLINICAL ENCOUNTERS (EPISODIC CONSULTATION & ROUNDS)
+// ==========================================
 @DataClassName('ClinicalEncounter')
 @TableIndex(
   name: 'clinical_encounters_patient_occurred_idx',
@@ -118,30 +177,48 @@ class ClinicalEncounters extends Table {
   TextColumn get ownerId => text()();
   TextColumn get patientId =>
       text().references(Patients, #id, onDelete: KeyAction.cascade)();
-  TextColumn get encounterType =>
-      text().withDefault(const Constant('Ward Round'))();
+  TextColumn get hospitalId => text()
+      .references(Hospitals, #id, onDelete: KeyAction.setNull)
+      .nullable()();
+  TextColumn get encounterType => text().withDefault(
+    const Constant('OPD'),
+  )(); // OPD, Admission, Ward Round, Emergency, Operative
   DateTimeColumn get occurredAt => dateTime().withDefault(currentDateAndTime)();
+
+  // Episodic Bedside Context
+  TextColumn get department => text().nullable()();
+  TextColumn get wardName => text().nullable()();
+  TextColumn get bedNumber => text().nullable()();
+
+  // Working Clinical Impression for this encounter
+  TextColumn get clinicalDiagnosis => text().nullable()();
+  TextColumn get icd11Code => text().nullable()();
+  TextColumn get disposition =>
+      text().nullable()(); // Home, Admitted, ICU, OT, Discharged, LAMA
+
+  // Bedside Vitals
   IntColumn get sbp => integer().nullable()();
   IntColumn get dbp => integer().nullable()();
   IntColumn get pulse => integer().nullable()();
   RealColumn get temperatureC => real().nullable()();
   IntColumn get respiratoryRate => integer().nullable()();
   IntColumn get spo2 => integer().nullable()();
-
-  /// Kept as the `map` database column for compatibility with existing data.
-  /// The Dart name avoids colliding with Drift's generated `map` method.
   RealColumn get meanArterialPressure => real().named('map').nullable()();
-  TextColumn get chiefComplaint => text().nullable()();
+
+  // Clinical Narrative
+  TextColumn get chiefComplaints => text().nullable()();
+  TextColumn get historyOfPresentIllness => text().nullable()();
+  TextColumn get pastHistory => text().nullable()();
+  TextColumn get drugAndAllergyHistory => text().nullable()();
+  TextColumn get personalAndSocialHistory => text().nullable()();
+  TextColumn get examinationFindings => text().nullable()();
+  TextColumn get clinicalAssessment => text().nullable()();
   TextColumn get consultantAdvice => text().nullable()();
-  TextColumn get note => text().nullable()();
-  TextColumn get dynamicData =>
-      text().map(const JsonMapConverter()).withDefault(const Constant('{}'))();
-  TextColumn get department => text().nullable()();
-  TextColumn get wardName => text().nullable()();
-  TextColumn get bedNumber => text().nullable()();
   TextColumn get imagePath => text().nullable()();
   TextColumn get aiSummary => text().nullable()();
-  TextColumn get problemId => text().nullable()();
+
+  TextColumn get dynamicData =>
+      text().map(const JsonMapConverter()).withDefault(const Constant('{}'))();
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
   DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
   DateTimeColumn get lastSyncedAt => dateTime().nullable()();
@@ -153,42 +230,160 @@ class ClinicalEncounters extends Table {
 typedef DailyNote = ClinicalEncounter;
 typedef DailyNotesCompanion = ClinicalEncountersCompanion;
 
-@DataClassName('Investigation')
-@TableIndex(name: 'investigations_status_idx', columns: {#status})
-@TableIndex(name: 'investigations_test_name_idx', columns: {#testName})
-class Investigations extends Table {
+// ==========================================
+// 4. PROBLEM TRAJECTORY & EVOLUTION (POMR CORE)
+// ==========================================
+@DataClassName('PatientProblem')
+class PatientProblems extends Table {
   @override
-  String get tableName => 'investigation_tracker';
+  String get tableName => 'patient_problems';
 
   TextColumn get id => text().clientDefault(() => _uuid.v4())();
-  TextColumn get ownerId => text()();
   TextColumn get patientId =>
       text().references(Patients, #id, onDelete: KeyAction.cascade)();
-  TextColumn get testName => text()();
-  TextColumn get testCode => text().nullable()();
-  TextColumn get status => text().withDefault(const Constant('pending'))();
-  DateTimeColumn get orderedAt => dateTime().withDefault(currentDateAndTime)();
-  DateTimeColumn get sampleSentAt => dateTime().nullable()();
-  DateTimeColumn get resultReceivedAt => dateTime().nullable()();
-  TextColumn get resultValue => text().nullable()();
-  TextColumn get resultUnit => text().nullable()();
-  TextColumn get referenceRange => text().nullable()();
-  TextColumn get organism => text().nullable()();
-  TextColumn get sensitiveAntibiotics =>
-      text().withDefault(const Constant('[]'))();
-  TextColumn get resistantAntibiotics =>
-      text().withDefault(const Constant('[]'))();
-  TextColumn get notes => text().nullable()();
-  TextColumn get problemId => text().nullable()();
+  TextColumn get initialEncounterId => text()
+      .references(ClinicalEncounters, #id, onDelete: KeyAction.setNull)
+      .nullable()();
+  TextColumn get problemName =>
+      text()(); // e.g. "Acute Appendicitis with Localized Peritonitis"
+  TextColumn get icd11Code => text().nullable()();
+  TextColumn get currentStatus => text().withDefault(
+    const Constant('Active'),
+  )(); // Active, Improving, Deteriorating, Controlled, Resolved, Recurred
+  DateTimeColumn get onsetDate => dateTime().nullable()();
+  DateTimeColumn get resolvedDate => dateTime().nullable()();
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
   DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
-  DateTimeColumn get lastSyncedAt => dateTime().nullable()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
+@DataClassName('ProblemProgressSnapshot')
+@TableIndex(name: 'prob_prog_patient_idx', columns: {#patientId, #problemId})
+class ProblemProgressSnapshots extends Table {
+  @override
+  String get tableName => 'problem_progress_snapshots';
+
+  TextColumn get id => text().clientDefault(() => _uuid.v4())();
+  TextColumn get problemId =>
+      text().references(PatientProblems, #id, onDelete: KeyAction.cascade)();
+  TextColumn get encounterId =>
+      text().references(ClinicalEncounters, #id, onDelete: KeyAction.cascade)();
+  TextColumn get patientId =>
+      text().references(Patients, #id, onDelete: KeyAction.cascade)();
+  TextColumn get statusSnapshot => text()(); // e.g. "Improving post-op day 3"
+  TextColumn get clinicalCourseNote =>
+      text()(); // e.g. "Drain serous, 30ml/24hr; flatus passed, soft abdomen"
+  DateTimeColumn get recordedAt => dateTime().withDefault(currentDateAndTime)();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
+// ==========================================
+// 5. PROBLEM-LINKED PROCEDURES & INTERVENTIONS
+// ==========================================
+@DataClassName('ClinicalIntervention')
+@TableIndex(name: 'interventions_patient_idx', columns: {#patientId})
+class ClinicalInterventions extends Table {
+  @override
+  String get tableName => 'clinical_interventions';
+
+  TextColumn get id => text().clientDefault(() => _uuid.v4())();
+  TextColumn get patientId =>
+      text().references(Patients, #id, onDelete: KeyAction.cascade)();
+  TextColumn get encounterId =>
+      text().references(ClinicalEncounters, #id, onDelete: KeyAction.cascade)();
+  TextColumn get problemId => text()
+      .references(PatientProblems, #id, onDelete: KeyAction.setNull)
+      .nullable()();
+  TextColumn get procedureName =>
+      text()(); // e.g. "Open Appendectomy + Peritoneal Lavage"
+  TextColumn get procedureCode =>
+      text().nullable()(); // PM-JAY / ICD-9-CM / SNOMED code
+  TextColumn get codingSystem =>
+      text().nullable()(); // 'PMJAY', 'ICD11', 'LOCAL'
+  TextColumn get anatomicalSite => text().nullable()();
+  TextColumn get interventionRole => text().withDefault(
+    const Constant('Therapeutic'),
+  )(); // Diagnostic, Therapeutic, Palliative, Staging
+  TextColumn get operativeFindings => text().nullable()();
+  DateTimeColumn get performedAt =>
+      dateTime().withDefault(currentDateAndTime)();
+  TextColumn get performedBy => text().nullable()();
+  DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
+// ==========================================
+// 6. OBJECTIVE OUTCOME & SERIAL MARKERS
+// ==========================================
+@DataClassName('ClinicalOutcomeMetric')
+class ClinicalOutcomeMetrics extends Table {
+  @override
+  String get tableName => 'clinical_outcome_metrics';
+
+  TextColumn get id => text().clientDefault(() => _uuid.v4())();
+  TextColumn get patientId =>
+      text().references(Patients, #id, onDelete: KeyAction.cascade)();
+  TextColumn get problemId =>
+      text().references(PatientProblems, #id, onDelete: KeyAction.cascade)();
+  TextColumn get encounterId => text()
+      .references(ClinicalEncounters, #id, onDelete: KeyAction.setNull)
+      .nullable()();
+  TextColumn get metricName =>
+      text()(); // e.g. "Abdominal Drain Output", "Wound Healing Score", "INR"
+  RealColumn get metricValue => real()();
+  TextColumn get metricUnit =>
+      text().nullable()(); // "mL/24h", "Score", "Ratio"
+  TextColumn get qualifyingNote => text().nullable()(); // e.g. "Serosanguinous"
+  DateTimeColumn get measuredAt => dateTime().withDefault(currentDateAndTime)();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
+// ==========================================
+// 7. MEDICATIONS & PHARMACOPEIA
+// ==========================================
+@DataClassName('PrescriptionOrder')
+@TableIndex(name: 'prescriptions_patient_idx', columns: {#patientId})
+class PrescriptionOrders extends Table {
+  @override
+  String get tableName => 'prescription_orders';
+
+  TextColumn get id => text().clientDefault(() => _uuid.v4())();
+  TextColumn get patientId =>
+      text().references(Patients, #id, onDelete: KeyAction.cascade)();
+  TextColumn get encounterId =>
+      text().references(ClinicalEncounters, #id, onDelete: KeyAction.cascade)();
+  TextColumn get problemId => text()
+      .references(PatientProblems, #id, onDelete: KeyAction.setNull)
+      .nullable()();
+  TextColumn get drugName => text()(); // Generic or Brand
+  TextColumn get doseStrength => text().nullable()(); // "1 g", "500 mg"
+  TextColumn get dosageForm => text().nullable()(); // "Inj", "Tab", "Syp"
+  TextColumn get route => text().nullable()(); // "IV Infusion", "Oral", "SC"
+  TextColumn get frequency =>
+      text().nullable()(); // "TID", "q12h", "SOS", "Continuous"
+  TextColumn get duration => text().nullable()(); // "5 days", "Until discharge"
+  TextColumn get diluentAndRate =>
+      text().nullable()(); // "in 100mL 0.9% NS over 30 mins"
+  TextColumn get specialInstructions =>
+      text().nullable()(); // "Post meals", "Check K+ prior"
+  BoolColumn get isActive => boolean().withDefault(const Constant(true))();
+  DateTimeColumn get orderedAt => dateTime().withDefault(currentDateAndTime)();
 
   @override
   Set<Column<Object>> get primaryKey => {id};
 }
 
 @DataClassName('Drug')
+@TableIndex(name: 'drugs_brand_name_idx', columns: {#brandName})
+@TableIndex(name: 'drugs_generic_name_idx', columns: {#genericName})
 class Drugs extends Table {
   @override
   String get tableName => 'drug_master';
@@ -221,38 +416,34 @@ class Drugs extends Table {
   Set<Column<Object>> get primaryKey => {id};
 }
 
-@DataClassName('WikiEntry')
-@TableIndex(name: 'personal_wiki_updated_idx', columns: {#updatedAt})
-class PersonalWiki extends Table {
+// ==========================================
+// 8. INVESTIGATIONS & RESULTS
+// ==========================================
+@DataClassName('InvestigationOrder')
+class InvestigationOrders extends Table {
   @override
-  String get tableName => 'personal_wiki';
+  String get tableName => 'investigation_orders';
 
-  TextColumn get id => text().clientDefault(() => _uuid.v4())();
-  TextColumn get ownerId => text()();
-  TextColumn get topic => text()();
-  TextColumn get markdownContent => text().withDefault(const Constant(''))();
-  TextColumn get tags => text()
-      .map(const StringListConverter())
-      .withDefault(const Constant('[]'))();
-  TextColumn get departmentRelevance => text()
-      .map(const StringListConverter())
-      .withDefault(const Constant('[]'))();
-  DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
-  DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
-  DateTimeColumn get lastSyncedAt => dateTime().nullable()();
-
-  @override
-  Set<Column<Object>> get primaryKey => {id};
-}
-
-@DataClassName('PatientProblem')
-class PatientProblems extends Table {
   TextColumn get id => text().clientDefault(() => _uuid.v4())();
   TextColumn get patientId =>
       text().references(Patients, #id, onDelete: KeyAction.cascade)();
-  TextColumn get problemName => text()();
-  TextColumn get status => text().withDefault(const Constant('Active'))();
-  DateTimeColumn get onsetDate => dateTime().nullable()();
+  TextColumn get encounterId => text()
+      .references(ClinicalEncounters, #id, onDelete: KeyAction.setNull)
+      .nullable()();
+  TextColumn get problemId => text()
+      .references(PatientProblems, #id, onDelete: KeyAction.setNull)
+      .nullable()();
+  TextColumn get testName => text()();
+  TextColumn get testCode => text().nullable()();
+  TextColumn get clinicalIndication => text().nullable()();
+  TextColumn get status => text().withDefault(
+    const Constant('ordered'),
+  )(); // ordered, sample_sent, result_received, cancelled
+  DateTimeColumn get orderedAt => dateTime().withDefault(currentDateAndTime)();
+  DateTimeColumn get sampleSentAt => dateTime().nullable()();
+  DateTimeColumn get resultReceivedAt => dateTime().nullable()();
+  TextColumn get ownerId =>
+      text().withDefault(const Constant('local-practitioner'))();
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
   DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
 
@@ -260,32 +451,47 @@ class PatientProblems extends Table {
   Set<Column<Object>> get primaryKey => {id};
 }
 
-@DataClassName('ClinicalAction')
-class ClinicalActions extends Table {
+@DataClassName('InvestigationResult')
+class InvestigationResults extends Table {
+  @override
+  String get tableName => 'investigation_results';
+
   TextColumn get id => text().clientDefault(() => _uuid.v4())();
+  TextColumn get orderId => text().nullable()();
   TextColumn get patientId =>
       text().references(Patients, #id, onDelete: KeyAction.cascade)();
-  TextColumn get problemId =>
-      text().references(PatientProblems, #id, onDelete: KeyAction.cascade)();
-  TextColumn get actionType => text()();
-  TextColumn get description => text()();
-  DateTimeColumn get occurredAt => dateTime().withDefault(currentDateAndTime)();
-  TextColumn get metadata => text().withDefault(const Constant('{}'))();
+  TextColumn get testName => text()();
+  RealColumn get numericValue => real().nullable()();
+  TextColumn get textValue => text().nullable()();
+  TextColumn get unit => text().nullable()();
+  TextColumn get referenceRange => text().nullable()();
+  BoolColumn get isAbnormal => boolean().withDefault(const Constant(false))();
+  TextColumn get antibiogramJson => text().withDefault(const Constant('{}'))();
+  DateTimeColumn get resultDate => dateTime().withDefault(currentDateAndTime)();
+  DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
+  DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
 
   @override
   Set<Column<Object>> get primaryKey => {id};
 }
 
-@DataClassName('ClinicalOutcome')
-class ClinicalOutcomes extends Table {
+// ==========================================
+// 9. SELF-LEARNING & CDSS
+// ==========================================
+@DataClassName('LearnedCatalogEntry')
+@TableIndex(name: 'learned_catalog_cat_term_idx', columns: {#category, #term})
+class LearnedCatalog extends Table {
+  @override
+  String get tableName => 'learned_catalog';
+
   TextColumn get id => text().clientDefault(() => _uuid.v4())();
-  TextColumn get problemId =>
-      text().references(PatientProblems, #id, onDelete: KeyAction.cascade)();
-  TextColumn get metricName => text()();
-  RealColumn get metricValue => real()();
-  TextColumn get metricUnit => text().nullable()();
-  TextColumn get treatmentMethod => text().nullable()();
-  DateTimeColumn get measuredAt => dateTime().withDefault(currentDateAndTime)();
+  TextColumn get category =>
+      text()(); // investigation, procedure, advice, diagnosis
+  TextColumn get term => text()();
+  IntColumn get frequency => integer().withDefault(const Constant(1))();
+  DateTimeColumn get lastUsedAt => dateTime().nullable()();
+  DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
+  DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
 
   @override
   Set<Column<Object>> get primaryKey => {id};
@@ -301,21 +507,22 @@ class CdssRules extends Table {
   BoolColumn get requiresPreAuth =>
       boolean().withDefault(const Constant(false))();
   TextColumn get medicolegalAlert => text().withDefault(const Constant(''))();
-  DateTimeColumn get lastUpdated => dateTime().withDefault(currentDateAndTime)();
+  DateTimeColumn get lastUpdated =>
+      dateTime().withDefault(currentDateAndTime)();
+
   @override
   Set<Column<Object>> get primaryKey => {id};
 }
 
+// Reference Tables
 @DataClassName('AyushmanPackage')
 class AyushmanPackages extends Table {
   @override
   String get tableName => 'ayushman_packages';
-
   TextColumn get code => text()();
   TextColumn get packageName => text()();
   TextColumn get stratification => text().nullable()();
   RealColumn get rate => real().nullable()();
-
   @override
   Set<Column<Object>> get primaryKey => {code};
 }
@@ -324,13 +531,11 @@ class AyushmanPackages extends Table {
 class HbpProcedures extends Table {
   @override
   String get tableName => 'hbp_procedures';
-
   TextColumn get procedureCode => text()();
   TextColumn get packageName => text()();
   TextColumn get procedureName => text()();
   RealColumn get rate => real().nullable()();
   TextColumn get specialty => text().withDefault(const Constant(''))();
-
   @override
   Set<Column<Object>> get primaryKey => {procedureCode};
 }
@@ -339,7 +544,6 @@ class HbpProcedures extends Table {
 class HbpImplants extends Table {
   @override
   String get tableName => 'hbp_implants';
-
   IntColumn get id => integer().autoIncrement()();
   TextColumn get procedureCode => text()();
   TextColumn get implantCode => text()();
@@ -351,7 +555,6 @@ class HbpImplants extends Table {
 class HbpStratifications extends Table {
   @override
   String get tableName => 'hbp_stratifications';
-
   IntColumn get id => integer().autoIncrement()();
   TextColumn get procedureCode => text()();
   TextColumn get stratificationCode => text()();
@@ -359,11 +562,32 @@ class HbpStratifications extends Table {
   TextColumn get rule => text().withDefault(const Constant(''))();
 }
 
+@DataClassName('PersonalWikiEntry')
+@TableIndex(name: 'personal_wiki_updated_idx', columns: {#updatedAt})
+class PersonalWiki extends Table {
+  @override
+  String get tableName => 'personal_wiki';
+  TextColumn get id => text().clientDefault(() => _uuid.v4())();
+  TextColumn get ownerId => text()();
+  TextColumn get topic => text()();
+  TextColumn get markdownContent => text().withDefault(const Constant(''))();
+  TextColumn get tags => text()
+      .map(const StringListConverter())
+      .withDefault(const Constant('[]'))();
+  TextColumn get departmentRelevance => text()
+      .map(const StringListConverter())
+      .withDefault(const Constant('[]'))();
+  DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
+  DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
+  DateTimeColumn get lastSyncedAt => dateTime().nullable()();
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
 @DataClassName('SyncQueueEntry')
 class OfflineSyncQueue extends Table {
   @override
   String get tableName => 'sync_queue';
-
   TextColumn get id => text().clientDefault(() => _uuid.v4())();
   TextColumn get ownerId => text()();
   TextColumn get entityType => text()();
@@ -380,22 +604,31 @@ class OfflineSyncQueue extends Table {
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
   DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
   DateTimeColumn get lastSyncedAt => dateTime().nullable()();
-
   @override
   Set<Column<Object>> get primaryKey => {id};
 }
 
+// ==========================================
+// 10. DATABASE CLASS WITH COMPLETE MIGRATIONS
+// ==========================================
 @DriftDatabase(
   tables: [
     Patients,
+    Hospitals,
+    Wards,
+    PatientHospitalIdentifiers,
     ClinicalEncounters,
-    Investigations,
+    PatientProblems,
+    ProblemProgressSnapshots,
+    ClinicalInterventions,
+    ClinicalOutcomeMetrics,
+    PrescriptionOrders,
+    InvestigationOrders,
+    InvestigationResults,
+    LearnedCatalog,
     Drugs,
     PersonalWiki,
     OfflineSyncQueue,
-    PatientProblems,
-    ClinicalActions,
-    ClinicalOutcomes,
     CdssRules,
     AyushmanPackages,
     HbpProcedures,
@@ -403,128 +636,61 @@ class OfflineSyncQueue extends Table {
     HbpStratifications,
     DocumentRegistries,
     ClinicalObservations,
-    PrescriptionOrders,
     MicrobiologyCultures,
     ImagingStudies,
   ],
 )
 class AppDatabase extends _$AppDatabase {
-  /// Uses NativeDatabase.createInBackground on Android/desktop and the
-  /// platform-equivalent drift_flutter executor on web.
   AppDatabase() : super(openAppDatabaseExecutor());
 
   @override
-  int get schemaVersion => 12;
+  int get schemaVersion => 16;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
     onCreate: (Migrator m) => m.createAll(),
     onUpgrade: (Migrator m, int from, int to) async {
-      if (from < 2) {
-        await m.addColumn(patients, patients.complications);
+      if (from < 14) {
+        await m.createTable(hospitals);
+        await m.createTable(wards);
+        await m.createTable(patientHospitalIdentifiers);
+        await m.createTable(investigationOrders);
+        await m.createTable(investigationResults);
+        await m.createTable(learnedCatalog);
       }
-      if (from < 3) {
-        await m.addColumn(patients, patients.currentDepartment);
-        await m.createTable(clinicalEncounters);
-        await customStatement('''
-              INSERT OR IGNORE INTO clinical_encounters
-                (id, owner_id, patient_id, encounter_type, occurred_at, sbp, dbp, pulse,
-                 temperature_c, respiratory_rate, spo2, map, chief_complaint,
-                 consultant_advice, note, dynamic_data, created_at, updated_at, last_synced_at)
-              SELECT id, owner_id, patient_id, 'Ward Round', recorded_at, sbp, dbp, pulse,
-                     temperature_c, respiratory_rate, spo2, map, chief_complaint,
-                     consultant_advice, note, '{}', created_at, updated_at, last_synced_at
-              FROM daily_vitals_notes
-            ''');
-      }
-      if (from < 4) {
-        await m.createTable(personalWiki);
-      }
-      if (from < 5) {
+      if (from < 15) {
         await m.addColumn(clinicalEncounters, clinicalEncounters.department);
         await m.addColumn(clinicalEncounters, clinicalEncounters.wardName);
         await m.addColumn(clinicalEncounters, clinicalEncounters.bedNumber);
-        await m.addColumn(clinicalEncounters, clinicalEncounters.imagePath);
-        await m.addColumn(clinicalEncounters, clinicalEncounters.aiSummary);
       }
-      if (from < 6) {
-        await m.addColumn(drugs, drugs.substitutes);
-        await m.addColumn(drugs, drugs.sideEffects);
-        await m.addColumn(drugs, drugs.uses);
-        await m.addColumn(drugs, drugs.chemicalClass);
-        await m.addColumn(drugs, drugs.priceEstimate);
-        await m.addColumn(drugs, drugs.isTrusted);
-        await m.addColumn(drugs, drugs.customNotes);
-      }
-      if (from < 7) {
-        await m.addColumn(clinicalEncounters, clinicalEncounters.problemId);
-        await m.addColumn(investigations, investigations.problemId);
-        await m.addColumn(drugs, drugs.usageFrequency);
-        await m.addColumn(drugs, drugs.associatedProblems);
-        await m.createTable(patientProblems);
-        await m.createTable(clinicalActions);
-        await m.createTable(clinicalOutcomes);
-      }
-      if (from < 8) await m.createTable(cdssRules);
-      if (from < 9) {
-        await m.addColumn(patients, patients.phoneNumber);
-        await m.addColumn(patients, patients.alternateContact);
-      }
-      if (from < 10) {
-        await m.addColumn(cdssRules, cdssRules.requiresPreAuth);
-        await m.addColumn(cdssRules, cdssRules.medicolegalAlert);
-        await m.createTable(ayushmanPackages);
-        await customStatement('''
-          CREATE VIRTUAL TABLE IF NOT EXISTS ayushman_packages_fts USING fts5(
-            package_name, code, stratification,
-            content='ayushman_packages', content_rowid='rowid'
-          )
-        ''');
-        await customStatement('''
-          INSERT INTO ayushman_packages_fts(rowid, package_name, code, stratification)
-          SELECT rowid, package_name, code, stratification FROM ayushman_packages
-          WHERE NOT EXISTS (SELECT 1 FROM ayushman_packages_fts LIMIT 1)
-        ''');
-      }
-      if (from < 11) {
-        await m.createTable(hbpProcedures);
-        await m.createTable(hbpImplants);
-        await m.createTable(hbpStratifications);
-      }
-      if (from < 12) {
-        await m.createTable(documentRegistries);
-        await m.createTable(clinicalObservations);
+      if (from < 16) {
+        // Create the problem trajectory and intervention structures
+        await m.createTable(problemProgressSnapshots);
+        await m.createTable(clinicalInterventions);
+        await m.createTable(clinicalOutcomeMetrics);
         await m.createTable(prescriptionOrders);
-        await m.createTable(microbiologyCultures);
-        await m.createTable(imagingStudies);
+
+        // Add clinical trajectory columns to encounters and problems
+        await m.addColumn(
+          clinicalEncounters,
+          clinicalEncounters.clinicalDiagnosis,
+        );
+        await m.addColumn(clinicalEncounters, clinicalEncounters.icd11Code);
+        await m.addColumn(
+          clinicalEncounters,
+          clinicalEncounters.clinicalAssessment,
+        );
+        await m.addColumn(patientProblems, patientProblems.icd11Code);
+        await m.addColumn(patientProblems, patientProblems.currentStatus);
+        await m.addColumn(patientProblems, patientProblems.resolvedDate);
+        await m.addColumn(investigationOrders, investigationOrders.problemId);
       }
     },
     beforeOpen: (OpeningDetails details) async {
       await customStatement('PRAGMA foreign_keys = ON');
-      await customStatement('''
-        CREATE VIRTUAL TABLE IF NOT EXISTS ayushman_packages_fts USING fts5(
-          package_name, code, stratification,
-          content='ayushman_packages', content_rowid='rowid'
-        )
-      ''');
-      await customStatement('''
-        CREATE VIRTUAL TABLE IF NOT EXISTS hbp_fts USING fts5(
-          package_name, procedure_name, specialty,
-          content='hbp_procedures', content_rowid='rowid'
-        )
-      ''');
-      await customStatement('''
-        INSERT INTO hbp_fts(rowid, package_name, procedure_name, specialty)
-        SELECT rowid, package_name, procedure_name, specialty
-        FROM hbp_procedures
-        WHERE NOT EXISTS (SELECT 1 FROM hbp_fts LIMIT 1)
-      ''');
-      await customStatement('''
-        INSERT INTO ayushman_packages_fts(rowid, package_name, code, stratification)
-        SELECT rowid, package_name, code, stratification
-        FROM ayushman_packages
-        WHERE NOT EXISTS (SELECT 1 FROM ayushman_packages_fts LIMIT 1)
-      ''');
+      await customStatement('PRAGMA journal_mode = WAL');
+      await customStatement('PRAGMA synchronous = NORMAL');
+      await customStatement('PRAGMA busy_timeout = 5000');
     },
   );
 }

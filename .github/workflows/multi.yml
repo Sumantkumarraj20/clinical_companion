@@ -1,115 +1,227 @@
-name: Multi-Platform Build
+name: Android + Portable Linux Build
 
 on:
-  workflow_dispatch: 
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
-  build:
-    name: Build on ${{ matrix.os }} for ${{ matrix.target }}
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false # If one OS fails, let the others continue building
-      matrix:
-        include:
-          - os: ubuntu-latest
-            target: android
-            build_cmd: flutter build apk --release --split-per-abi
-            artifact_name: Android-APK
-
-          - os: ubuntu-latest
-            target: linux
-            build_cmd: flutter build linux --release
-            artifact_name: Linux-Portable
-
-          - os: macos-latest
-            target: ios
-            build_cmd: flutter build ios --release --no-codesign
-            artifact_name: iOS-App
-
-          - os: macos-latest
-            target: macos
-            build_cmd: flutter build macos --release
-            artifact_name: macOS-App
+  # ============================================================
+  # ANDROID BUILD
+  # ============================================================
+  android:
+    name: Build Android APK
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Setup Java (Android only)
-        if: matrix.target == 'android'
+      - name: Setup Java 17
         uses: actions/setup-java@v4
         with:
-          distribution: 'zulu'
+          distribution: zulu
           java-version: '17'
-
-      - name: Install Linux Build Dependencies (Linux only)
-        if: matrix.target == 'linux'
-        run: |
-          sudo apt-get update -y
-          sudo apt-get install -y ninja-build libgtk-3-dev pkg-config cmake
+          cache: gradle
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          channel: 'stable'
-          cache: true # Caches dependencies to speed up subsequent builds
+          channel: stable
+          cache: true
 
-      - name: Download Large SQLite Databases
+      - name: Verify Flutter Environment
+        run: |
+          flutter --version
+          flutter doctor -v
+
+      - name: Install Python Dependencies
+        run: |
+          python3 -m pip install --upgrade pip
+          python3 -m pip install gdown
+
+      - name: Download Clinical Databases
         run: |
           mkdir -p assets
-          python3 -m pip install gdown
-          # Replace with your actual Google Drive File IDs
-          gdown "18ZTmOadJS1g-_UY-F5zbNcnpBk7XzHRW" -O assets/clinical_drugs.sqlite
-          gdown "1GOcmFoQPdVSbuQChghlhcrjT2JAr_FHv" -O assets/pmjay_hbp.sqlite
-        shell: bash
 
-      - name: Install Dependencies
+          gdown "18ZTmOadJS1g-_UY-F5zbNcnpBk7XzHRW" \
+            -O assets/clinical_drugs.sqlite
+
+          gdown "1GOcmFoQPdVSbuQChghlhcrjT2JAr_FHv" \
+            -O assets/pmjay_hbp.sqlite
+
+          echo "Downloaded databases:"
+          ls -lh assets/
+
+      - name: Install Flutter Dependencies
         run: flutter pub get
 
-      - name: Build App
-        run: ${{ matrix.build_cmd }}
+      - name: Analyze Flutter Project
+        run: flutter analyze
 
-      - name: Package iOS Artifact (iOS only)
-        if: matrix.target == 'ios'
+      - name: Build Android APK
+        run: flutter build apk --release --split-per-abi
+
+      - name: Upload Android APKs
+        uses: actions/upload-artifact@v4
+        with:
+          name: Android-APK
+          path: |
+            build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk
+            build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
+            build/app/outputs/flutter-apk/app-x86_64-release.apk
+          if-no-files-found: error
+          retention-days: 14
+
+
+  # ============================================================
+  # LINUX PORTABLE BUILD
+  # ============================================================
+  linux:
+    name: Build Portable Linux Application
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Install Linux Build Dependencies
         run: |
-          cd build/ios/iphoneos
-          mkdir Payload
-          cp -r Runner.app Payload/
-          zip -r app.ipa Payload
-        shell: bash
+          sudo apt-get update
+          sudo apt-get install -y \
+            ninja-build \
+            libgtk-3-dev \
+            pkg-config \
+            cmake \
+            clang \
+            git \
+            curl \
+            unzip
 
-      - name: Package macOS Artifact (macOS only)
-        if: matrix.target == 'macos'
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Verify Flutter Environment
         run: |
-          # Compress macOS .app bundle to preserve file permissions
-          cd build/macos/Build/Products/Release
-          zip -r macos_app.zip clinical_companion.app
-        shell: bash
+          flutter --version
+          flutter doctor -v
 
-      - name: Upload Android Artifacts
-        if: matrix.target == 'android'
+      - name: Install Python Dependencies
+        run: |
+          python3 -m pip install --upgrade pip
+          python3 -m pip install gdown
+
+      - name: Download Clinical Databases
+        run: |
+          mkdir -p assets
+
+          gdown "18ZTmOadJS1g-_UY-F5zbNcnpBk7XzHRW" \
+            -O assets/clinical_drugs.sqlite
+
+          gdown "1GOcmFoQPdVSbuQChghlhcrjT2JAr_FHv" \
+            -O assets/pmjay_hbp.sqlite
+
+          echo "Downloaded databases:"
+          ls -lh assets/
+
+      - name: Install Flutter Dependencies
+        run: flutter pub get
+
+      - name: Analyze Flutter Project
+        run: flutter analyze
+
+      - name: Build Linux Release
+        run: flutter build linux --release
+
+      - name: Verify Linux Bundle
+        run: |
+          echo "Linux release bundle:"
+          find build/linux/x64/release/bundle -maxdepth 2 -type f -print
+
+          echo ""
+          echo "Bundle size:"
+          du -sh build/linux/x64/release/bundle
+
+      # --------------------------------------------------------
+      # Create a completely portable directory.
+      # The entire Flutter bundle is preserved.
+      # --------------------------------------------------------
+      - name: Prepare Portable Application
+        run: |
+          mkdir -p portable/CDSSWard
+
+          cp -a build/linux/x64/release/bundle/. \
+            portable/CDSSWard/
+
+          # Optional launcher
+          cat > portable/CDSSWard/run.sh << 'EOF'
+          #!/usr/bin/env bash
+
+          set -e
+
+          SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+          cd "$SCRIPT_DIR"
+
+          exec ./clinical_companion
+          EOF
+
+          chmod +x portable/CDSSWard/run.sh
+
+          # Add a simple README
+          cat > portable/CDSSWard/README.txt << 'EOF'
+          CDSSWard - Portable Linux Application
+          =====================================
+
+          This directory contains the complete portable Linux build.
+
+          To run:
+
+              ./run.sh
+
+          Or:
+
+              ./clinical_companion
+
+          You can copy the entire CDSSWard directory to:
+
+          - USB pendrive
+          - External HDD
+          - SSD
+          - Local folder
+
+          IMPORTANT:
+          The target Linux computer must provide compatible
+          system libraries required by Flutter/GTK.
+          EOF
+
+      # --------------------------------------------------------
+      # Compress the COMPLETE application bundle.
+      # --------------------------------------------------------
+      - name: Create Portable Linux Archive
+        run: |
+          cd portable
+
+          tar -czf CDSSWard-Linux-x64-Portable.tar.gz \
+            CDSSWard
+
+          sha256sum CDSSWard-Linux-x64-Portable.tar.gz \
+            > CDSSWard-Linux-x64-Portable.tar.gz.sha256
+
+          echo "Portable application created:"
+          ls -lh CDSSWard-Linux-x64-Portable.tar.gz
+          cat CDSSWard-Linux-x64-Portable.tar.gz.sha256
+
+      - name: Upload Portable Linux Application
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.artifact_name }}
-          path: build/app/outputs/flutter-apk/*-release.apk
-
-      - name: Upload Linux Artifacts
-        if: matrix.target == 'linux'
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.artifact_name }}
-          path: build/linux/x64/release/bundle/*
-
-      - name: Upload iOS Artifacts
-        if: matrix.target == 'ios'
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.artifact_name }}
-          path: build/ios/iphoneos/app.ipa
-
-      - name: Upload macOS Artifacts
-        if: matrix.target == 'macos'
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.artifact_name }}
-          path: build/macos/Build/Products/Release/macos_app.zip
+          name: Linux-Portable-x64
+          path: |
+            portable/CDSSWard-Linux-x64-Portable.tar.gz
+            portable/CDSSWard-Linux-x64-Portable.tar.gz.sha256
+          if-no-files-found: error
+          retention-days: 14

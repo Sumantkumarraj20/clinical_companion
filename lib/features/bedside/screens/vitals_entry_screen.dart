@@ -2,31 +2,43 @@ import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:uuid/uuid.dart';
 
 import '../../../core/database/local_database.dart';
 import '../../../core/providers/app_providers.dart';
 
 class VitalsEntryScreen extends ConsumerStatefulWidget {
-  const VitalsEntryScreen({super.key});
+  const VitalsEntryScreen({this.preselectedPatientId, super.key});
+
+  /// Allows passing patientId directly when launched from Ward Round or Patient Profile
+  final String? preselectedPatientId;
 
   @override
   ConsumerState<VitalsEntryScreen> createState() => _VitalsEntryScreenState();
 }
 
 class _VitalsEntryScreenState extends ConsumerState<VitalsEntryScreen> {
+  static const _uuid = Uuid();
   final _formKey = GlobalKey<FormState>();
+
+  // Hemodynamic Controllers
   final _sbp = TextEditingController();
   final _dbp = TextEditingController();
   final _pulse = TextEditingController();
-  final _complaint = TextEditingController();
-  final _advice = TextEditingController();
-  String? _patientId;
+  final _spo2 = TextEditingController();
+  final _rr = TextEditingController();
+  final _temp = TextEditingController();
+  final _note = TextEditingController();
+
+  String? _selectedPatientId;
   double? _map;
   bool _saving = false;
+  bool _tempInCelsius = true;
 
   @override
   void initState() {
     super.initState();
+    _selectedPatientId = widget.preselectedPatientId;
     _sbp.addListener(_updateMap);
     _dbp.addListener(_updateMap);
   }
@@ -36,8 +48,10 @@ class _VitalsEntryScreenState extends ConsumerState<VitalsEntryScreen> {
     _sbp.dispose();
     _dbp.dispose();
     _pulse.dispose();
-    _complaint.dispose();
-    _advice.dispose();
+    _spo2.dispose();
+    _rr.dispose();
+    _temp.dispose();
+    _note.dispose();
     super.dispose();
   }
 
@@ -45,239 +59,481 @@ class _VitalsEntryScreenState extends ConsumerState<VitalsEntryScreen> {
     final systolic = int.tryParse(_sbp.text);
     final diastolic = int.tryParse(_dbp.text);
     setState(() {
-      _map = systolic != null && diastolic != null
+      _map = (systolic != null && diastolic != null)
           ? (systolic + (2 * diastolic)) / 3
           : null;
     });
   }
 
+  double? _calculateNormalizedTemp() {
+    final raw = double.tryParse(_temp.text.trim());
+    if (raw == null) return null;
+    return _tempInCelsius ? raw : ((raw - 32) * 5 / 9);
+  }
+
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
-    final ownerId = ref.read(currentOwnerIdProvider);
-    if (_patientId == null) {
-      _message('Sign in and select a patient before saving.');
+    if (_selectedPatientId == null) {
+      _message('Please select a patient first.');
       return;
     }
+
     setState(() => _saving = true);
+    final dao = ref.read(clinicalDaoProvider);
+    final ownerId = ref.read(currentOwnerIdProvider);
+    final now = DateTime.now().toUtc();
+
     try {
-      await ref
-          .read(clinicalDaoProvider)
-          .insertDailyNote(
-            DailyNotesCompanion.insert(
-              ownerId: ownerId,
-              patientId: _patientId!,
-              sbp: Value(int.parse(_sbp.text)),
-              dbp: Value(int.parse(_dbp.text)),
-              pulse: Value(int.tryParse(_pulse.text)),
-              meanArterialPressure: Value(_map),
-              chiefComplaint: Value(
-                _complaint.text.trim().isEmpty ? null : _complaint.text.trim(),
-              ),
-              consultantAdvice: Value(
-                _advice.text.trim().isEmpty ? null : _advice.text.trim(),
-              ),
-            ),
-          );
-      if (mounted) {
-        _sbp.clear();
-        _dbp.clear();
-        _pulse.clear();
-        _complaint.clear();
-        _advice.clear();
-        _message('Saved locally and queued for synchronization.');
+      final sbpVal = int.tryParse(_sbp.text);
+      final dbpVal = int.tryParse(_dbp.text);
+      final pulseVal = int.tryParse(_pulse.text);
+      final spo2Val = int.tryParse(_spo2.text);
+      final rrVal = int.tryParse(_rr.text);
+      final tempC = _calculateNormalizedTemp();
+
+      // 1. Commit as Bedside Clinical Encounter
+      final encounter = ClinicalEncountersCompanion.insert(
+        ownerId: ownerId,
+        patientId: _selectedPatientId!,
+        encounterType: const Value('Vitals Check'),
+        occurredAt: Value(now),
+        sbp: Value(sbpVal),
+        dbp: Value(dbpVal),
+        pulse: Value(pulseVal),
+        spo2: Value(spo2Val),
+        respiratoryRate: Value(rrVal),
+        temperatureC: Value(tempC),
+        meanArterialPressure: Value(_map),
+        clinicalAssessment: Value(
+          _note.text.trim().isEmpty ? null : _note.text.trim(),
+        ),
+      );
+
+      final savedEncounter = await dao.insertClinicalEncounter(encounter);
+
+      // 2. Commit into ClinicalObservations for Longitudinal Trending
+      final observations = <ClinicalObservationsCompanion>[
+        if (sbpVal != null)
+          ClinicalObservationsCompanion.insert(
+            id: _uuid.v4(),
+            patientId: _selectedPatientId!,
+            documentId: savedEncounter.id,
+            observationCategory: 'vital',
+            code: 'LOINC_BP_SYS',
+            displayName: 'Systolic BP',
+            numericValue: Value(sbpVal.toDouble()),
+            unit: const Value('mmHg'),
+            isAbnormal: Value(sbpVal > 140 || sbpVal < 90),
+            recordedAt: now,
+          ),
+        if (dbpVal != null)
+          ClinicalObservationsCompanion.insert(
+            id: _uuid.v4(),
+            patientId: _selectedPatientId!,
+            documentId: savedEncounter.id,
+            observationCategory: 'vital',
+            code: 'LOINC_BP_DIA',
+            displayName: 'Diastolic BP',
+            numericValue: Value(dbpVal.toDouble()),
+            unit: const Value('mmHg'),
+            isAbnormal: Value(dbpVal > 90 || dbpVal < 60),
+            recordedAt: now,
+          ),
+        if (pulseVal != null)
+          ClinicalObservationsCompanion.insert(
+            id: _uuid.v4(),
+            patientId: _selectedPatientId!,
+            documentId: savedEncounter.id,
+            observationCategory: 'vital',
+            code: 'LOINC_PULSE',
+            displayName: 'Heart Rate',
+            numericValue: Value(pulseVal.toDouble()),
+            unit: const Value('bpm'),
+            isAbnormal: Value(pulseVal > 100 || pulseVal < 60),
+            recordedAt: now,
+          ),
+        if (spo2Val != null)
+          ClinicalObservationsCompanion.insert(
+            id: _uuid.v4(),
+            patientId: _selectedPatientId!,
+            documentId: savedEncounter.id,
+            observationCategory: 'vital',
+            code: 'LOINC_SPO2',
+            displayName: 'Oxygen Saturation',
+            numericValue: Value(spo2Val.toDouble()),
+            unit: const Value('%'),
+            isAbnormal: Value(spo2Val < 94),
+            recordedAt: now,
+          ),
+      ];
+
+      for (final obs in observations) {
+        await dao.into(dao.clinicalObservations).insert(obs);
       }
-    } catch (error) {
-      if (mounted) _message('Could not save vitals: $error');
+
+      if (mounted) {
+        _message('Vitals recorded successfully.', isError: false);
+        if (widget.preselectedPatientId != null) {
+          Navigator.pop(context, true);
+        } else {
+          _clearForm();
+        }
+      }
+    } catch (e) {
+      if (mounted) _message('Error saving vitals: $e', isError: true);
     } finally {
       if (mounted) setState(() => _saving = false);
     }
   }
 
-  void _message(String message) => ScaffoldMessenger.of(
-    context,
-  ).showSnackBar(SnackBar(content: Text(message)));
+  void _clearForm() {
+    _sbp.clear();
+    _dbp.clear();
+    _pulse.clear();
+    _spo2.clear();
+    _rr.clear();
+    _temp.clear();
+    _note.clear();
+    setState(() => _map = null);
+  }
+
+  void _message(String msg, {bool isError = false}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(msg),
+        backgroundColor: isError ? Colors.red : Colors.green,
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
-    final patients = ref.watch(clinicalDaoProvider).watchAllPatients();
+    final dao = ref.watch(clinicalDaoProvider);
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Bedside vitals rapid entry')),
-      body: StreamBuilder<List<Patient>>(
-        stream: patients,
-        builder: (context, snapshot) {
-          final rows = snapshot.data ?? const <Patient>[];
-          if (_patientId != null &&
-              rows.every((patient) => patient.id != _patientId)) {
-            _patientId = null;
-          }
-          return Form(
-            key: _formKey,
-            child: ListView(
-              padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
+      appBar: AppBar(
+        title: const Text('Bedside Vitals Logging'),
+        actions: [
+          if (_selectedPatientId != null && widget.preselectedPatientId == null)
+            IconButton(
+              icon: const Icon(Icons.clear_all),
+              tooltip: 'Clear Form',
+              onPressed: _clearForm,
+            ),
+        ],
+      ),
+      body: Form(
+        key: _formKey,
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+          children: [
+            // Patient Context Card or Dropdown
+            if (widget.preselectedPatientId != null)
+              _LockedPatientBanner(patientId: widget.preselectedPatientId!)
+            else
+              StreamBuilder<List<Patient>>(
+                stream: dao.watchAllPatients(),
+                builder: (context, snapshot) {
+                  final patients = snapshot.data ?? const [];
+                  final effectivePatientId =
+                      patients.any((p) => p.id == _selectedPatientId)
+                      ? _selectedPatientId
+                      : null;
+
+                  return DropdownButtonFormField<String>(
+                    initialValue: effectivePatientId,
+                    isExpanded: true,
+                    decoration: const InputDecoration(
+                      labelText: 'Select Patient *',
+                      prefixIcon: Icon(Icons.person_search_outlined),
+                    ),
+                    items: [
+                      for (final p in patients)
+                        DropdownMenuItem(
+                          value: p.id,
+                          child: FutureBuilder<String>(
+                            future: dao.getPatientHospitalRegNo(p.id),
+                            builder: (context, regSnap) {
+                              final reg = regSnap.data ?? '…';
+                              return Text(
+                                '${p.fullName} (CR: $reg) · ${p.gender ?? '?'}, ${p.approximateAge ?? '--'}y',
+                                overflow: TextOverflow.ellipsis,
+                              );
+                            },
+                          ),
+                        ),
+                    ],
+                    onChanged: (val) =>
+                        setState(() => _selectedPatientId = val),
+                    validator: (v) => v == null ? 'Patient is required' : null,
+                  );
+                },
+              ),
+            const SizedBox(height: 20),
+
+            // Blood Pressure Row
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                DropdownButtonFormField<String>(
-                  initialValue: _patientId,
-                  decoration: const InputDecoration(
-                    labelText: 'Patient',
-                    prefixIcon: Icon(Icons.person_outline),
-                  ),
-                  items: [
-                    for (final patient in rows)
-                      DropdownMenuItem(
-                        value: patient.id,
-                        child: Text(
-                          '${patient.fullName} · ${patient.hospitalRegNo}',
-                        ),
-                      ),
-                  ],
-                  onChanged: (value) => setState(() => _patientId = value),
-                  validator: (value) =>
-                      value == null ? 'Select a patient' : null,
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: _numberField(
-                        controller: _sbp,
-                        label: 'SBP',
-                        autofocus: true,
-                        validator: _validateSbp,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _numberField(
-                        controller: _dbp,
-                        label: 'DBP',
-                        validator: _validateDbp,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _numberField(
-                        controller: _pulse,
-                        label: 'Pulse',
-                        validator: _validatePulse,
-                        last: true,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Card(
-                  color: Theme.of(context).colorScheme.primaryContainer,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 20,
-                      vertical: 16,
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          'Mean arterial pressure',
-                          style: Theme.of(context).textTheme.titleMedium,
-                        ),
-                        Text(
-                          _map == null
-                              ? '— mmHg'
-                              : '${_map!.toStringAsFixed(0)} mmHg',
-                          style: Theme.of(context).textTheme.headlineSmall,
-                        ),
-                      ],
-                    ),
+                Expanded(
+                  child: _vitalInputField(
+                    controller: _sbp,
+                    label: 'Systolic BP',
+                    suffix: 'mmHg',
+                    validator: (v) {
+                      final val = int.tryParse(v ?? '');
+                      if (val == null || val <= 0) return 'Required';
+                      final dbp = int.tryParse(_dbp.text);
+                      if (dbp != null && val <= dbp) return 'Must exceed DBP';
+                      return null;
+                    },
                   ),
                 ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: _complaint,
-                  textInputAction: TextInputAction.next,
-                  minLines: 2,
-                  maxLines: 4,
-                  decoration: const InputDecoration(
-                    labelText: 'Chief complaint',
-                    alignLabelWithHint: true,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: _advice,
-                  textInputAction: TextInputAction.done,
-                  minLines: 2,
-                  maxLines: 4,
-                  decoration: const InputDecoration(
-                    labelText: 'Consultant advice',
-                    alignLabelWithHint: true,
-                  ),
-                ),
-                const SizedBox(height: 20),
-                SizedBox(
-                  height: 58,
-                  child: FilledButton.icon(
-                    onPressed: _saving ? null : _save,
-                    icon: _saving
-                        ? const SizedBox.square(
-                            dimension: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.save),
-                    label: Text(_saving ? 'Saving…' : 'Save vitals'),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _vitalInputField(
+                    controller: _dbp,
+                    label: 'Diastolic BP',
+                    suffix: 'mmHg',
+                    validator: (v) {
+                      final val = int.tryParse(v ?? '');
+                      if (val == null || val <= 0) return 'Required';
+                      final sbp = int.tryParse(_sbp.text);
+                      if (sbp != null && sbp <= val) return 'Below SBP';
+                      return null;
+                    },
                   ),
                 ),
               ],
             ),
-          );
-        },
+            const SizedBox(height: 12),
+
+            // MAP Indicator Banner
+            Card(
+              elevation: 0,
+              color: Theme.of(
+                context,
+              ).colorScheme.primaryContainer.withValues(alpha: 0.5),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Mean Arterial Pressure (MAP)',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    Text(
+                      _map == null
+                          ? '— mmHg'
+                          : '${_map!.toStringAsFixed(1)} mmHg',
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        color: Theme.of(context).colorScheme.primary,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // Pulse & SpO2 Row
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: _vitalInputField(
+                    controller: _pulse,
+                    label: 'Heart Rate',
+                    suffix: 'bpm',
+                    validator: (v) {
+                      final val = int.tryParse(v ?? '');
+                      if (val == null || val <= 0) return 'Required';
+                      return null;
+                    },
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _vitalInputField(
+                    controller: _spo2,
+                    label: 'SpO2',
+                    suffix: '%',
+                    validator: (v) {
+                      final val = int.tryParse(v ?? '');
+                      if (val != null && (val < 0 || val > 100)) {
+                        return '0-100%';
+                      }
+                      return null;
+                    },
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+
+            // Respiratory Rate & Temperature Row
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: _vitalInputField(
+                    controller: _rr,
+                    label: 'Resp. Rate',
+                    suffix: '/min',
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: TextFormField(
+                    controller: _temp,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    inputFormatters: [
+                      FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
+                    ],
+                    decoration: InputDecoration(
+                      labelText: 'Temperature',
+                      suffixIcon: IconButton(
+                        icon: Text(
+                          _tempInCelsius ? '°C' : '°F',
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        onPressed: () =>
+                            setState(() => _tempInCelsius = !_tempInCelsius),
+                        tooltip: 'Toggle Celsius / Fahrenheit',
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+
+            // Clinical Bedside Note
+            TextFormField(
+              controller: _note,
+              minLines: 2,
+              maxLines: 4,
+              decoration: const InputDecoration(
+                labelText: 'Bedside Observation / Context Note (Optional)',
+                hintText: 'e.g., Post-nebulization, patient sitting up, pale',
+                alignLabelWithHint: true,
+              ),
+            ),
+            const SizedBox(height: 24),
+
+            // Save Action Button
+            SizedBox(
+              height: 52,
+              child: FilledButton.icon(
+                onPressed: _saving ? null : _save,
+                icon: _saving
+                    ? const SizedBox.square(
+                        dimension: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Icon(Icons.check_circle_outline),
+                label: Text(
+                  _saving ? 'Recording…' : 'Save Vitals',
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  Widget _numberField({
+  Widget _vitalInputField({
     required TextEditingController controller,
     required String label,
+    required String suffix,
     String? Function(String?)? validator,
-    bool autofocus = false,
-    bool last = false,
   }) {
     return TextFormField(
       controller: controller,
-      autofocus: autofocus,
-      keyboardType: const TextInputType.numberWithOptions(decimal: false),
+      keyboardType: TextInputType.number,
       inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-      textInputAction: last ? TextInputAction.done : TextInputAction.next,
-      style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w600),
-      decoration: InputDecoration(
-        labelText: label,
-        suffixText: label == 'Pulse' ? 'bpm' : 'mmHg',
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 14,
-          vertical: 20,
-        ),
-      ),
+      decoration: InputDecoration(labelText: label, suffixText: suffix),
       validator: validator,
     );
   }
+}
 
-  String? _validateSbp(String? value) {
-    final number = int.tryParse(value ?? '');
-    if (number == null || number <= 0) return 'Required';
-    final dbp = int.tryParse(_dbp.text);
-    if (dbp != null && number <= dbp) return 'Must exceed DBP';
-    return null;
-  }
+class _LockedPatientBanner extends ConsumerWidget {
+  const _LockedPatientBanner({required this.patientId});
+  final String patientId;
 
-  String? _validateDbp(String? value) {
-    final number = int.tryParse(value ?? '');
-    if (number == null || number <= 0) return 'Required';
-    final sbp = int.tryParse(_sbp.text);
-    if (sbp != null && sbp <= number) return 'SBP must exceed DBP';
-    return null;
-  }
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final dao = ref.watch(clinicalDaoProvider);
 
-  String? _validatePulse(String? value) {
-    final number = int.tryParse(value ?? '');
-    return number == null || number <= 0 ? 'Required' : null;
+    return FutureBuilder<Patient?>(
+      future: dao.findPatient(patientId),
+      builder: (context, snapshot) {
+        final p = snapshot.data;
+        if (p == null) return const LinearProgressIndicator();
+
+        return Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surfaceContainerHighest,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: Theme.of(context).colorScheme.outlineVariant,
+            ),
+          ),
+          child: Row(
+            children: [
+              const Icon(Icons.lock_clock, size: 20, color: Colors.teal),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      p.fullName,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
+                      ),
+                    ),
+                    FutureBuilder<String>(
+                      future: dao.getPatientHospitalRegNo(p.id),
+                      builder: (context, regSnap) {
+                        return Text(
+                          'CR: ${regSnap.data ?? '…'} · ${p.gender ?? '?'}, ${p.approximateAge ?? '--'}y',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onSurfaceVariant,
+                          ),
+                        );
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
   }
 }

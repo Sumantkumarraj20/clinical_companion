@@ -102,16 +102,16 @@ class _ManualEntryScreenState extends ConsumerState<ManualEntryScreen> {
         StreamBuilder<List<Patient>>(
           stream: patients,
           builder: (context, snapshot) => Autocomplete<Patient>(
-            displayStringForOption: (patient) => '${patient.fullName} · ${patient.hospitalRegNo}',
+            displayStringForOption: (patient) => '${patient.fullName} · ${patient.id}',
             optionsBuilder: (value) {
               final query = value.text.toLowerCase().trim();
-              return (snapshot.data ?? const <Patient>[]).where((patient) => query.isEmpty || patient.fullName.toLowerCase().contains(query) || patient.hospitalRegNo.toLowerCase().contains(query));
+              return (snapshot.data ?? const <Patient>[]).where((patient) => query.isEmpty || patient.fullName.toLowerCase().contains(query) || patient.id.toLowerCase().contains(query));
             },
             onSelected: (patient) {
               _patientId = patient.id;
               _name.text = patient.fullName;
-              _gender.text = patient.sex ?? '';
-              _phone.text = patient.phoneNumber ?? patient.phone ?? '';
+              _gender.text = patient.gender ?? '';
+              _phone.text = patient.phone ?? '';
             },
             fieldViewBuilder: (context, controller, focusNode, onSubmitted) => TextField(controller: controller, focusNode: focusNode, decoration: const InputDecoration(labelText: 'Search existing patient or enter a new name')),
           ),

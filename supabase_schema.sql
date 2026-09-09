@@ -1,308 +1,255 @@
--- Offline-first clinical assistant schema for Supabase PostgreSQL (POMR & CDSS Edition).
--- The application is single-user by design, while owner_id keeps every row
--- isolated and makes the schema safe if additional authenticated users are
--- introduced later.
+-- =========================================================================
+-- SUPABASE COMPLETE MIGRATION: PROBLEM-ORIENTED CLINICAL TRAJECTORY (V16)
+-- =========================================================================
 
-create extension if not exists pgcrypto;
-
-create or replace function public.set_updated_at()
-returns trigger
-language plpgsql
-security invoker
-set search_path = public
-as $$
-begin
-  new.updated_at = now();
-  return new;
-end;
-$$;
-
-create or replace function public.prevent_owner_change()
-returns trigger
-language plpgsql
-security invoker
-set search_path = public
-as $$
-begin
-  if tg_op = 'UPDATE' and new.owner_id is distinct from old.owner_id then
-    raise exception 'owner_id cannot be changed';
-  end if;
-  return new;
-end;
-$$;
-
--- 1. PATIENTS
-create table if not exists public.patients (
-  id uuid primary key default gen_random_uuid(),
-  owner_id uuid not null default auth.uid() references auth.users (id) on delete cascade,
-  hospital_reg_no text not null,
-  full_name text not null,
-  date_of_birth date,
-  sex text check (sex is null or sex in ('female', 'male', 'intersex', 'unknown')),
-  phone text,
-  diagnosis text,
-  current_department text not null default 'Surgery',
-  surgery_type text,
-  complications text,
-  admission_date timestamptz,
-  discharge_date timestamptz,
-  is_active boolean not null default true,
-  metadata jsonb not null default '{}'::jsonb,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now(),
-  last_synced_at timestamptz,
-  constraint patients_hospital_reg_no_not_blank check (length(btrim(hospital_reg_no)) > 0),
-  constraint patients_full_name_not_blank check (length(btrim(full_name)) > 0),
-  constraint patients_department_check check (current_department in ('Medicine', 'OBGYN', 'Pediatrics', 'Surgery', 'Plastic Surgery', 'Psychiatry', 'Emergency', 'Other')),
-  constraint patients_admission_before_discharge check (
-    discharge_date is null or admission_date is null or admission_date <= discharge_date
-  )
+-- 1. BASE HOSPITALS & WARDS
+CREATE TABLE IF NOT EXISTS public.hospitals (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name TEXT NOT NULL,
+    short_name TEXT,
+    address TEXT,
+    is_active BOOLEAN NOT NULL DEFAULT true,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
 );
 
-create unique index if not exists patients_owner_hospital_reg_no_idx on public.patients (owner_id, lower(hospital_reg_no));
-create index if not exists patients_owner_active_idx on public.patients (owner_id, is_active);
-create index if not exists patients_owner_updated_idx on public.patients (owner_id, updated_at);
-
--- 2. CLINICAL ENCOUNTERS
-create table if not exists public.clinical_encounters (
-  id uuid primary key default gen_random_uuid(),
-  owner_id uuid not null default auth.uid() references auth.users (id) on delete cascade,
-  patient_id uuid not null references public.patients (id) on delete cascade,
-  encounter_type text not null default 'Ward Round' check (encounter_type in ('Ward Round', 'OPD', 'Pre-Op', 'Procedure', 'Emergency', 'Follow-Up', 'Other')),
-  occurred_at timestamptz not null default now(),
-  sbp smallint,
-  dbp smallint,
-  pulse smallint,
-  temperature_c numeric(4, 1),
-  respiratory_rate smallint,
-  spo2 smallint,
-  map numeric(6, 2),
-  chief_complaint text,
-  consultant_advice text,
-  note text,
-  dynamic_data jsonb not null default '{}'::jsonb,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now(),
-  last_synced_at timestamptz,
-  constraint encounters_sbp_range check (sbp is null or sbp between 20 and 300),
-  constraint encounters_dbp_range check (dbp is null or dbp between 10 and 250),
-  constraint encounters_pulse_range check (pulse is null or pulse between 1 and 300),
-  constraint encounters_sbp_above_dbp check (sbp is null or dbp is null or sbp > dbp)
+CREATE TABLE IF NOT EXISTS public.wards (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    hospital_id UUID REFERENCES public.hospitals(id) ON DELETE CASCADE,
+    department TEXT,
+    ward_name TEXT NOT NULL,
+    bed_count INT NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
 );
 
-create index if not exists encounters_owner_occurred_idx on public.clinical_encounters (owner_id, occurred_at desc);
-create index if not exists encounters_patient_occurred_idx on public.clinical_encounters (patient_id, occurred_at desc);
-
--- 3. INVESTIGATION TRACKER
-create table if not exists public.investigation_tracker (
-  id uuid primary key default gen_random_uuid(),
-  owner_id uuid not null default auth.uid() references auth.users (id) on delete cascade,
-  patient_id uuid not null references public.patients (id) on delete cascade,
-  test_name text not null,
-  test_code text,
-  status text not null default 'pending' check (status in ('pending', 'sample_sent', 'result_received', 'cancelled')),
-  ordered_at timestamptz not null default now(),
-  sample_sent_at timestamptz,
-  result_received_at timestamptz,
-  result_value text,
-  result_unit text,
-  reference_range text,
-  organism text,
-  sensitive_antibiotics text[] not null default '{}',
-  resistant_antibiotics text[] not null default '{}',
-  notes text,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now(),
-  last_synced_at timestamptz,
-  constraint investigation_test_name_not_blank check (length(btrim(test_name)) > 0)
+-- 2. PATIENT DEMOGRAPHICS (STRICTLY INVARIANT)
+CREATE TABLE IF NOT EXISTS public.patients (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    owner_id TEXT NOT NULL,
+    full_name TEXT NOT NULL,
+    date_of_birth TIMESTAMPTZ,
+    approximate_age INT,
+    gender TEXT,
+    height_cm REAL,
+    weight_kg REAL,
+    address_or_location TEXT,
+    occupation TEXT,
+    phone TEXT,
+    alternate_phone TEXT,
+    is_active BOOLEAN NOT NULL DEFAULT true,
+    metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
 );
 
--- 4. DRUG MASTER
-create table if not exists public.drug_master (
-  id uuid primary key default gen_random_uuid(),
-  owner_id uuid not null default auth.uid() references auth.users (id) on delete cascade,
-  generic_name text not null,
-  brand_name text,
-  strength text,
-  dosage_form text,
-  route text,
-  category text,
-  searchable_text text generated always as (
-    lower(
-      coalesce(generic_name, '') || ' ' || coalesce(brand_name, '') || ' ' ||
-      coalesce(strength, '') || ' ' || coalesce(dosage_form, '') || ' ' ||
-      coalesce(route, '') || ' ' || coalesce(category, '')
-    )
-  ) stored,
-  usage_frequency integer not null default 0,
-  associated_problems jsonb not null default '[]'::jsonb,
-  is_active boolean not null default true,
-  metadata jsonb not null default '{}'::jsonb,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now(),
-  last_synced_at timestamptz,
-  constraint drug_master_generic_name_not_blank check (length(btrim(generic_name)) > 0)
+CREATE TABLE IF NOT EXISTS public.patient_hospital_identifiers (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    patient_id UUID NOT NULL REFERENCES public.patients(id) ON DELETE CASCADE,
+    hospital_id UUID NOT NULL REFERENCES public.hospitals(id) ON DELETE CASCADE,
+    hospital_reg_no TEXT NOT NULL,
+    is_primary BOOLEAN NOT NULL DEFAULT false,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
 );
 
-create index if not exists drug_master_searchable_idx on public.drug_master using gin (to_tsvector('simple', searchable_text));
-
--- 5. POMR: PATIENT PROBLEMS
-create table if not exists public.patient_problems (
-  id uuid primary key default gen_random_uuid(),
-  owner_id uuid not null default auth.uid() references auth.users (id) on delete cascade,
-  patient_id uuid not null references public.patients(id) on delete cascade,
-  problem_name text not null,
-  status text not null default 'Active' check (status in ('Active', 'Resolved', 'Chronic')),
-  onset_date date,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now(),
-  last_synced_at timestamptz
-);
-create index if not exists problems_patient_idx on public.patient_problems (patient_id, status);
-
--- 6. POMR: CLINICAL ACTIONS
-create table if not exists public.clinical_actions (
-  id uuid primary key default gen_random_uuid(),
-  owner_id uuid not null default auth.uid() references auth.users (id) on delete cascade,
-  patient_id uuid not null references public.patients(id) on delete cascade,
-  problem_id uuid not null references public.patient_problems(id) on delete cascade,
-  action_type text not null check (action_type in ('Medication', 'Procedure', 'Investigation', 'Consultation')),
-  description text not null,
-  occurred_at timestamptz not null default now(),
-  metadata jsonb not null default '{}'::jsonb,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now(),
-  last_synced_at timestamptz
-);
-create index if not exists actions_problem_idx on public.clinical_actions (problem_id, occurred_at desc);
-
--- 7. POMR: CLINICAL OUTCOMES
-create table if not exists public.clinical_outcomes (
-  id uuid primary key default gen_random_uuid(),
-  owner_id uuid not null default auth.uid() references auth.users (id) on delete cascade,
-  problem_id uuid not null references public.patient_problems(id) on delete cascade,
-  metric_name text not null,
-  metric_value numeric not null,
-  metric_unit text,
-  treatment_method text,
-  measured_at timestamptz not null default now(),
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now(),
-  last_synced_at timestamptz
+-- 3. CLINICAL ENCOUNTERS
+CREATE TABLE IF NOT EXISTS public.clinical_encounters (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    owner_id TEXT NOT NULL,
+    patient_id UUID NOT NULL REFERENCES public.patients(id) ON DELETE CASCADE,
+    hospital_id UUID REFERENCES public.hospitals(id) ON DELETE SET NULL,
+    encounter_type TEXT NOT NULL DEFAULT 'OPD',
+    occurred_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
+    department TEXT,
+    ward_name TEXT,
+    bed_number TEXT,
+    clinical_diagnosis TEXT,
+    icd11_code TEXT,
+    disposition TEXT,
+    sbp INT,
+    dbp INT,
+    pulse INT,
+    temperature_c REAL,
+    respiratory_rate INT,
+    spo2 INT,
+    map REAL,
+    chief_complaints TEXT,
+    history_of_present_illness TEXT,
+    past_history TEXT,
+    drug_and_allergy_history TEXT,
+    personal_and_social_history TEXT,
+    examination_findings TEXT,
+    clinical_assessment TEXT,
+    consultant_advice TEXT,
+    image_path TEXT,
+    ai_summary TEXT,
+    dynamic_data JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
 );
 
--- 8. CDSS: DECISION RULES
-create table if not exists public.cdss_rules (
-  id uuid primary key default gen_random_uuid(),
-  owner_id uuid not null default auth.uid() references auth.users (id) on delete cascade,
-  target_problem text not null,
-  trigger_condition text not null,
-  suggested_action text not null,
-  evidence_source text not null,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now(),
-  last_synced_at timestamptz
+-- 4. PROBLEM TRAJECTORY (POMR CORE)
+CREATE TABLE IF NOT EXISTS public.patient_problems (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    patient_id UUID NOT NULL REFERENCES public.patients(id) ON DELETE CASCADE,
+    initial_encounter_id UUID REFERENCES public.clinical_encounters(id) ON DELETE SET NULL,
+    problem_name TEXT NOT NULL,
+    icd11_code TEXT,
+    current_status TEXT NOT NULL DEFAULT 'Active', -- Active, Improving, Deteriorating, Controlled, Resolved, Recurred
+    onset_date TIMESTAMPTZ,
+    resolved_date TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
 );
 
--- 9. PERSONAL WIKI
-create table if not exists public.personal_wiki (
-  id uuid primary key default gen_random_uuid(),
-  owner_id uuid not null default auth.uid() references auth.users (id) on delete cascade,
-  topic text not null,
-  markdown_content text not null default '',
-  tags text[] not null default '{}',
-  department_relevance text[] not null default '{}',
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now(),
-  last_synced_at timestamptz,
-  constraint personal_wiki_topic_not_blank check (length(btrim(topic)) > 0)
+-- Serial tracking of how the problem evolutes over rounds/visits
+CREATE TABLE IF NOT EXISTS public.problem_progress_snapshots (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    problem_id UUID NOT NULL REFERENCES public.patient_problems(id) ON DELETE CASCADE,
+    encounter_id UUID NOT NULL REFERENCES public.clinical_encounters(id) ON DELETE CASCADE,
+    patient_id UUID NOT NULL REFERENCES public.patients(id) ON DELETE CASCADE,
+    status_snapshot TEXT NOT NULL,
+    clinical_course_note TEXT NOT NULL,
+    recorded_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
 );
 
--- 10. SYNC QUEUE
-create table if not exists public.sync_queue (
-  id uuid primary key default gen_random_uuid(),
-  owner_id uuid not null default auth.uid() references auth.users (id) on delete cascade,
-  entity_type text not null check (entity_type in (
-    'patients', 'clinical_encounters', 'investigation_tracker', 'drug_master', 
-    'personal_wiki', 'patient_problems', 'clinical_actions', 'clinical_outcomes', 'cdss_rules'
-  )),
-  entity_id uuid not null,
-  operation text not null check (operation in ('insert', 'update', 'delete')),
-  payload jsonb not null default '{}'::jsonb,
-  client_updated_at timestamptz not null default now(),
-  attempts integer not null default 0 check (attempts >= 0),
-  next_attempt_at timestamptz not null default now(),
-  last_error text,
-  processed_at timestamptz,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now(),
-  last_synced_at timestamptz
+-- 5. PROCEDURES & CLINICAL INTERVENTIONS
+CREATE TABLE IF NOT EXISTS public.clinical_interventions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    patient_id UUID NOT NULL REFERENCES public.patients(id) ON DELETE CASCADE,
+    encounter_id UUID NOT NULL REFERENCES public.clinical_encounters(id) ON DELETE CASCADE,
+    problem_id UUID REFERENCES public.patient_problems(id) ON DELETE SET NULL,
+    procedure_name TEXT NOT NULL,
+    procedure_code TEXT,
+    coding_system TEXT, -- 'PMJAY', 'ICD11', 'LOCAL'
+    anatomical_site TEXT,
+    intervention_role TEXT NOT NULL DEFAULT 'Therapeutic', -- Diagnostic, Therapeutic, Palliative, Staging
+    operative_findings TEXT,
+    performed_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
+    performed_by TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
 );
-create index if not exists sync_queue_pending_idx on public.sync_queue (owner_id, next_attempt_at, created_at) where processed_at is null;
 
--- TRIGGERS & RLS FOR ALL TABLES
-do $$ 
-declare 
-  t text; 
-begin 
-  for t in select unnest(array[
-    'patients', 'clinical_encounters', 'investigation_tracker', 'drug_master', 
-    'personal_wiki', 'patient_problems', 'clinical_actions', 'clinical_outcomes', 
-    'cdss_rules', 'sync_queue'
-  ]) 
-  loop
-    -- Apply set_updated_at trigger
-    execute format('drop trigger if exists %I_set_updated_at on public.%I', t, t);
-    execute format('create trigger %I_set_updated_at before update on public.%I for each row execute function public.set_updated_at()', t, t);
-    
-    -- Apply prevent_owner_change trigger
-    execute format('drop trigger if exists %I_prevent_owner_change on public.%I', t, t);
-    execute format('create trigger %I_prevent_owner_change before update on public.%I for each row execute function public.prevent_owner_change()', t, t);
+-- 6. QUANTITATIVE OUTCOME METRICS
+CREATE TABLE IF NOT EXISTS public.clinical_outcome_metrics (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    patient_id UUID NOT NULL REFERENCES public.patients(id) ON DELETE CASCADE,
+    problem_id UUID NOT NULL REFERENCES public.patient_problems(id) ON DELETE CASCADE,
+    encounter_id UUID REFERENCES public.clinical_encounters(id) ON DELETE SET NULL,
+    metric_name TEXT NOT NULL,
+    metric_value REAL NOT NULL,
+    metric_unit TEXT,
+    qualifying_note TEXT,
+    measured_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
+);
 
-    -- Enable RLS
-    execute format('alter table public.%I enable row level security', t);
+-- 7. PRESCRIPTION ORDERS
+CREATE TABLE IF NOT EXISTS public.prescription_orders (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    patient_id UUID NOT NULL REFERENCES public.patients(id) ON DELETE CASCADE,
+    encounter_id UUID NOT NULL REFERENCES public.clinical_encounters(id) ON DELETE CASCADE,
+    problem_id UUID REFERENCES public.patient_problems(id) ON DELETE SET NULL,
+    drug_name TEXT NOT NULL,
+    dose_strength TEXT,
+    dosage_form TEXT,
+    route TEXT,
+    frequency TEXT,
+    duration TEXT,
+    diluent_and_rate TEXT,
+    special_instructions TEXT,
+    is_active BOOLEAN NOT NULL DEFAULT true,
+    ordered_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
+);
 
-    -- Create unified RLS Policies
-    execute format('drop policy if exists %I_owner_select on public.%I', t, t);
-    execute format('create policy %I_owner_select on public.%I for select to authenticated using (owner_id = auth.uid())', t, t);
-    
-    execute format('drop policy if exists %I_owner_insert on public.%I', t, t);
-    execute format('create policy %I_owner_insert on public.%I for insert to authenticated with check (owner_id = auth.uid())', t, t);
-    
-    execute format('drop policy if exists %I_owner_update on public.%I', t, t);
-    execute format('create policy %I_owner_update on public.%I for update to authenticated using (owner_id = auth.uid()) with check (owner_id = auth.uid())', t, t);
-    
-    execute format('drop policy if exists %I_owner_delete on public.%I', t, t);
-    execute format('create policy %I_owner_delete on public.%I for delete to authenticated using (owner_id = auth.uid())', t, t);
-  end loop;
-end $$;
+-- 8. INVESTIGATION ORDERS & RESULTS
+CREATE TABLE IF NOT EXISTS public.investigation_orders (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    patient_id UUID NOT NULL REFERENCES public.patients(id) ON DELETE CASCADE,
+    encounter_id UUID REFERENCES public.clinical_encounters(id) ON DELETE SET NULL,
+    problem_id UUID REFERENCES public.patient_problems(id) ON DELETE SET NULL,
+    test_name TEXT NOT NULL,
+    test_code TEXT,
+    clinical_indication TEXT,
+    status TEXT NOT NULL DEFAULT 'ordered',
+    ordered_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
+    sample_sent_at TIMESTAMPTZ,
+    result_received_at TIMESTAMPTZ,
+    owner_id TEXT NOT NULL DEFAULT 'local-practitioner',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
+);
 
--- Cross-Tenant Protection (Ensures records assigned to a patient belong to the same owner)
-create or replace function public.ensure_patient_owner()
-returns trigger
-language plpgsql
-security invoker
-set search_path = public
-as $$
-declare
-  patient_owner uuid;
-begin
-  select owner_id into patient_owner from public.patients where id = new.patient_id;
-  if patient_owner is null or patient_owner is distinct from new.owner_id then
-    raise exception 'patient does not belong to the authenticated owner';
-  end if;
-  return new;
-end;
-$$;
+CREATE TABLE IF NOT EXISTS public.investigation_results (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    order_id UUID REFERENCES public.investigation_orders(id) ON DELETE SET NULL,
+    patient_id UUID NOT NULL REFERENCES public.patients(id) ON DELETE CASCADE,
+    test_name TEXT NOT NULL,
+    numeric_value REAL,
+    text_value TEXT,
+    unit TEXT,
+    reference_range TEXT,
+    is_abnormal BOOLEAN NOT NULL DEFAULT false,
+    antibiogram_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+    result_date TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
+);
 
-drop trigger if exists clinical_encounters_patient_owner on public.clinical_encounters;
-create trigger clinical_encounters_patient_owner before insert or update on public.clinical_encounters for each row execute function public.ensure_patient_owner();
+-- 9. LEARNED CATALOG & CDSS
+CREATE TABLE IF NOT EXISTS public.learned_catalog (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    category TEXT NOT NULL,
+    term TEXT NOT NULL,
+    frequency INT NOT NULL DEFAULT 1,
+    last_used_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
+);
 
-drop trigger if exists investigations_patient_owner on public.investigation_tracker;
-create trigger investigations_patient_owner before insert or update on public.investigation_tracker for each row execute function public.ensure_patient_owner();
+CREATE TABLE IF NOT EXISTS public.cdss_rules (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    target_problem TEXT NOT NULL,
+    trigger_condition TEXT NOT NULL,
+    suggested_action TEXT NOT NULL,
+    evidence_source TEXT NOT NULL,
+    requires_pre_auth BOOLEAN NOT NULL DEFAULT false,
+    medicolegal_alert TEXT NOT NULL DEFAULT '',
+    last_updated TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
+);
 
-drop trigger if exists problems_patient_owner on public.patient_problems;
-create trigger problems_patient_owner before insert or update on public.patient_problems for each row execute function public.ensure_patient_owner();
+-- ROW LEVEL SECURITY (RLS) POLICIES
+ALTER TABLE public.hospitals ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.wards ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.patients ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.patient_hospital_identifiers ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.clinical_encounters ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.patient_problems ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.problem_progress_snapshots ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.clinical_interventions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.clinical_outcome_metrics ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.prescription_orders ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.investigation_orders ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.investigation_results ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.learned_catalog ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.cdss_rules ENABLE ROW LEVEL SECURITY;
 
-drop trigger if exists actions_patient_owner on public.clinical_actions;
-create trigger actions_patient_owner before insert or update on public.clinical_actions for each row execute function public.ensure_patient_owner();
+DO $$ 
+BEGIN
+    EXECUTE 'CREATE POLICY "Allow all authenticated" ON public.hospitals FOR ALL TO authenticated USING (true) WITH CHECK (true)';
+    EXECUTE 'CREATE POLICY "Allow all authenticated" ON public.wards FOR ALL TO authenticated USING (true) WITH CHECK (true)';
+    EXECUTE 'CREATE POLICY "Allow all authenticated" ON public.patients FOR ALL TO authenticated USING (true) WITH CHECK (true)';
+    EXECUTE 'CREATE POLICY "Allow all authenticated" ON public.patient_hospital_identifiers FOR ALL TO authenticated USING (true) WITH CHECK (true)';
+    EXECUTE 'CREATE POLICY "Allow all authenticated" ON public.clinical_encounters FOR ALL TO authenticated USING (true) WITH CHECK (true)';
+    EXECUTE 'CREATE POLICY "Allow all authenticated" ON public.patient_problems FOR ALL TO authenticated USING (true) WITH CHECK (true)';
+    EXECUTE 'CREATE POLICY "Allow all authenticated" ON public.problem_progress_snapshots FOR ALL TO authenticated USING (true) WITH CHECK (true)';
+    EXECUTE 'CREATE POLICY "Allow all authenticated" ON public.clinical_interventions FOR ALL TO authenticated USING (true) WITH CHECK (true)';
+    EXECUTE 'CREATE POLICY "Allow all authenticated" ON public.clinical_outcome_metrics FOR ALL TO authenticated USING (true) WITH CHECK (true)';
+    EXECUTE 'CREATE POLICY "Allow all authenticated" ON public.prescription_orders FOR ALL TO authenticated USING (true) WITH CHECK (true)';
+    EXECUTE 'CREATE POLICY "Allow all authenticated" ON public.investigation_orders FOR ALL TO authenticated USING (true) WITH CHECK (true)';
+    EXECUTE 'CREATE POLICY "Allow all authenticated" ON public.investigation_results FOR ALL TO authenticated USING (true) WITH CHECK (true)';
+    EXECUTE 'CREATE POLICY "Allow all authenticated" ON public.learned_catalog FOR ALL TO authenticated USING (true) WITH CHECK (true)';
+    EXECUTE 'CREATE POLICY "Allow all authenticated" ON public.cdss_rules FOR ALL TO authenticated USING (true) WITH CHECK (true)';
+EXCEPTION WHEN OTHERS THEN
+    -- Policies already exist
+END $$;

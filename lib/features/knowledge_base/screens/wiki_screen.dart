@@ -19,7 +19,7 @@ class WikiScreen extends ConsumerStatefulWidget {
 class _WikiScreenState extends ConsumerState<WikiScreen> {
   final _search = TextEditingController();
   Timer? _debounce;
-  WikiEntry? _selected;
+  PersonalWikiEntry? _selected;
 
   @override
   void dispose() {
@@ -159,7 +159,7 @@ class _WikiScreenState extends ConsumerState<WikiScreen> {
 
 class _WikiDetail extends StatelessWidget {
   const _WikiDetail({required this.entry});
-  final WikiEntry entry;
+  final PersonalWikiEntry entry;
 
   @override
   Widget build(BuildContext context) => SingleChildScrollView(
