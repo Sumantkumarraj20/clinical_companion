@@ -49,6 +49,9 @@ class DocumentAiException implements Exception {
     if (type != DocumentAiErrorType.unknown) {
       buffer.write(' [${type.name}]');
     }
+    if (cause != null) {
+      buffer.write(' [Cause: $cause]');
+    }
     if (retryable) {
       buffer.write(' [retryable]');
     }
@@ -62,7 +65,8 @@ class DocumentAiException implements Exception {
 class DocumentAiService {
   DocumentAiService({this.apiKey = ''});
 
-  static const String defaultModel = 'gemini-2.5-flash-lite';
+  // Updated to active free-tier models
+  static const String defaultModel = 'gemini-3.6-flash';
   static const String fallbackModel = 'gemini-2.5-flash';
   static const int maxAttempts = 3;
 
@@ -78,11 +82,8 @@ class DocumentAiService {
     final text = error.toString().toLowerCase();
     if (text.contains('model not found') ||
         text.contains('model unavailable') ||
-        text.contains('unsupported model')) {
-      return true;
-    }
-    if (text.contains('404') &&
-        (text.contains('model') || text.contains('resource'))) {
+        text.contains('unsupported model') ||
+        text.contains('404')) {
       return true;
     }
     return false;
@@ -139,82 +140,98 @@ class DocumentAiService {
     return image;
   }
 
-  static DocumentAiException _classifyError(Object error, {required String model}) {
+  static DocumentAiException _classifyError(
+    Object error, {
+    required String model,
+  }) {
     final text = error.toString().toLowerCase();
-    if (text.contains('api key') || text.contains('api_key')) {
-      return const DocumentAiException(
-        'AI configuration is invalid.',
+
+    if (error is SocketException ||
+        text.contains('socket') ||
+        text.contains('failed host lookup')) {
+      return DocumentAiException(
+        'Network connectivity failed. Please verify internet connection.',
+        type: DocumentAiErrorType.network,
+        cause: error,
+        retryable: true,
+      );
+    }
+    if (text.contains('api key') ||
+        text.contains('api_key') ||
+        text.contains('invalid api key')) {
+      return DocumentAiException(
+        'AI configuration is invalid or API key is missing.',
         type: DocumentAiErrorType.configuration,
+        cause: error,
       );
     }
     if (text.contains('429') ||
         text.contains('rate limit') ||
-        text.contains('quota')) {
-      return const DocumentAiException(
-        'AI request rate limit reached. Please retry shortly.',
+        text.contains('quota') ||
+        text.contains('resource_exhausted')) {
+      return DocumentAiException(
+        'AI rate limit or quota reached. Please wait a moment.',
         type: DocumentAiErrorType.rateLimited,
+        cause: error,
         retryable: true,
-        retryAfterMs: 1000,
+        retryAfterMs: 2000,
       );
     }
     if (text.contains('401') ||
         text.contains('403') ||
-        text.contains('permission')) {
-      return const DocumentAiException(
-        'AI access is not authorized for this build.',
+        text.contains('permission') ||
+        text.contains('unauthenticated')) {
+      return DocumentAiException(
+        'AI access is not authorized. Check your API key credentials.',
         type: DocumentAiErrorType.authentication,
+        cause: error,
       );
     }
-    if ((text.contains('404') &&
-            (text.contains('model') || text.contains('resource'))) ||
+    if (text.contains('404') ||
         text.contains('model not found') ||
         text.contains('model unavailable') ||
         text.contains('unsupported model')) {
-      return const DocumentAiException(
-        'The configured AI model is unavailable.',
+      return DocumentAiException(
+        'The configured AI model ($model) is unavailable.',
         type: DocumentAiErrorType.modelNotFound,
+        cause: error,
       );
     }
     if (text.contains('timeout')) {
-      return const DocumentAiException(
+      return DocumentAiException(
         'AI request timed out. Please try again.',
         type: DocumentAiErrorType.timeout,
-        retryable: true,
-      );
-    }
-    if (text.contains('network') ||
-        text.contains('socket') ||
-        text.contains('connection')) {
-      return const DocumentAiException(
-        'AI service connectivity failed. Please retry when connectivity is available.',
-        type: DocumentAiErrorType.network,
+        cause: error,
         retryable: true,
       );
     }
     if (text.contains('500') || text.contains('server')) {
-      return const DocumentAiException(
+      return DocumentAiException(
         'AI service is temporarily unavailable.',
         type: DocumentAiErrorType.server,
+        cause: error,
         retryable: true,
       );
     }
     if (text.contains('schema') || text.contains('json')) {
-      return const DocumentAiException(
+      return DocumentAiException(
         'AI returned malformed or schema-invalid data.',
         type: DocumentAiErrorType.schemaViolation,
+        cause: error,
       );
     }
     if (text.contains('empty')) {
-      return const DocumentAiException(
+      return DocumentAiException(
         'AI returned no usable content.',
         type: DocumentAiErrorType.emptyResponse,
+        cause: error,
       );
     }
     if (error is DocumentAiException) {
       return error;
     }
     return DocumentAiException(
-      'AI extraction failed while using model $model.',
+      'AI extraction failed while using model $model: $error',
       type: DocumentAiErrorType.unknown,
       cause: error,
     );
@@ -237,7 +254,7 @@ class DocumentAiService {
             currentModel == modelName && shouldEscalateToFallback(error);
 
         if (shouldRetrySameModel) {
-          final backoffMs = 250 * (1 << (attempt - 1));
+          final backoffMs = 500 * (1 << (attempt - 1));
           await Future<void>.delayed(Duration(milliseconds: backoffMs));
           continue;
         }

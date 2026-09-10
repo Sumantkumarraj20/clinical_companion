@@ -1276,8 +1276,85 @@ class ClinicalDao extends DatabaseAccessor<AppDatabase>
     });
   }
 
+// =========================================================================
+  // 11. SMART LEARNED CATALOG & AUTOCOMPLETE
   // =========================================================================
-  // 11. REPLICATION PAYLOAD SERIALIZERS
+
+  /// Searches catalog items by category, sorted by usage frequency and recency.
+  Future<List<String>> searchLearnedCatalog({
+    required String category,
+    required String query,
+    int limit = 8,
+  }) async {
+    final cleanQuery = query.trim().toLowerCase();
+    if (cleanQuery.length < 2) return const [];
+
+    final rows =
+        await (select(learnedCatalog)
+              ..where(
+                (t) =>
+                    t.category.equals(category) &
+                    t.term.lower().like('%$cleanQuery%'),
+              )
+              ..orderBy([
+                (t) => OrderingTerm(
+                  expression: t.frequency,
+                  mode: OrderingMode.desc,
+                ),
+                (t) => OrderingTerm(
+                  expression: t.lastUsedAt,
+                  mode: OrderingMode.desc,
+                ),
+              ])
+              ..limit(limit))
+            .get();
+
+    return rows.map((r) => r.term).toList(growable: false);
+  }
+
+  /// Increments the frequency counter or inserts a newly used clinical term.
+  Future<void> recordCatalogUsage({
+    required String category,
+    required String term,
+  }) async {
+    final cleanTerm = term.trim();
+    if (cleanTerm.isEmpty) return;
+
+    final now = DateTime.now().toUtc();
+    final existing =
+        await (select(learnedCatalog)
+              ..where(
+                (t) =>
+                    t.category.equals(category) &
+                    t.term.lower().equals(cleanTerm.toLowerCase()),
+              )
+              ..limit(1))
+            .getSingleOrNull();
+
+    if (existing == null) {
+      await into(learnedCatalog).insert(
+        LearnedCatalogCompanion.insert(
+          id: Value(_ids.v4()),
+          category: category,
+          term: cleanTerm,
+          frequency: const Value(1),
+          lastUsedAt: Value(now),
+        ),
+      );
+    } else {
+      await (update(
+        learnedCatalog,
+      )..where((t) => t.id.equals(existing.id))).write(
+        LearnedCatalogCompanion(
+          frequency: Value(existing.frequency + 1),
+          lastUsedAt: Value(now),
+        ),
+      );
+    }
+  }
+
+  // =========================================================================
+  // 12. REPLICATION PAYLOAD SERIALIZERS
   // =========================================================================
   Future<void> _enqueue({
     required String ownerId,
@@ -1400,4 +1477,5 @@ class _HbpAccumulator {
     implants: implants.values.toList(growable: false),
     stratifications: stratifications.values.toList(growable: false),
   );
+  
 }

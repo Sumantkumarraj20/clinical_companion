@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:drift/drift.dart';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -86,15 +87,13 @@ class SyncService {
       table: 'patients',
       since: effectiveCursor,
       onRow: (json) async {
-        // Patients table contains invariant demographics only
-        // Ignore obsolete encounter columns if older remote rows have them
         json.remove('diagnosis');
         json.remove('surgery_type');
         json.remove('complications');
         json.remove('admission_date');
         json.remove('discharge_date');
         json.remove('current_department');
-        // DAO upsertRemotePatient handles conflict update
+        await _dao.upsertRemotePatient(json, syncStartedAt);
       },
     );
 
@@ -103,10 +102,11 @@ class SyncService {
       table: 'clinical_encounters',
       since: effectiveCursor,
       onRow: (json) async {
-        // Enforce chiefComplaints mapping if coming from older cloud rows
-        if (json.containsKey('chief_complaint') && !json.containsKey('chief_complaints')) {
+        if (json.containsKey('chief_complaint') &&
+            !json.containsKey('chief_complaints')) {
           json['chief_complaints'] = json['chief_complaint'];
         }
+        await _dao.upsertRemoteEncounter(json, syncStartedAt);
       },
     );
 
@@ -114,47 +114,195 @@ class SyncService {
     await _pullTable(
       table: 'patient_problems',
       since: effectiveCursor,
-      onRow: (json) async {},
+      onRow: (json) async {
+        final id = json['id'] as String;
+        final patientId = json['patient_id'] as String;
+        final problemName =
+            json['problem_name'] as String? ?? 'Clinical Finding';
+        final status = json['current_status'] as String? ?? 'Active';
+        final onset = json['onset_date'] != null
+            ? DateTime.tryParse(json['onset_date'].toString())
+            : null;
+
+        await _dao
+            .into(_dao.patientProblems)
+            .insertOnConflictUpdate(
+              PatientProblemsCompanion(
+                id: Value(id),
+                patientId: Value(patientId),
+                problemName: Value(problemName),
+                currentStatus: Value(status),
+                onsetDate: Value(onset?.toUtc()),
+                updatedAt: Value(syncStartedAt),
+              ),
+            );
+      },
     );
 
     await _pullTable(
       table: 'problem_progress_snapshots',
       since: effectiveCursor,
-      onRow: (json) async {},
+      onRow: (json) async {
+        final id = json['id'] as String;
+        final problemId = json['problem_id'] as String;
+        final patientId = json['patient_id'] as String;
+        // FIX 1: Enforce non-null String for encounterId
+        final encounterId = json['encounter_id'] as String? ?? '';
+        final status = json['status_snapshot'] as String? ?? 'Active';
+        final note = json['clinical_course_note'] as String? ?? '';
+
+        await _dao
+            .into(_dao.problemProgressSnapshots)
+            .insertOnConflictUpdate(
+              ProblemProgressSnapshotsCompanion(
+                id: Value(id),
+                problemId: Value(problemId),
+                patientId: Value(patientId),
+                encounterId: Value(encounterId),
+                statusSnapshot: Value(status),
+                clinicalCourseNote: Value(note),
+              ),
+            );
+      },
     );
 
     // 4. Clinical Interventions & Procedures
     await _pullTable(
       table: 'clinical_interventions',
       since: effectiveCursor,
-      onRow: (json) async {},
+      onRow: (json) async {
+        final id = json['id'] as String;
+        final patientId = json['patient_id'] as String;
+        // FIX 2: Enforce non-null String for encounterId
+        final encounterId = json['encounter_id'] as String? ?? '';
+        final problemId = json['problem_id'] as String?;
+        final procName = json['procedure_name'] as String? ?? 'Procedure';
+        final role = json['intervention_role'] as String? ?? 'Therapeutic';
+
+        await _dao
+            .into(_dao.clinicalInterventions)
+            .insertOnConflictUpdate(
+              ClinicalInterventionsCompanion(
+                id: Value(id),
+                patientId: Value(patientId),
+                encounterId: Value(encounterId),
+                problemId: Value(problemId),
+                procedureName: Value(procName),
+                interventionRole: Value(role),
+                performedAt: Value(
+                  DateTime.tryParse(
+                        json['performed_at']?.toString() ?? '',
+                      )?.toUtc() ??
+                      syncStartedAt,
+                ),
+              ),
+            );
+      },
     );
 
     // 5. Objective Outcome Metrics
     await _pullTable(
       table: 'clinical_outcome_metrics',
       since: effectiveCursor,
-      onRow: (json) async {},
+      onRow: (json) async {
+        final id = json['id'] as String;
+        final patientId = json['patient_id'] as String;
+        final metricName = json['metric_name'] as String? ?? 'Metric';
+        // FIX 3: Map to metric_value instead of numeric_value
+        final numVal = (json['metric_value'] ?? json['value'] as num?)
+            ?.toDouble();
+
+        await _dao
+            .into(_dao.clinicalOutcomeMetrics)
+            .insertOnConflictUpdate(
+              ClinicalOutcomeMetricsCompanion(
+                id: Value(id),
+                patientId: Value(patientId),
+                metricName: Value(metricName),
+                metricValue: Value(numVal), // Updated to metricValue
+                measuredAt: Value(
+                  DateTime.tryParse(
+                        json['measured_at']?.toString() ?? '',
+                      )?.toUtc() ??
+                      syncStartedAt,
+                ),
+              ),
+            );
+      },
     );
 
     // 6. Prescriptions
     await _pullTable(
       table: 'prescription_orders',
       since: effectiveCursor,
-      onRow: (json) async {},
+      onRow: (json) async {
+        final id = json['id'] as String;
+        final patientId = json['patient_id'] as String;
+        final drugName = json['drug_name'] as String? ?? 'Medication';
+        final encId = json['encounter_id'] as String?;
+
+        await _dao
+            .into(_dao.prescriptionOrders)
+            .insertOnConflictUpdate(
+              PrescriptionOrdersCompanion(
+                id: Value(id),
+                patientId: Value(patientId),
+                encounterId: Value(encId ?? ''),
+                drugName: Value(drugName),
+                doseStrength: Value(json['dose_strength'] as String?),
+                frequency: Value(json['frequency'] as String?),
+                route: Value(json['route'] as String?),
+                orderedAt: Value(
+                  DateTime.tryParse(
+                        json['ordered_at']?.toString() ?? '',
+                      )?.toUtc() ??
+                      syncStartedAt,
+                ),
+              ),
+            );
+      },
     );
 
     // 7. Investigations & Results
     await _pullTable(
       table: 'investigation_orders',
       since: effectiveCursor,
-      onRow: (json) async {},
+      onRow: (json) async {
+        await _dao.upsertRemoteInvestigation(json, syncStartedAt);
+      },
     );
 
     await _pullTable(
       table: 'investigation_results',
       since: effectiveCursor,
-      onRow: (json) async {},
+      onRow: (json) async {
+        final id = json['id'] as String;
+        final orderId = json['order_id'] as String?;
+        final patientId = json['patient_id'] as String;
+        final testName = json['test_name'] as String? ?? 'Test';
+        final numVal = (json['numeric_value'] as num?)?.toDouble();
+
+        await _dao
+            .into(_dao.investigationResults)
+            .insertOnConflictUpdate(
+              InvestigationResultsCompanion(
+                id: Value(id),
+                orderId: Value(orderId),
+                patientId: Value(patientId),
+                testName: Value(testName),
+                numericValue: Value(numVal),
+                textValue: Value(json['text_value'] as String?),
+                unit: Value(json['unit'] as String?),
+                isAbnormal: Value(json['is_abnormal'] as bool? ?? false),
+                resultDate: Value(
+                  DateTime.tryParse(
+                        json['result_date']?.toString() ?? '',
+                      )?.toUtc() ??
+                      syncStartedAt,
+                ),
+              ),
+            );
+      },
     );
 
     // 8. Personal Knowledge Base Wiki
@@ -192,7 +340,6 @@ class SyncService {
     final payload = Map<String, dynamic>.from(decoded);
     final table = _tableName(entry.entityType);
 
-    // Legacy compatibility remapping
     if (entry.entityType == 'daily_vitals_notes') {
       payload['occurred_at'] ??= payload.remove('recorded_at');
       payload['encounter_type'] ??= 'Ward Round';
@@ -223,7 +370,6 @@ class SyncService {
       case 'cdss_rules':
         return entityType;
 
-      // Legacy table mapping redirects
       case 'daily_vitals_notes':
         return 'clinical_encounters';
       case 'investigation_tracker':
@@ -244,7 +390,6 @@ class SyncService {
       try {
         return await action();
       } on SocketException {
-        // Do not retry endlessly when clearly offline
         rethrow;
       } catch (error) {
         lastError = error;
@@ -256,4 +401,3 @@ class SyncService {
     throw lastError ?? StateError('Network operation failed');
   }
 }
-
