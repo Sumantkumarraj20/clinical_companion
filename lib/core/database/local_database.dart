@@ -650,40 +650,75 @@ class AppDatabase extends _$AppDatabase {
   MigrationStrategy get migration => MigrationStrategy(
     onCreate: (Migrator m) => m.createAll(),
     onUpgrade: (Migrator m, int from, int to) async {
-      if (from < 14) {
-        await m.createTable(hospitals);
-        await m.createTable(wards);
-        await m.createTable(patientHospitalIdentifiers);
-        await m.createTable(investigationOrders);
-        await m.createTable(investigationResults);
-        await m.createTable(learnedCatalog);
-      }
-      if (from < 15) {
-        await m.addColumn(clinicalEncounters, clinicalEncounters.department);
-        await m.addColumn(clinicalEncounters, clinicalEncounters.wardName);
-        await m.addColumn(clinicalEncounters, clinicalEncounters.bedNumber);
-      }
-      if (from < 16) {
-        // Create the problem trajectory and intervention structures
-        await m.createTable(problemProgressSnapshots);
-        await m.createTable(clinicalInterventions);
-        await m.createTable(clinicalOutcomeMetrics);
-        await m.createTable(prescriptionOrders);
+      
+      if (from == 1) {
+        // ==========================================================
+        // V1 TO LATEST: UPGRADING FROM PYTHON SEEDED DRUG DATABASE
+        // ==========================================================
+        // The asset database ONLY has the drugs tables. 
+        // We must generate all clinical app tables dynamically using their latest schemas.
+        
+        try { await m.createTable(patients); } catch (_) {}
+        try { await m.createTable(hospitals); } catch (_) {}
+        try { await m.createTable(wards); } catch (_) {}
+        try { await m.createTable(patientHospitalIdentifiers); } catch (_) {}
+        try { await m.createTable(clinicalEncounters); } catch (_) {}
+        try { await m.createTable(patientProblems); } catch (_) {}
+        try { await m.createTable(problemProgressSnapshots); } catch (_) {}
+        try { await m.createTable(clinicalInterventions); } catch (_) {}
+        try { await m.createTable(clinicalOutcomeMetrics); } catch (_) {}
+        try { await m.createTable(prescriptionOrders); } catch (_) {}
+        try { await m.createTable(investigationOrders); } catch (_) {}
+        try { await m.createTable(investigationResults); } catch (_) {}
+        try { await m.createTable(learnedCatalog); } catch (_) {}
+        try { await m.createTable(personalWiki); } catch (_) {}
+        try { await m.createTable(offlineSyncQueue); } catch (_) {}
+        try { await m.createTable(cdssRules); } catch (_) {}
+        try { await m.createTable(ayushmanPackages); } catch (_) {}
+        try { await m.createTable(hbpProcedures); } catch (_) {}
+        try { await m.createTable(hbpImplants); } catch (_) {}
+        try { await m.createTable(hbpStratifications); } catch (_) {}
+        try { await m.createTable(documentRegistries); } catch (_) {}
+        try { await m.createTable(clinicalObservations); } catch (_) {}
+        try { await m.createTable(microbiologyCultures); } catch (_) {}
+        try { await m.createTable(imagingStudies); } catch (_) {}
 
-        // Add clinical trajectory columns to encounters and problems
-        await m.addColumn(
-          clinicalEncounters,
-          clinicalEncounters.clinicalDiagnosis,
-        );
-        await m.addColumn(clinicalEncounters, clinicalEncounters.icd11Code);
-        await m.addColumn(
-          clinicalEncounters,
-          clinicalEncounters.clinicalAssessment,
-        );
-        await m.addColumn(patientProblems, patientProblems.icd11Code);
-        await m.addColumn(patientProblems, patientProblems.currentStatus);
-        await m.addColumn(patientProblems, patientProblems.resolvedDate);
-        await m.addColumn(investigationOrders, investigationOrders.problemId);
+        // Apply fallback columns to drug_master in case Python script was old
+        try { await m.addColumn(drugs, drugs.usageFrequency); } catch (_) {}
+        try { await m.addColumn(drugs, drugs.associatedProblems); } catch (_) {}
+        try { await m.addColumn(drugs, drugs.ownerId); } catch (_) {}
+
+      } else {
+        // ==========================================================
+        // NORMAL INCREMENTAL UPGRADES FOR EXISTING USERS
+        // ==========================================================
+        if (from < 14) {
+          try { await m.createTable(hospitals); } catch (_) {}
+          try { await m.createTable(wards); } catch (_) {}
+          try { await m.createTable(patientHospitalIdentifiers); } catch (_) {}
+          try { await m.createTable(investigationOrders); } catch (_) {}
+          try { await m.createTable(investigationResults); } catch (_) {}
+          try { await m.createTable(learnedCatalog); } catch (_) {}
+        }
+        if (from < 15) {
+          try { await m.addColumn(clinicalEncounters, clinicalEncounters.department); } catch (_) {}
+          try { await m.addColumn(clinicalEncounters, clinicalEncounters.wardName); } catch (_) {}
+          try { await m.addColumn(clinicalEncounters, clinicalEncounters.bedNumber); } catch (_) {}
+        }
+        if (from < 16) {
+          try { await m.createTable(problemProgressSnapshots); } catch (_) {}
+          try { await m.createTable(clinicalInterventions); } catch (_) {}
+          try { await m.createTable(clinicalOutcomeMetrics); } catch (_) {}
+          try { await m.createTable(prescriptionOrders); } catch (_) {}
+
+          try { await m.addColumn(clinicalEncounters, clinicalEncounters.clinicalDiagnosis); } catch (_) {}
+          try { await m.addColumn(clinicalEncounters, clinicalEncounters.icd11Code); } catch (_) {}
+          try { await m.addColumn(clinicalEncounters, clinicalEncounters.clinicalAssessment); } catch (_) {}
+          try { await m.addColumn(patientProblems, patientProblems.icd11Code); } catch (_) {}
+          try { await m.addColumn(patientProblems, patientProblems.currentStatus); } catch (_) {}
+          try { await m.addColumn(patientProblems, patientProblems.resolvedDate); } catch (_) {}
+          try { await m.addColumn(investigationOrders, investigationOrders.problemId); } catch (_) {}
+        }
       }
     },
     beforeOpen: (OpeningDetails details) async {
