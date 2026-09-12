@@ -17134,6 +17134,9 @@ abstract class _$AppDatabase extends GeneratedDatabase {
       result: [TableUpdate('imaging_studies', kind: UpdateKind.delete)],
     ),
   ]);
+  @override
+  DriftDatabaseOptions get options =>
+      const DriftDatabaseOptions(storeDateTimeAsText: true);
 }
 
 typedef $$PatientsTableCreateCompanionBuilder =

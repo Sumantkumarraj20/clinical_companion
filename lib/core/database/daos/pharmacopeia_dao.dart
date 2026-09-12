@@ -27,6 +27,7 @@ class PharmacopeiaDao extends DatabaseAccessor<AppDatabase>
           mode: OrderingMode.desc,
         ),
       ]);
+
     final term = query.trim();
     if (term.isNotEmpty) {
       final pattern = '%${term.replaceAll('%', '\\%')}%';
@@ -35,6 +36,7 @@ class PharmacopeiaDao extends DatabaseAccessor<AppDatabase>
             row.brandName.like(pattern) |
             row.genericName.like(pattern) |
             row.uses.like(pattern) |
+            row.category.like(pattern) |
             row.chemicalClass.like(pattern),
       );
     }
@@ -42,12 +44,10 @@ class PharmacopeiaDao extends DatabaseAccessor<AppDatabase>
     return statement.watch();
   }
 
-  Stream<List<Drug>> searchDrugs(String query) =>
-      searchDrugsPaged(query: query);
-
   Future<void> insertDrug(DrugsCompanion values) =>
       attachedDatabase.into(drugs).insert(values);
 
+  // Expose the update mechanism seamlessly
   Future<void> updateDrug(Drug value) => update(drugs).replace(value);
 
   Future<void> deleteDrug(Drug value) => delete(drugs).delete(value);
@@ -70,10 +70,12 @@ class PharmacopeiaDao extends DatabaseAccessor<AppDatabase>
   }) async {
     final name = (brand?.trim().isNotEmpty == true ? brand : generic)?.trim();
     if (name == null || name.isEmpty) return;
+
     final existing = await (select(
       drugs,
     )..where((row) => row.brandName.equals(name))).getSingleOrNull();
     final problems = problemNames.toSet().toList(growable: false);
+
     if (existing == null) {
       await insertDrug(
         DrugsCompanion.insert(
@@ -93,11 +95,13 @@ class PharmacopeiaDao extends DatabaseAccessor<AppDatabase>
       );
       return;
     }
+
     final oldProblems = jsonDecode(existing.associatedProblems);
     final merged = <String>{
       if (oldProblems is List) ...oldProblems.map((value) => value.toString()),
       ...problems,
     }.toList(growable: false);
+
     await updateDrug(
       existing.copyWith(
         usageFrequency: existing.usageFrequency + 1,

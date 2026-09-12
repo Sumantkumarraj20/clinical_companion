@@ -873,9 +873,11 @@ class ClinicalDao extends DatabaseAccessor<AppDatabase>
         p.procedure_name AS p_name,
         p.rate AS p_rate,
         p.specialty AS p_specialty,
+        i.id AS i_id,
         i.implant_code AS i_code,
         i.implant_name AS i_name,
         i.maximum_price AS i_price,
+        s.id AS s_id,
         s.stratification_code AS s_code,
         s.stratification_name AS s_name,
         s.rule AS s_rule
@@ -897,31 +899,41 @@ class ClinicalDao extends DatabaseAccessor<AppDatabase>
       final item = grouped.putIfAbsent(
         code,
         () => _HbpAccumulator(
-          procedureCode: code,
-          packageName: row.read<String>('p_package'),
-          procedureName: row.read<String>('p_name'),
-          specialty: row.read<String>('p_specialty'),
-          rate: row.readNullable<double>('p_rate'),
+          procedure: HbpProcedure(
+            procedureCode: code,
+            packageName: row.read<String>('p_package'),
+            procedureName: row.read<String>('p_name'),
+            specialty: row.read<String>('p_specialty'),
+            rate: row.readNullable<double>('p_rate'),
+          ),
         ),
       );
-      final implantCode = row.readNullable<String>('i_code');
-      if (implantCode != null && implantCode.isNotEmpty) {
+
+      final implantId = row.readNullable<int>('i_id');
+      if (implantId != null) {
+        final implantCode = row.read<String>('i_code');
         item.implants.putIfAbsent(
           implantCode,
-          () => HbpImplantDetail(
-            code: implantCode,
-            name: row.read<String>('i_name'),
+          () => HbpImplant(
+            id: implantId,
+            procedureCode: code,
+            implantCode: implantCode,
+            implantName: row.read<String>('i_name'),
             maximumPrice: row.readNullable<double>('i_price'),
           ),
         );
       }
-      final stratificationCode = row.readNullable<String>('s_code');
-      if (stratificationCode != null && stratificationCode.isNotEmpty) {
+
+      final stratId = row.readNullable<int>('s_id');
+      if (stratId != null) {
+        final stratCode = row.read<String>('s_code');
         item.stratifications.putIfAbsent(
-          stratificationCode,
-          () => HbpStratificationDetail(
-            code: stratificationCode,
-            name: row.read<String>('s_name'),
+          stratCode,
+          () => HbpStratification(
+            id: stratId,
+            procedureCode: code,
+            stratificationCode: stratCode,
+            stratificationName: row.read<String>('s_name'),
             rule: row.read<String>('s_rule'),
           ),
         );
@@ -930,9 +942,31 @@ class ClinicalDao extends DatabaseAccessor<AppDatabase>
     return [for (final item in grouped.values) item.toDetails()];
   }
 
+  Stream<List<HbpProcedure>> searchProcedures(String query) {
+    final term = query.trim();
+    final statement = select(hbpProcedures)..limit(100);
+
+    if (term.isNotEmpty) {
+      final pattern = '%${term.replaceAll('%', '\\%')}%';
+      statement.where(
+        (row) =>
+            row.procedureName.like(pattern) |
+            row.packageName.like(pattern) |
+            row.procedureCode.like(pattern) |
+            row.specialty.like(pattern),
+      );
+    }
+    return statement.watch();
+  }
+
+  Future<void> upsertProcedure(HbpProceduresCompanion companion) {
+    return into(hbpProcedures).insertOnConflictUpdate(companion);
+  }
+
   // =========================================================================
   // 9. OFFLINE SYNC QUEUE & REMOTE UPSERTS
   // =========================================================================
+
   Future<List<SyncQueueEntry>> pendingQueue({DateTime? now}) {
     final cutoff = now ?? DateTime.now().toUtc();
     return (select(offlineSyncQueue)
@@ -1276,7 +1310,7 @@ class ClinicalDao extends DatabaseAccessor<AppDatabase>
     });
   }
 
-// =========================================================================
+  // =========================================================================
   // 11. SMART LEARNED CATALOG & AUTOCOMPLETE
   // =========================================================================
 
@@ -1452,30 +1486,15 @@ class ClinicalDao extends DatabaseAccessor<AppDatabase>
 }
 
 class _HbpAccumulator {
-  _HbpAccumulator({
-    required this.procedureCode,
-    required this.packageName,
-    required this.procedureName,
-    required this.specialty,
-    required this.rate,
-  });
+  _HbpAccumulator({required this.procedure});
 
-  final String procedureCode;
-  final String packageName;
-  final String procedureName;
-  final String specialty;
-  final double? rate;
-  final implants = <String, HbpImplantDetail>{};
-  final stratifications = <String, HbpStratificationDetail>{};
+  final HbpProcedure procedure;
+  final implants = <String, HbpImplant>{};
+  final stratifications = <String, HbpStratification>{};
 
   HbpProcedureDetails toDetails() => HbpProcedureDetails(
-    procedureCode: procedureCode,
-    packageName: packageName,
-    procedureName: procedureName,
-    specialty: specialty,
-    rate: rate,
+    procedure: procedure,
     implants: implants.values.toList(growable: false),
     stratifications: stratifications.values.toList(growable: false),
   );
-  
 }
