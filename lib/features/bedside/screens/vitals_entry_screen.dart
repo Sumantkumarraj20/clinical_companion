@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
+import '../../../core/cds/decision_support_engine.dart';
 import '../../../core/database/local_database.dart';
 import '../../../core/providers/app_providers.dart';
 
@@ -39,8 +40,16 @@ class _VitalsEntryScreenState extends ConsumerState<VitalsEntryScreen> {
   void initState() {
     super.initState();
     _selectedPatientId = widget.preselectedPatientId;
-    _sbp.addListener(_updateMap);
-    _dbp.addListener(_updateMap);
+    _sbp.addListener(_onVitalsChanged);
+    _dbp.addListener(_onVitalsChanged);
+    _pulse.addListener(_onVitalsChanged);
+    _spo2.addListener(_onVitalsChanged);
+  }
+
+  void _onVitalsChanged() {
+    _updateMap();
+    // Rebuild so _VitalsLiveState snapshot + CDSS banners stay live.
+    if (mounted) setState(() {});
   }
 
   @override
@@ -58,11 +67,9 @@ class _VitalsEntryScreenState extends ConsumerState<VitalsEntryScreen> {
   void _updateMap() {
     final systolic = int.tryParse(_sbp.text);
     final diastolic = int.tryParse(_dbp.text);
-    setState(() {
-      _map = (systolic != null && diastolic != null)
-          ? (systolic + (2 * diastolic)) / 3
-          : null;
-    });
+    _map = (systolic != null && diastolic != null)
+        ? (systolic + (2 * diastolic)) / 3
+        : null;
   }
 
   double? _calculateNormalizedTemp() {
@@ -222,7 +229,11 @@ class _VitalsEntryScreenState extends ConsumerState<VitalsEntryScreen> {
             ),
         ],
       ),
-      body: Form(
+      body: _VitalsLiveState(
+        sbp: int.tryParse(_sbp.text),
+        pulse: int.tryParse(_pulse.text),
+        spo2: int.tryParse(_spo2.text),
+        child: Form(
         key: _formKey,
         child: ListView(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
@@ -270,6 +281,9 @@ class _VitalsEntryScreenState extends ConsumerState<VitalsEntryScreen> {
                 },
               ),
             const SizedBox(height: 20),
+
+            // CDSS live alerts — deterministic, one-tap order bundles.
+            const _CdssAlertBanners(),
 
             // Blood Pressure Row
             Row(
@@ -430,6 +444,11 @@ class _VitalsEntryScreenState extends ConsumerState<VitalsEntryScreen> {
             ),
             const SizedBox(height: 24),
 
+            // Orders & Plan — staged CDSS bundles, shared provider.
+            const _StagedOrdersSection(),
+
+            const SizedBox(height: 16),
+
             // Save Action Button
             SizedBox(
               height: 52,
@@ -456,6 +475,7 @@ class _VitalsEntryScreenState extends ConsumerState<VitalsEntryScreen> {
           ],
         ),
       ),
+      ),
     );
   }
 
@@ -471,6 +491,211 @@ class _VitalsEntryScreenState extends ConsumerState<VitalsEntryScreen> {
       inputFormatters: [FilteringTextInputFormatter.digitsOnly],
       decoration: InputDecoration(labelText: label, suffixText: suffix),
       validator: validator,
+    );
+  }
+}
+
+/// Live deterministic CDSS banners at the top of the vitals form.
+/// Watches the text controllers via a 300ms poll + onChanged rebuild;
+/// tapping a banner stages its suggested orders into [stagedOrdersProvider].
+class _CdssAlertBanners extends ConsumerStatefulWidget {
+  const _CdssAlertBanners();
+
+  @override
+  ConsumerState<_CdssAlertBanners> createState() => _CdssAlertBannersState();
+}
+
+class _CdssAlertBannersState extends ConsumerState<_CdssAlertBanners> {
+  @override
+  Widget build(BuildContext context) {
+    // Rebuild whenever staged orders change so "Added" state stays fresh.
+    ref.watch(stagedOrdersProvider);
+    final vitalsState = _VitalsLiveState.of(context);
+    final alerts = DecisionSupportEngine.evaluateVitals(
+      vitalsState?.sbp,
+      vitalsState?.pulse,
+      vitalsState?.spo2,
+    );
+    if (alerts.isEmpty) return const SizedBox.shrink();
+    return Column(
+      children: [
+        for (final alert in alerts)
+          _CdssBanner(alert: alert, vitalsState: vitalsState),
+        const SizedBox(height: 8),
+      ],
+    );
+  }
+}
+
+class _CdssBanner extends ConsumerWidget {
+  const _CdssBanner({required this.alert, this.vitalsState});
+  final CdssAlert alert;
+  final _VitalsLiveState? vitalsState;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final staged = ref.watch(stagedOrdersProvider);
+    final allStaged = alert.suggestedOrders.every(
+      (o) => staged.any(
+        (s) => s.label.trim().toLowerCase() == o.label.trim().toLowerCase(),
+      ),
+    );
+    return Card(
+      color: alert.severityColor.withValues(alpha: 0.12),
+      shape: RoundedRectangleBorder(
+        side: BorderSide(color: alert.severityColor, width: 1.2),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: allStaged
+            ? null
+            : () {
+                ref
+                    .read(stagedOrdersProvider.notifier)
+                    .addAllProposals(alert.suggestedOrders);
+                final names = alert.suggestedOrders.map((o) => o.label).join(', ');
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Staged: $names. Review in Orders & Plan.'),
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+              },
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(Icons.warning_amber_rounded, color: alert.severityColor),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      alert.title,
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: alert.severityColor,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(alert.description, style: const TextStyle(fontSize: 12)),
+                    if (alert.suggestedOrders.isNotEmpty) ...[
+                      const SizedBox(height: 6),
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 6,
+                        children: [
+                          for (final order in alert.suggestedOrders)
+                            Chip(
+                              label: Text(order.label),
+                              avatar: Icon(
+                                allStaged ? Icons.check : Icons.add,
+                                size: 16,
+                              ),
+                              visualDensity: VisualDensity.compact,
+                            ),
+                        ],
+                      ),
+                      Text(
+                        allStaged
+                            ? 'Added to Orders & Plan ✓ — tap individual chips in Orders section to remove.'
+                            : 'Tap banner to stage all (${alert.suggestedOrders.length}) → Orders & Plan.',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontStyle: FontStyle.italic,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Inherited live vitals snapshot so [_CdssAlertBanners] rebuilds on typing.
+class _VitalsLiveState extends InheritedWidget {
+  const _VitalsLiveState({
+    required this.sbp,
+    required this.pulse,
+    required this.spo2,
+    required super.child,
+  });
+
+  final int? sbp;
+  final int? pulse;
+  final int? spo2;
+
+  static _VitalsLiveState? of(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<_VitalsLiveState>();
+
+  @override
+  bool updateShouldNotify(_VitalsLiveState old) =>
+      sbp != old.sbp || pulse != old.pulse || spo2 != old.spo2;
+}
+
+/// Shared Orders & Plan section bound to [stagedOrdersProvider].
+class _StagedOrdersSection extends ConsumerWidget {
+  const _StagedOrdersSection();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final orders = ref.watch(stagedOrdersProvider);
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.playlist_add_check_outlined, size: 20),
+                const SizedBox(width: 8),
+                Text(
+                  'Orders & Plan (${orders.length})',
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const Spacer(),
+                if (orders.isNotEmpty)
+                  TextButton(
+                    onPressed: () =>
+                        ref.read(stagedOrdersProvider.notifier).clear(),
+                    child: const Text('Clear'),
+                  ),
+              ],
+            ),
+            if (orders.isEmpty)
+              const Text(
+                'No staged orders. CDSS banners above can stage bundles in one tap.',
+                style: TextStyle(fontSize: 12, color: Colors.grey),
+              )
+            else
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (var i = 0; i < orders.length; i++)
+                    InputChip(
+                      label: Text(orders[i].label),
+                      avatar: const Icon(Icons.medication_outlined, size: 16),
+                      onDeleted: () => ref
+                          .read(stagedOrdersProvider.notifier)
+                          .removeAt(i),
+                    ),
+                ],
+              ),
+          ],
+        ),
+      ),
     );
   }
 }

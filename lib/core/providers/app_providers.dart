@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../ai/document_ai_service.dart';
+import '../cds/decision_support_engine.dart';
 import '../config/app_configuration.dart';
 import '../database/daos/clinical_dao.dart';
 import '../database/daos/pharmacopeia_dao.dart';
@@ -116,11 +117,28 @@ class BatchExtractionNotifier extends Notifier<List<DocumentTask>> {
       _updateTask(task.id, status: ExtractionStatus.processingOcr);
 
       try {
-        final data = await pipeline.processDocument(task.originalFile);
+        // Peek raw OCR text first so we can record whether AI fallback
+        // was even needed.
+        final rawText = await pipeline.recognizeRawText(task.originalFile);
+        final needsAi = rawText.trim().length < 50;
+        if (needsAi) {
+          _updateTask(
+            task.id,
+            status: ExtractionStatus.processingAiFallback,
+            rawOcrText: rawText,
+          );
+        } else {
+          _updateTask(task.id, rawOcrText: rawText);
+        }
+
+        final extraction =
+            await pipeline.processDocumentWithProvenance(task.originalFile);
         _updateTask(
           task.id,
           status: ExtractionStatus.readyForReview,
-          data: data,
+          data: extraction.result,
+          source: extraction.taskSource,
+          rawOcrText: rawText,
         );
       } catch (e) {
         _updateTask(task.id, status: ExtractionStatus.error);
@@ -130,13 +148,20 @@ class BatchExtractionNotifier extends Notifier<List<DocumentTask>> {
 
   void _updateTask(
     String id, {
-    required ExtractionStatus status,
+    ExtractionStatus? status,
     AiExtractionResult? data,
+    ExtractionSource? source,
+    String? rawOcrText,
   }) {
     state = [
       for (final task in state)
         if (task.id == id)
-          task.copyWith(status: status, extractedData: data)
+          task.copyWith(
+            status: status ?? task.status,
+            extractedData: data ?? task.extractedData,
+            source: source ?? task.source,
+            rawOcrText: rawOcrText ?? task.rawOcrText,
+          )
         else
           task,
     ];
@@ -144,6 +169,111 @@ class BatchExtractionNotifier extends Notifier<List<DocumentTask>> {
 
   void removeTask(String id) {
     state = state.where((task) => task.id != id).toList();
+  }
+}
+
+// ==========================================
+// STAGED ORDERS (CDSS one-tap order bundles)
+// ==========================================
+
+/// A staged order waiting to be committed to the encounter plan.
+/// Deduplicated by [label] (case-insensitive) inside the notifier.
+class PendingOrder {
+  const PendingOrder({
+    required this.label,
+    this.kind = OrderProposalKind.lab,
+    this.details,
+    this.source = 'cdss',
+  });
+
+  final String label;
+  final OrderProposalKind kind;
+  final String? details;
+  final String source;
+
+  PendingOrder copyWith({
+    String? label,
+    OrderProposalKind? kind,
+    String? details,
+    String? source,
+  }) => PendingOrder(
+    label: label ?? this.label,
+    kind: kind ?? this.kind,
+    details: details ?? this.details,
+    source: source ?? this.source,
+  );
+}
+
+final stagedOrdersProvider =
+    NotifierProvider<StagedOrdersNotifier, List<PendingOrder>>(
+      StagedOrdersNotifier.new,
+    );
+
+class StagedOrdersNotifier extends Notifier<List<PendingOrder>> {
+  @override
+  List<PendingOrder> build() => const [];
+
+  bool _same(String a, String b) =>
+      a.trim().toLowerCase() == b.trim().toLowerCase();
+
+  void addProposal(OrderProposal proposal, {String source = 'cdss'}) {
+    if (state.any((o) => _same(o.label, proposal.label))) return;
+    state = [
+      ...state,
+      PendingOrder(
+        label: proposal.label,
+        kind: proposal.kind,
+        details: proposal.details,
+        source: source,
+      ),
+    ];
+  }
+
+  void addAllProposals(
+    List<OrderProposal> proposals, {
+    String source = 'cdss',
+  }) {
+    final existing = state.map((o) => o.label.trim().toLowerCase()).toSet();
+    final fresh = <PendingOrder>[];
+    for (final p in proposals) {
+      if (existing.add(p.label.trim().toLowerCase())) {
+        fresh.add(
+          PendingOrder(
+            label: p.label,
+            kind: p.kind,
+            details: p.details,
+            source: source,
+          ),
+        );
+      }
+    }
+    if (fresh.isNotEmpty) state = [...state, ...fresh];
+  }
+
+  void addManual(String label, {String source = 'manual'}) {
+    final term = label.trim();
+    if (term.isEmpty || state.any((o) => _same(o.label, term))) return;
+    state = [...state, PendingOrder(label: term, source: source)];
+  }
+
+  void removeAt(int index) {
+    if (index < 0 || index >= state.length) return;
+    state = [...state..removeAt(index)];
+  }
+
+  void removeByLabel(String label) {
+    state = state.where((o) => !_same(o.label, label)).toList();
+  }
+
+  void clear() => state = const [];
+
+  /// Persist staged terms into the self-learning catalog so the next
+  /// 2-letter search surfaces frequent items instantly.
+  Future<void> finalizeOrders({String category = 'medication'}) async {
+    final dao = ref.read(clinicalDaoProvider);
+    for (final order in state) {
+      await dao.recordCatalogUsage(category: category, term: order.label);
+    }
   }
 }
 

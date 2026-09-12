@@ -13,6 +13,7 @@ import '../../../core/ai/document_ai_service.dart';
 import '../../../core/database/local_database.dart';
 import '../../../core/providers/app_providers.dart';
 import '../../../core/services/clinical_reconciliation_service.dart';
+import '../../../core/services/extraction_pipeline_service.dart';
 
 class AdaptiveReviewScreen extends ConsumerStatefulWidget {
   const AdaptiveReviewScreen({required this.patient, super.key});
@@ -35,6 +36,7 @@ class _AdaptiveReviewScreenState extends ConsumerState<AdaptiveReviewScreen> {
   File? _image;
   bool _busy = false;
   bool _committing = false;
+  PipelineSource? _pipelineSource;
 
   @override
   void dispose() {
@@ -54,11 +56,28 @@ class _AdaptiveReviewScreenState extends ConsumerState<AdaptiveReviewScreen> {
   Future<void> _extract() async {
     final image = _image;
     if (image == null) return;
-    setState(() => _busy = true);
+    setState(() {
+      _busy = true;
+      _pipelineSource = null;
+    });
     try {
+      // Hybrid probe: free on-device OCR+regex first (no Gemini call here).
+      // Tells the reviewer whether the local path would have handled this
+      // document, then the category model below runs as usual for structured
+      // observations.
+      final pipeline = ref.read(extractionPipelineProvider);
+      try {
+        final localOnly = await pipeline.tryLocalOnly(image);
+        _pipelineSource =
+            localOnly != null ? PipelineSource.local : PipelineSource.ai;
+      } catch (_) {
+        _pipelineSource = PipelineSource.ai;
+      }
+
       final data = await DocumentAiService(
         apiKey: ref.read(appConfigurationProvider).geminiApiKey,
       ).extractClinicalDocument(image: image, category: _category);
+      _pipelineSource ??= PipelineSource.ai;
       _extractedData = data;
       _rawText.text = data['raw_ocr_transcript']?.toString() ?? '';
       _observations.text = const JsonEncoder.withIndent('  ').convert(data['observations'] ?? data);
@@ -160,6 +179,51 @@ class _AdaptiveReviewScreenState extends ConsumerState<AdaptiveReviewScreen> {
         : null,
   );
 
+  Widget _provenanceBanner() {
+    final source = _pipelineSource;
+    if (_extractedData.isEmpty || source == null) {
+      return const SizedBox.shrink();
+    }
+    final isLocal = source == PipelineSource.local;
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: isLocal
+            ? Colors.green.shade50
+            : Colors.purple.shade50,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isLocal ? Colors.green.shade700 : Colors.purple.shade700,
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            isLocal ? Icons.offline_bolt_outlined : Icons.auto_awesome_outlined,
+            color: isLocal ? Colors.green.shade800 : Colors.purple.shade800,
+            semanticLabel: isLocal
+                ? 'Locally extracted badge'
+                : 'AI extracted badge',
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              isLocal
+                  ? 'Locally Extracted (Free) — on-device OCR matched labs/demographics, no AI call needed.'
+                  : 'AI Extracted — escalated to Gemini after local OCR was insufficient.',
+              style: TextStyle(
+                color: isLocal ? Colors.green.shade900 : Colors.purple.shade900,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final imagePane = _image == null
@@ -170,6 +234,7 @@ class _AdaptiveReviewScreenState extends ConsumerState<AdaptiveReviewScreen> {
       children: [
         Text('Structured review', style: Theme.of(context).textTheme.titleLarge),
         const SizedBox(height: 12),
+        _provenanceBanner(),
         if (_category == ClinicalDocumentCategory.microbiologyCulture) ...[
           TextField(controller: _sampleType, decoration: _field('Sample type', required: true)),
           const SizedBox(height: 12),

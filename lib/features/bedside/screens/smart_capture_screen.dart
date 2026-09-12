@@ -5,7 +5,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../../core/ai/document_ai_service.dart';
+import '../../../core/models/document_task.dart';
 import '../../../core/providers/app_providers.dart';
+import '../../../core/services/extraction_pipeline_service.dart';
 import 'extraction_review_screen.dart';
 
 class SmartCaptureScreen extends ConsumerStatefulWidget {
@@ -41,26 +43,30 @@ class _SmartCaptureScreenState extends ConsumerState<SmartCaptureScreen> {
     setState(() => _processing = true);
 
     try {
-      final apiKey = ref.read(appConfigurationProvider).geminiApiKey;
-      if (apiKey.trim().isEmpty) {
-        throw const DocumentAiException(
-          'Gemini API key is missing. Open Configuration and add it before scanning.',
-        );
-      }
+      final pipeline = ref.read(extractionPipelineProvider);
+      PipelineExtraction extraction;
 
-      final result = await DocumentAiService(apiKey: apiKey).extractDocument(
-        image: image,
-        prompt:
-            'Extract patient identifier, location, document type, vitals, clinical summary, and full raw text from this clinical document.',
-      );
+      // Free path first: tryLocalOnly inside the pipeline handles API-less
+      // documents; processDocumentWithProvenance escalates to Gemini only
+      // when local regex is inadequate.
+      extraction = await pipeline.processDocumentWithProvenance(image);
 
       if (!mounted) return;
 
-      // Auto-navigate to Review Screen upon successful AI extraction
+      final source = extraction.taskSource;
+      final result = extraction.result;
+
+      // Auto-navigate to Review Screen, preserving extraction provenance so
+      // the banner can show "Locally Extracted (Free)" vs "AI Extracted".
       await Navigator.of(context).pushReplacement(
         MaterialPageRoute<void>(
-          builder: (_) =>
-              ExtractionReviewScreen(extraction: result, imagePath: image.path),
+          builder: (_) => ExtractionReviewScreen(
+            extraction: result,
+            imagePath: image.path,
+            source: source == ExtractionSource.local
+                ? ExtractionSource.local
+                : ExtractionSource.ai,
+          ),
         ),
       );
     } catch (error) {

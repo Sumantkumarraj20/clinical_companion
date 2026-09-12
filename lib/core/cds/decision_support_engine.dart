@@ -1,3 +1,5 @@
+import 'package:flutter/material.dart';
+
 import '../database/daos/clinical_dao.dart';
 import '../database/daos/cdss_dao.dart';
 
@@ -25,6 +27,37 @@ class DecisionSuggestion {
   final String evidenceLevel;
 }
 
+/// A medication/lab order proposed by the deterministic CDSS engine.
+/// Tapping a banner stages these into [stagedOrdersProvider].
+class OrderProposal {
+  const OrderProposal({
+    required this.label,
+    this.kind = OrderProposalKind.lab,
+    this.details,
+  });
+
+  final String label;
+  final OrderProposalKind kind;
+  final String? details;
+}
+
+enum OrderProposalKind { medication, lab, procedure, oxygen, fluids }
+
+/// Actionable banner surfaced by [DecisionSupportEngine.evaluateVitals].
+class CdssAlert {
+  const CdssAlert({
+    required this.title,
+    required this.description,
+    required this.severityColor,
+    this.suggestedOrders = const [],
+  });
+
+  final String title;
+  final String description;
+  final Color severityColor;
+  final List<OrderProposal> suggestedOrders;
+}
+
 class DecisionSupportEngine {
   DecisionSupportEngine(this.dao, this.rulesDao);
   final ClinicalDao dao;
@@ -41,6 +74,75 @@ class DecisionSupportEngine {
       evidenceLevel: 'Baseline guidance; clinician verification required',
     ),
   ];
+
+  /// Deterministic vitals evaluation — pure function, no I/O.
+  ///
+  /// * Shock Index: `pulse / sbp > 1.0` → "High Shock Index (>1.0)".
+  /// * Hypoxia: `spo2 < 92` → "Hypoxia detected".
+  /// * Hypotension (qSOFA proxy): `sbp < 100`.
+  static List<CdssAlert> evaluateVitals(int? sbp, int? pulse, int? spo2) {
+    final alerts = <CdssAlert>[];
+
+    if (pulse != null && sbp != null && sbp > 0) {
+      final shockIndex = pulse / sbp;
+      if (shockIndex > 1.0) {
+        alerts.add(
+          CdssAlert(
+            title: 'High Shock Index (>1.0)',
+            description:
+                'Shock index ${shockIndex.toStringAsFixed(2)} (HR $pulse / SBP $sbp). Consider occult shock — assess perfusion, lactate, and fluid responsiveness.',
+            severityColor: Colors.red,
+            suggestedOrders: const [
+              OrderProposal(
+                label: 'IV Fluid Bolus',
+                kind: OrderProposalKind.fluids,
+                details: 'e.g. 500 mL NS/RL stat, reassess',
+              ),
+              OrderProposal(
+                label: 'Serum Lactate',
+                kind: OrderProposalKind.lab,
+              ),
+            ],
+          ),
+        );
+      }
+    }
+
+    if (spo2 != null && spo2 < 92) {
+      alerts.add(
+        CdssAlert(
+          title: 'Hypoxia detected',
+          description:
+              'SpO2 $spo2% is below 92%. Evaluate airway, breathing, and circulation; confirm probe placement.',
+          severityColor: Colors.deepOrange,
+          suggestedOrders: const [
+            OrderProposal(
+              label: 'Start O2 therapy',
+              kind: OrderProposalKind.oxygen,
+              details: 'Titrate to SpO2 ≥ 94%',
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (sbp != null && sbp < 100) {
+      alerts.add(
+        const CdssAlert(
+          title: 'Hypotension (qSOFA criteria)',
+          description:
+              'SBP < 100 mmHg meets the hypotension arm of qSOFA. Screen for infection + organ dysfunction (GCS, RR) and trend vitals.',
+          severityColor: Colors.amber,
+          suggestedOrders: [
+            OrderProposal(label: 'Repeat BP in 15 min', kind: OrderProposalKind.lab),
+            OrderProposal(label: 'Serum Lactate', kind: OrderProposalKind.lab),
+          ],
+        ),
+      );
+    }
+
+    return alerts;
+  }
 
   Future<List<DecisionSuggestion>> generateSuggestions(String problemId) async {
     final problem = await dao.getPatientProblem(problemId);

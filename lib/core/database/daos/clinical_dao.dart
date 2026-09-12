@@ -605,6 +605,122 @@ class ClinicalDao extends DatabaseAccessor<AppDatabase>
             ]))
           .watch();
 
+  /// All currently active prescription orders for a patient (continuous
+  /// orders review in IPD mode). Ordered newest-first.
+  /// Uses [PrescriptionOrders.isActive] since that table has no status col.
+  Stream<List<PrescriptionOrder>> watchActivePrescriptions(String patientId) =>
+      (select(prescriptionOrders)
+            ..where(
+              (row) =>
+                  row.patientId.equals(patientId) & row.isActive.equals(true),
+            )
+            ..orderBy([
+              (row) => OrderingTerm(
+                expression: row.orderedAt,
+                mode: OrderingMode.desc,
+              ),
+            ]))
+          .watch();
+
+  /// Mark a problem Resolved / Active from the IPD problem list.
+  /// Writes via Drift companion (no raw SQL) and enqueues a sync update.
+  /// Note: [PatientProblem] carries no ownerId — falls back to DAO default.
+  Future<void> setProblemStatus({
+    required String problemId,
+    required bool resolved,
+  }) async {
+    final existing = await getPatientProblem(problemId);
+    if (existing == null) return;
+    final now = DateTime.now().toUtc();
+    await (update(patientProblems)
+          ..where((row) => row.id.equals(problemId)))
+        .write(
+          PatientProblemsCompanion(
+            currentStatus: Value(resolved ? 'Resolved' : 'Active'),
+            resolvedDate: Value(resolved ? now : null),
+            updatedAt: Value(now),
+          ),
+        );
+    await _enqueue(
+      ownerId: defaultOwnerId,
+      entityType: 'patient_problems',
+      entityId: problemId,
+      operation: 'update',
+      payload: {
+        'id': problemId,
+        'current_status': resolved ? 'Resolved' : 'Active',
+        'resolved_date': resolved ? now.toIso8601String() : null,
+        'updated_at': now.toIso8601String(),
+      },
+      clientUpdatedAt: now,
+    );
+  }
+
+  /// Create a new active problem for [patientId] and return its id.
+  Future<String> addPatientProblem({
+    required String patientId,
+    required String problemName,
+    String? encounterId,
+    DateTime? onsetDate,
+  }) async {
+    final name = problemName.trim();
+    if (name.isEmpty) throw ArgumentError('problemName must not be empty');
+    final existingOwner = await (select(
+      patients,
+    )..where((row) => row.id.equals(patientId))).getSingleOrNull();
+    final ownerId = existingOwner?.ownerId ?? defaultOwnerId;
+    final now = DateTime.now().toUtc();
+    final id = _ids.v4();
+    await into(patientProblems).insert(
+      PatientProblemsCompanion.insert(
+        id: Value(id),
+        patientId: patientId,
+        initialEncounterId: Value(encounterId),
+        problemName: name,
+        currentStatus: const Value('Active'),
+        onsetDate: Value(onsetDate ?? now),
+      ),
+    );
+    await _enqueue(
+      ownerId: ownerId,
+      entityType: 'patient_problems',
+      entityId: id,
+      operation: 'insert',
+      payload: {
+        'id': id,
+        'patient_id': patientId,
+        'problem_name': name,
+        'current_status': 'Active',
+        'onset_date': (onsetDate ?? now).toIso8601String(),
+      },
+      clientUpdatedAt: now,
+    );
+    return id;
+  }
+
+  /// Stop / discontinue a continuous medication order (IPD review).
+  /// Uses [PrescriptionOrders.isActive] as the stop flag.
+  Future<void> stopPrescriptionOrder(String orderId) async {
+    final existing = await (select(
+      prescriptionOrders,
+    )..where((row) => row.id.equals(orderId))).getSingleOrNull();
+    if (existing == null) return;
+    final now = DateTime.now().toUtc();
+    await (update(prescriptionOrders)
+          ..where((row) => row.id.equals(orderId)))
+        .write(
+          const PrescriptionOrdersCompanion(isActive: Value(false)),
+        );
+    await _enqueue(
+      ownerId: defaultOwnerId,
+      entityType: 'prescription_orders',
+      entityId: orderId,
+      operation: 'update',
+      payload: {'id': orderId, 'is_active': false},
+      clientUpdatedAt: now,
+    );
+  }
+
   Future<PatientProblem> insertPatientProblem(
     PatientProblemsCompanion values,
   ) async {
@@ -1464,8 +1580,63 @@ class ClinicalDao extends DatabaseAccessor<AppDatabase>
     'updated_at': row.updatedAt.toIso8601String(),
   };
 
-  DateTime? _date(Object? value) =>
-      value == null ? null : DateTime.tryParse(value.toString())?.toUtc();
+  DateTime? _date(Object? value) {
+    if (value == null) return null;
+    if (value is DateTime) return value.toUtc();
+    if (value is int) return _fromEpochValue(value.toDouble());
+    if (value is double) return _fromEpochValue(value);
+    if (value is num) return _fromEpochValue(value.toDouble());
+    if (value is String) {
+      var trimmed = value.trim();
+      if (trimmed.isEmpty) return null;
+      if (trimmed.length >= 2 &&
+          ((trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+              (trimmed.startsWith("'") && trimmed.endsWith("'")))) {
+        trimmed = trimmed.substring(1, trimmed.length - 1).trim();
+        if (trimmed.isEmpty) return null;
+      }
+      // Handle "1789216146Z": strip a trailing Z/z when the remainder is
+      // purely numeric, then treat it as a unix timestamp.
+      var candidate = trimmed;
+      if ((candidate.endsWith('Z') || candidate.endsWith('z')) &&
+          candidate.length > 1) {
+        final stripped = candidate.substring(0, candidate.length - 1).trim();
+        if (RegExp(r'^-?\d+(\.\d+)?$').hasMatch(stripped)) {
+          candidate = stripped;
+        }
+      }
+      // Pure integer timestamp (seconds or milliseconds).
+      final asInt = int.tryParse(candidate);
+      if (asInt != null) return _fromEpochValue(asInt.toDouble());
+      // Floating timestamp.
+      final asDouble = double.tryParse(candidate);
+      if (asDouble != null &&
+          RegExp(r'^-?\d+\.\d+$').hasMatch(candidate)) {
+        return _fromEpochValue(asDouble);
+      }
+      // Standard ISO8601 (try original first so offsets/zones are preserved).
+      return DateTime.tryParse(trimmed)?.toUtc() ??
+          DateTime.tryParse(candidate)?.toUtc();
+    }
+    return DateTime.tryParse(value.toString())?.toUtc();
+  }
+
+  DateTime _fromEpochValue(double val) {
+    final abs = val.abs();
+    if (abs >= 1e14) {
+      // Microseconds (current epoch micros ~1.7e15).
+      return DateTime.fromMicrosecondsSinceEpoch(val.toInt(), isUtc: true);
+    }
+    if (abs >= 1e11) {
+      // Milliseconds (current epoch millis ~1.7e12).
+      return DateTime.fromMillisecondsSinceEpoch(val.toInt(), isUtc: true);
+    }
+    // Seconds (current epoch seconds ~1.7e9).
+    return DateTime.fromMillisecondsSinceEpoch(
+      (val * 1000).toInt(),
+      isUtc: true,
+    );
+  }
 
   Object _decodedOrEmpty(String value) {
     try {

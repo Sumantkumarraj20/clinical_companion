@@ -7,17 +7,22 @@ import 'package:photo_view/photo_view.dart';
 import '../../../core/database/local_database.dart';
 import '../../../core/database/services/identity_resolution_service.dart';
 import '../../../core/models/ai_extraction_result.dart';
+import '../../../core/models/document_task.dart';
 import '../../../core/providers/app_providers.dart';
 
 class ExtractionReviewScreen extends ConsumerStatefulWidget {
   const ExtractionReviewScreen({
     required this.extraction,
     required this.imagePath,
+    this.source = ExtractionSource.unknown,
+    this.rawOcrText,
     super.key,
   });
 
   final AiExtractionResult extraction;
   final String imagePath;
+  final ExtractionSource source;
+  final String? rawOcrText;
 
   @override
   ConsumerState<ExtractionReviewScreen> createState() =>
@@ -267,7 +272,11 @@ class _ExtractionReviewScreenState
         ),
       ),
       body: SafeArea(
-        child: LayoutBuilder(
+        child: Column(
+          children: [
+            _ExtractionSourceBanner(source: widget.source),
+            Expanded(
+              child: LayoutBuilder(
           builder: (context, constraints) {
             final isDesktop = constraints.maxWidth >= 900;
 
@@ -627,6 +636,9 @@ class _ExtractionReviewScreenState
               );
             }
           },
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -791,6 +803,61 @@ class _ExtractionReviewScreenState
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _ExtractionSourceBanner extends StatelessWidget {
+  const _ExtractionSourceBanner({required this.source});
+
+  final ExtractionSource source;
+
+  @override
+  Widget build(BuildContext context) {
+    final (label, icon, bg, fg, border) = switch (source) {
+      ExtractionSource.local => (
+          'Locally Extracted (Free) — on-device OCR matched labs/demographics.',
+          Icons.offline_bolt_outlined,
+          Colors.green.shade50,
+          Colors.green.shade900,
+          Colors.green.shade700,
+        ),
+      ExtractionSource.ai => (
+          'AI Extracted — escalated to Gemini after local OCR was insufficient.',
+          Icons.auto_awesome_outlined,
+          Colors.purple.shade50,
+          Colors.purple.shade900,
+          Colors.purple.shade700,
+        ),
+      ExtractionSource.unknown => (
+          'Extraction source unknown — verify fields before saving.',
+          Icons.help_outline,
+          Colors.grey.shade200,
+          Colors.grey.shade800,
+          Colors.grey.shade500,
+        ),
+    };
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: border),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: fg, semanticLabel: 'Extraction source badge'),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              label,
+              style: TextStyle(color: fg, fontWeight: FontWeight.w600),
+            ),
+          ),
+        ],
       ),
     );
   }

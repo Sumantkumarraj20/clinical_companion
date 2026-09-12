@@ -9,6 +9,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../database/daos/clinical_dao.dart';
 import '../database/local_database.dart';
 
+import '../utils/datetime_utils.dart';
+
 enum SyncStatus { idle, syncing, offline, error }
 
 /// Coordinates the local outbox with Supabase without ever making a UI write
@@ -120,9 +122,7 @@ class SyncService {
         final problemName =
             json['problem_name'] as String? ?? 'Clinical Finding';
         final status = json['current_status'] as String? ?? 'Active';
-        final onset = json['onset_date'] != null
-            ? DateTime.tryParse(json['onset_date'].toString())
-            : null;
+        final onset = DateTimeUtils.parseToUtc(json['onset_date']);
 
         await _dao
             .into(_dao.patientProblems)
@@ -190,9 +190,7 @@ class SyncService {
                 procedureName: Value(procName),
                 interventionRole: Value(role),
                 performedAt: Value(
-                  DateTime.tryParse(
-                        json['performed_at']?.toString() ?? '',
-                      )?.toUtc() ??
+                  DateTimeUtils.parseToUtc(json['performed_at']) ??
                       syncStartedAt,
                 ),
               ),
@@ -221,9 +219,7 @@ class SyncService {
                 metricName: Value(metricName),
                 metricValue: Value(numVal), // Updated to metricValue
                 measuredAt: Value(
-                  DateTime.tryParse(
-                        json['measured_at']?.toString() ?? '',
-                      )?.toUtc() ??
+                  DateTimeUtils.parseToUtc(json['measured_at']) ??
                       syncStartedAt,
                 ),
               ),
@@ -253,9 +249,7 @@ class SyncService {
                 frequency: Value(json['frequency'] as String?),
                 route: Value(json['route'] as String?),
                 orderedAt: Value(
-                  DateTime.tryParse(
-                        json['ordered_at']?.toString() ?? '',
-                      )?.toUtc() ??
+                  DateTimeUtils.parseToUtc(json['ordered_at']) ??
                       syncStartedAt,
                 ),
               ),
@@ -295,9 +289,7 @@ class SyncService {
                 unit: Value(json['unit'] as String?),
                 isAbnormal: Value(json['is_abnormal'] as bool? ?? false),
                 resultDate: Value(
-                  DateTime.tryParse(
-                        json['result_date']?.toString() ?? '',
-                      )?.toUtc() ??
+                  DateTimeUtils.parseToUtc(json['result_date']) ??
                       syncStartedAt,
                 ),
               ),

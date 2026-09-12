@@ -6,6 +6,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/database/local_database.dart';
 import '../../../core/models/department_templates.dart';
 import '../../../core/providers/app_providers.dart';
+import 'encounter_ipd_extra.dart';
+import 'encounter_ipd_sections.dart';
+import 'encounter_opd_sections.dart';
+import 'encounter_orders_section.dart';
+import 'encounter_sections.dart' show EncounterCdssBanners;
 
 class DynamicEncounterScreen extends ConsumerStatefulWidget {
   const DynamicEncounterScreen({required this.patient, super.key});
@@ -35,9 +40,30 @@ class _DynamicEncounterScreenState
   final _wardName = TextEditingController();
   final _bedNumber = TextEditingController();
 
+  // OPD history section controllers (medically rigorous, nullable-safe).
+  final _hpi = TextEditingController();
+  final _pastMedical = TextEditingController();
+  final _pastSurgical = TextEditingController();
+  final _personalHistory = TextEditingController();
+  final _socialHistory = TextEditingController();
+  final _birthHistory = TextEditingController();
+  final _milestones = TextEditingController();
+  final _vaccination = TextEditingController();
+  final _gplaa = TextEditingController();
+  final _lmp = TextEditingController();
+  final _menstrualHistory = TextEditingController();
+  final _examination = TextEditingController();
+
+  // IPD controllers.
+  final _newProblemName = TextEditingController();
+  final _stagedManual = TextEditingController();
+  final _procedureSearch = TextEditingController();
+  final _medicationSearch = TextEditingController();
+
+  bool _isOpdMode = true;
+
   // POMR Problem Trajectory Controllers
   String? _selectedProblemId;
-  final _newProblemName = TextEditingController();
   String _problemTrajectoryStatus = 'Improving';
   final _problemCourseNote = TextEditingController();
 
@@ -89,7 +115,22 @@ class _DynamicEncounterScreenState
       _departmentText,
       _wardName,
       _bedNumber,
+      _hpi,
+      _pastMedical,
+      _pastSurgical,
+      _personalHistory,
+      _socialHistory,
+      _birthHistory,
+      _milestones,
+      _vaccination,
+      _gplaa,
+      _lmp,
+      _menstrualHistory,
+      _examination,
       _newProblemName,
+      _stagedManual,
+      _procedureSearch,
+      _medicationSearch,
       _problemCourseNote,
       _drainOutput,
       _postOpDay,
@@ -116,9 +157,18 @@ class _DynamicEncounterScreenState
   void _calculateMap() {
     final sbp = int.tryParse(_sbp.text);
     final dbp = int.tryParse(_dbp.text);
-    setState(
-      () => _map = sbp != null && dbp != null ? (sbp + (2 * dbp)) / 3 : null,
-    );
+    _map = sbp != null && dbp != null ? (sbp + (2 * dbp)) / 3 : null;
+    if (mounted) setState(() {});
+  }
+
+  String? _clean(String value) {
+    final trimmed = value.trim();
+    return trimmed.isEmpty ? null : trimmed;
+  }
+
+  String _orNotRecorded(String? value) {
+    final trimmed = (value ?? '').trim();
+    return trimmed.isEmpty ? 'Not recorded' : trimmed;
   }
 
   Future<void> _save() async {
@@ -142,19 +192,14 @@ class _DynamicEncounterScreenState
 
       String? activeProbId = _selectedProblemId;
 
-      // Handle new problem addition
+      // New problems go through the DAO (Drift companion + sync enqueue).
       if (_newProblemName.text.trim().isNotEmpty) {
-        final newId = DateTime.now().millisecondsSinceEpoch.toString();
-        activeProbId = newId;
-        newProblems.add(
-          PatientProblemsCompanion.insert(
-            id: Value(newId),
-            patientId: widget.patient.id,
-            problemName: _newProblemName.text.trim(),
-            currentStatus: Value(_problemTrajectoryStatus),
-            onsetDate: Value(now),
-          ),
+        final newId = await dao.addPatientProblem(
+          patientId: widget.patient.id,
+          problemName: _newProblemName.text.trim(),
+          onsetDate: now,
         );
+        activeProbId = newId;
       }
 
       // Handle Problem Evolution Snapshot
@@ -175,17 +220,17 @@ class _DynamicEncounterScreenState
         );
       }
 
-      // Build Encounter Entity
+      // Build Encounter Entity — OPD vs IPD shapes the stored type.
       final encounter = ClinicalEncountersCompanion.insert(
         ownerId: ownerId,
         patientId: widget.patient.id,
-        encounterType: Value(_encounterType),
+        encounterType: Value(_isOpdMode ? 'OPD Consult' : 'IPD Bedside Note'),
         occurredAt: Value(now),
         department: Value(_clean(_departmentText.text)),
         wardName: Value(_clean(_wardName.text)),
         bedNumber: Value(_clean(_bedNumber.text)),
         clinicalDiagnosis: Value(_clean(_diagnosis.text)),
-        disposition: Value(_disposition),
+        disposition: Value(_isOpdMode ? 'OPD' : _disposition),
         sbp: Value(sbpVal),
         dbp: Value(dbpVal),
         pulse: Value(pulseVal),
@@ -193,9 +238,26 @@ class _DynamicEncounterScreenState
         temperatureC: Value(tempVal),
         meanArterialPressure: Value(_map),
         chiefComplaints: Value(_clean(_complaint.text)),
+        historyOfPresentIllness: Value(_clean(_hpi.text)),
+        pastHistory: Value(
+          [_clean(_pastMedical.text), _clean(_pastSurgical.text)]
+              .whereType<String>()
+              .join(' | '),
+        ),
+        personalAndSocialHistory: Value(
+          [_clean(_personalHistory.text), _clean(_socialHistory.text)]
+              .whereType<String>()
+              .join(' | '),
+        ),
+        examinationFindings: Value(
+          _isOpdMode ? _clean(_examination.text) : null,
+        ),
         clinicalAssessment: Value(_clean(_assessment.text)),
         consultantAdvice: Value(_clean(_advice.text)),
-        dynamicData: Value(dynamicData),
+        dynamicData: Value({
+          ...dynamicData,
+          'encounter_mode': _isOpdMode ? 'OPD' : 'IPD',
+        }),
       );
 
       // Save via atomic POMR helper
@@ -205,6 +267,13 @@ class _DynamicEncounterScreenState
         progressSnapshots: snapshots,
         interventions: interventions,
       );
+
+      // Self-learning: persist staged terms, then clear the tray.
+      final staged = ref.read(stagedOrdersProvider);
+      if (staged.isNotEmpty) {
+        await ref.read(stagedOrdersProvider.notifier).finalizeOrders();
+        ref.read(stagedOrdersProvider.notifier).clear();
+      }
 
       if (mounted) {
         _toast(
@@ -221,6 +290,8 @@ class _DynamicEncounterScreenState
   }
 
   ClinicalTemplate _buildTemplate() {
+    // Null-safe display helper shared by template builders.
+    String safe(String? v) => _orNotRecorded(v);
     switch (_departmentText.text.trim().toLowerCase()) {
       case 'medicine':
         return MedicineTemplate(
@@ -262,7 +333,7 @@ class _DynamicEncounterScreenState
         );
       default:
         return GenericClinicalTemplate(
-          values: {'notes': _assessment.text.trim()},
+          values: {'notes': safe(_assessment.text)},
         );
     }
   }
@@ -274,8 +345,6 @@ class _DynamicEncounterScreenState
           backgroundColor: isError ? Colors.red : Colors.green,
         ),
       );
-
-  String? _clean(String val) => val.trim().isEmpty ? null : val.trim();
 
   @override
   Widget build(BuildContext context) {
@@ -293,7 +362,59 @@ class _DynamicEncounterScreenState
           children: [
             // 1. LOCKED PATIENT IDENTIFIER HEADER
             _PatientBanner(patient: widget.patient),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
+            // OPD | IPD toggle.
+            SegmentedButton<bool>(
+              segments: const [
+                ButtonSegment(
+                  value: true,
+                  label: Text('OPD Consult'),
+                  icon: Icon(Icons.storefront_outlined),
+                ),
+                ButtonSegment(
+                  value: false,
+                  label: Text('IPD Bedside Note'),
+                  icon: Icon(Icons.bed_outlined),
+                ),
+              ],
+              selected: {_isOpdMode},
+              onSelectionChanged: (value) =>
+                  setState(() => _isOpdMode = value.first),
+            ),
+            const SizedBox(height: 12),
+            // Live deterministic CDSS banners.
+            EncounterCdssBanners(
+              sbp: int.tryParse(_sbp.text),
+              pulse: int.tryParse(_pulse.text),
+              spo2: int.tryParse(_spo2.text),
+            ),
+            if (_isOpdMode) ...[
+              OpdHistorySections(
+                complaint: _complaint,
+                hpi: _hpi,
+                pastMedical: _pastMedical,
+                pastSurgical: _pastSurgical,
+                personalHistory: _personalHistory,
+                socialHistory: _socialHistory,
+                birthHistory: _birthHistory,
+                milestones: _milestones,
+                vaccination: _vaccination,
+                gplaa: _gplaa,
+                lmp: _lmp,
+                menstrualHistory: _menstrualHistory,
+                examination: _examination,
+              ),
+              const SizedBox(height: 12),
+            ] else ...[
+              IpdProblemList(patientId: widget.patient.id),
+              const SizedBox(height: 12),
+              IpdContinuousOrders(patientId: widget.patient.id),
+              const SizedBox(height: 12),
+            ],
+            OrdersAndPlanSection(
+              medicationController: _medicationSearch,
+              procedureController: _procedureSearch,
+            ),
 
             // 2. ENCOUNTER CONTEXT
             Row(

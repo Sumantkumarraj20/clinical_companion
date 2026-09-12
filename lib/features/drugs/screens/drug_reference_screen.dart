@@ -43,6 +43,8 @@ class _DrugReferenceScreenState extends ConsumerState<DrugReferenceScreen> {
 
     return Scaffold(
       appBar: AppBar(title: const Text('Drug Reference & Editor')),
+      // Kept away from the global bottom-right Smart Camera FAB.
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _showDrugEditor(context),
         icon: const Icon(Icons.add),
