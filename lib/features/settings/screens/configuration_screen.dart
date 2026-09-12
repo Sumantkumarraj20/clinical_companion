@@ -1,17 +1,18 @@
 import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:path/path.dart' as path;
 import 'package:go_router/go_router.dart';
+import 'package:path/path.dart' as path;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/config/app_configuration.dart';
 import '../../../core/config/secure_config_service.dart';
 import '../../../core/database/database_sideload_service.dart';
-import '../../../core/utils/portable_directory.dart';
 import '../../../core/providers/app_providers.dart';
+import '../../../core/utils/portable_directory.dart';
 
 class ConfigurationScreen extends ConsumerStatefulWidget {
   const ConfigurationScreen({super.key});
@@ -57,7 +58,7 @@ class _ConfigurationScreenState extends ConsumerState<ConfigurationScreen> {
         _geminiKey.text.trim().isEmpty ||
         _databasePassword.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Enter all three configuration keys.')),
+        const SnackBar(content: Text('Enter all configuration keys.')),
       );
       return;
     }
@@ -81,12 +82,16 @@ class _ConfigurationScreenState extends ConsumerState<ConfigurationScreen> {
     }
     setState(() => _saving = true);
     try {
-      await SecureConfigService().saveKeys(
-        normalizedSupabaseUrl,
-        _supabaseKey.text,
-        _geminiKey.text,
-        _databasePassword.text,
-      );
+      // Secure storage uses Platform/file paths on Android/Linux; bypass on Web
+      if (!kIsWeb) {
+        await SecureConfigService().saveKeys(
+          normalizedSupabaseUrl,
+          _supabaseKey.text,
+          _geminiKey.text,
+          _databasePassword.text,
+        );
+      }
+
       final configuration = AppConfiguration(
         supabaseUrl: normalizedSupabaseUrl,
         supabasePublishableKey: _supabaseKey.text.trim(),
@@ -94,20 +99,23 @@ class _ConfigurationScreenState extends ConsumerState<ConfigurationScreen> {
         geminiApiKey: _geminiKey.text.trim(),
         databasePassword: _databasePassword.text.trim(),
       );
+
       ref
           .read(appConfigurationProvider.notifier)
           .setConfiguration(configuration);
+
       try {
         await Supabase.initialize(
           url: configuration.supabaseUrl,
           publishableKey: configuration.supabasePublishableKey,
         );
       } catch (_) {
-        // Supabase throws when it is already initialized; the stored config is valid.
+        // Supabase throws when already initialized; active instance remains valid.
       }
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Configuration saved securely.')),
+          const SnackBar(content: Text('Configuration saved successfully.')),
         );
         context.go('/dashboard');
       }
@@ -117,6 +125,16 @@ class _ConfigurationScreenState extends ConsumerState<ConfigurationScreen> {
   }
 
   Future<void> _importDatabase(String destinationName, String label) async {
+    if (kIsWeb) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            '$label import is only available on mobile/desktop builds.',
+          ),
+        ),
+      );
+      return;
+    }
     try {
       final picked = await FilePicker.platform.pickFiles(type: FileType.any);
       final selectedPath = picked?.files.single.path;
@@ -164,9 +182,7 @@ class _ConfigurationScreenState extends ConsumerState<ConfigurationScreen> {
                   style: Theme.of(context).textTheme.headlineSmall,
                 ),
                 const SizedBox(height: 8),
-                const Text(
-                  'Configuration is encrypted into config.aes inside the portable clinical_data folder.',
-                ),
+                const Text('Configuration connects your instance securely.'),
                 const SizedBox(height: 24),
                 TextField(
                   controller: _supabaseUrl,

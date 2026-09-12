@@ -4,12 +4,20 @@ import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
 import 'package:path/path.dart' as p;
 import 'package:flutter/services.dart';
+import 'package:flutter/foundation.dart';
 
 import '../../utils/portable_directory.dart';
 
 /// NativeDatabase keeps SQLite work off the Flutter UI isolate.
 QueryExecutor openAppDatabaseExecutor() {
   return LazyDatabase(() async {
+
+    if (kIsWeb) {
+      throw UnsupportedError(
+        'Native IO accessed on Web. Check conditional exports.',
+      );
+    }
+    
     final directory = await getPortableStorageDirectory();
     final file = File(p.join(directory.path, 'clinical_drugs.sqlite'));
     if (!await file.exists()) {

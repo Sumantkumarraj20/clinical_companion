@@ -29,6 +29,7 @@ mixin _$ClinicalDaoMixin on DatabaseAccessor<AppDatabase> {
   $PersonalWikiTable get personalWiki => attachedDatabase.personalWiki;
   $OfflineSyncQueueTable get offlineSyncQueue =>
       attachedDatabase.offlineSyncQueue;
+  $CdssRulesTable get cdssRules => attachedDatabase.cdssRules;
   $AyushmanPackagesTable get ayushmanPackages =>
       attachedDatabase.ayushmanPackages;
   $HbpProceduresTable get hbpProcedures => attachedDatabase.hbpProcedures;
@@ -111,6 +112,8 @@ class ClinicalDaoManager {
         _db.attachedDatabase,
         _db.offlineSyncQueue,
       );
+  $$CdssRulesTableTableManager get cdssRules =>
+      $$CdssRulesTableTableManager(_db.attachedDatabase, _db.cdssRules);
   $$AyushmanPackagesTableTableManager get ayushmanPackages =>
       $$AyushmanPackagesTableTableManager(
         _db.attachedDatabase,
