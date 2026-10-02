@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/database/local_database.dart';
 import '../../../core/models/department_templates.dart';
 import '../../../core/providers/app_providers.dart';
+import '../../../core/utils/datetime_utils.dart';
 import 'encounter_ipd_extra.dart';
 import 'encounter_ipd_sections.dart';
 import 'encounter_opd_sections.dart';
@@ -978,7 +979,7 @@ class _PatientBanner extends ConsumerWidget {
                   builder: (context, snapshot) {
                     final cr = snapshot.data ?? '…';
                     return Text(
-                      'CR No: $cr · ${patient.gender ?? 'Unspecified'}, ${patient.approximateAge ?? '--'} yrs',
+                      'CR No: $cr · ${patient.gender ?? 'Unspecified'}, ${DateTimeUtils.ageOn(patient.dateOfBirth, DateTime.now()) ?? '--'} yrs',
                       style: TextStyle(
                         fontSize: 13,
                         color: Theme.of(context).colorScheme.onSurfaceVariant,

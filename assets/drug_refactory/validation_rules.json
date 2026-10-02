@@ -1,0 +1,20 @@
+{
+  "min_source_rows": 1,
+  "required_fields_in_canonical": [
+    "id",
+    "generic_molecule",
+    "data_status",
+    "confidence"
+  ],
+  "allowed_data_statuses": [
+    "RESOLVED",
+    "PARTIALLY_RESOLVED",
+    "UNRESOLVED"
+  ],
+  "allowed_confidences": [
+    "HIGH",
+    "MEDIUM",
+    "LOW"
+  ],
+  "min_quality_score_resolved": 40
+}

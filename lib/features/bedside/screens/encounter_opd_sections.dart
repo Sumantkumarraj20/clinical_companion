@@ -16,6 +16,8 @@ class OpdHistorySections extends StatelessWidget {
     required this.lmp,
     required this.menstrualHistory,
     required this.examination,
+    this.showPediatricHistory = false,
+    this.showObGynHistory = false,
     super.key,
   });
 
@@ -32,6 +34,11 @@ class OpdHistorySections extends StatelessWidget {
   final TextEditingController lmp;
   final TextEditingController menstrualHistory;
   final TextEditingController examination;
+
+  /// Sprint 3 — context gating. Pediatric history is only collected for
+  /// patients under 18; OB/GYN history only for female patients.
+  final bool showPediatricHistory;
+  final bool showObGynHistory;
 
   @override
   Widget build(BuildContext context) {
@@ -62,24 +69,26 @@ class OpdHistorySections extends StatelessWidget {
             _field(socialHistory, 'Social (housing, water, contacts, travel)'),
           ],
         ),
-        _tile(
-          title: 'Pediatric History',
-          icon: Icons.child_care_outlined,
-          children: [
-            _field(birthHistory, 'Birth history (term, weight, NICU, cry)'),
-            _field(milestones, 'Developmental Milestones'),
-            _field(vaccination, 'Vaccination (BCG, OPV, DPT, measles)'),
-          ],
-        ),
-        _tile(
-          title: 'OB/GYN History',
-          icon: Icons.pregnant_woman_outlined,
-          children: [
-            _field(gplaa, 'GPLAA (e.g. G2 P1 L1 A0)'),
-            _field(lmp, 'LMP (date)'),
-            _field(menstrualHistory, 'Menstrual history'),
-          ],
-        ),
+        if (showPediatricHistory)
+          _tile(
+            title: 'Pediatric History',
+            icon: Icons.child_care_outlined,
+            children: [
+              _field(birthHistory, 'Birth history (term, weight, NICU, cry)'),
+              _field(milestones, 'Developmental Milestones'),
+              _field(vaccination, 'Vaccination (BCG, OPV, DPT, measles)'),
+            ],
+          ),
+        if (showObGynHistory)
+          _tile(
+            title: 'OB/GYN History',
+            icon: Icons.pregnant_woman_outlined,
+            children: [
+              _field(gplaa, 'GPLAA (e.g. G2 P1 L1 A0)'),
+              _field(lmp, 'LMP (date)'),
+              _field(menstrualHistory, 'Menstrual history'),
+            ],
+          ),
         _tile(
           title: 'Physical Examination',
           icon: Icons.medical_services_outlined,

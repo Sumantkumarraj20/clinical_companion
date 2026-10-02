@@ -17,7 +17,6 @@ class _ManualEntryScreenState extends ConsumerState<ManualEntryScreen> {
   final _name = TextEditingController();
   final _age = TextEditingController();
   final _gender = TextEditingController();
-  final _phone = TextEditingController();
   final _sbp = TextEditingController();
   final _dbp = TextEditingController();
   final _pulse = TextEditingController();
@@ -28,7 +27,7 @@ class _ManualEntryScreenState extends ConsumerState<ManualEntryScreen> {
 
   @override
   void dispose() {
-    for (final controller in [_name, _age, _gender, _phone, _sbp, _dbp, _pulse, _spo2, _complaint, _notes]) {
+    for (final controller in [_name, _age, _gender, _sbp, _dbp, _pulse, _spo2, _complaint, _notes]) {
       controller.dispose();
     }
     super.dispose();
@@ -43,7 +42,6 @@ class _ManualEntryScreenState extends ConsumerState<ManualEntryScreen> {
         patientName: _name.text,
         patientAge: int.tryParse(_age.text),
         patientGender: _gender.text,
-        patientPhone: _phone.text,
         sbp: int.tryParse(_sbp.text),
         dbp: int.tryParse(_dbp.text),
         pulse: int.tryParse(_pulse.text),
@@ -111,7 +109,6 @@ class _ManualEntryScreenState extends ConsumerState<ManualEntryScreen> {
               _patientId = patient.id;
               _name.text = patient.fullName;
               _gender.text = patient.gender ?? '';
-              _phone.text = patient.phone ?? '';
             },
             fieldViewBuilder: (context, controller, focusNode, onSubmitted) => TextField(controller: controller, focusNode: focusNode, decoration: const InputDecoration(labelText: 'Search existing patient or enter a new name')),
           ),
@@ -119,7 +116,7 @@ class _ManualEntryScreenState extends ConsumerState<ManualEntryScreen> {
         const SizedBox(height: 12),
         Row(children: [Expanded(child: TextField(controller: _name, decoration: const InputDecoration(labelText: 'Name'))), const SizedBox(width: 8), Expanded(child: TextField(controller: _age, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Age')))]),
         const SizedBox(height: 12),
-        Row(children: [Expanded(child: TextField(controller: _gender, decoration: const InputDecoration(labelText: 'Gender'))), const SizedBox(width: 8), Expanded(child: TextField(controller: _phone, keyboardType: TextInputType.phone, decoration: const InputDecoration(labelText: 'Phone')))]),
+        TextField(controller: _gender, decoration: const InputDecoration(labelText: 'Gender')),
       ],
     );
   }

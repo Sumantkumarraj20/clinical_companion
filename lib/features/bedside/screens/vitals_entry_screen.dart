@@ -7,6 +7,7 @@ import 'package:uuid/uuid.dart';
 import '../../../core/cds/decision_support_engine.dart';
 import '../../../core/database/local_database.dart';
 import '../../../core/providers/app_providers.dart';
+import '../../../core/utils/datetime_utils.dart';
 
 class VitalsEntryScreen extends ConsumerStatefulWidget {
   const VitalsEntryScreen({this.preselectedPatientId, super.key});
@@ -267,7 +268,7 @@ class _VitalsEntryScreenState extends ConsumerState<VitalsEntryScreen> {
                             builder: (context, regSnap) {
                               final reg = regSnap.data ?? '…';
                               return Text(
-                                '${p.fullName} (CR: $reg) · ${p.gender ?? '?'}, ${p.approximateAge ?? '--'}y',
+                                '${p.fullName} (CR: $reg) · ${p.gender ?? '?'}, ${DateTimeUtils.ageOn(p.dateOfBirth, DateTime.now()) ?? '--'}y',
                                 overflow: TextOverflow.ellipsis,
                               );
                             },
@@ -742,7 +743,7 @@ class _LockedPatientBanner extends ConsumerWidget {
                       future: dao.getPatientHospitalRegNo(p.id),
                       builder: (context, regSnap) {
                         return Text(
-                          'CR: ${regSnap.data ?? '…'} · ${p.gender ?? '?'}, ${p.approximateAge ?? '--'}y',
+                          'CR: ${regSnap.data ?? '…'} · ${p.gender ?? '?'}, ${DateTimeUtils.ageOn(p.dateOfBirth, DateTime.now()) ?? '--'}y',
                           style: TextStyle(
                             fontSize: 12,
                             color: Theme.of(

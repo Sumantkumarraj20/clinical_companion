@@ -1,6 +1,9 @@
 import 'package:drift/drift.dart';
+import 'package:uuid/uuid.dart';
 
 import '../local_database.dart';
+
+final _uuid = Uuid();
 
 class DocumentRegistries extends Table {
   TextColumn get id => text()();
@@ -85,6 +88,37 @@ class ImagingStudies extends Table {
   TextColumn get findings => text()();
   TextColumn get impression => text()();
   DateTimeColumn get performedAt => dateTime()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
+// ==========================================
+// 4. ADMISSIONS — INPATIENT EPISODES
+// ==========================================
+// Episode/event model. A patient can have many admissions across hospitals;
+// this table deliberately lives apart from the stable-identity tables.
+@DataClassName('Admission')
+@TableIndex(
+  name: 'admissions_hospital_status_idx',
+  columns: {#hospitalId, #status},
+)
+class Admissions extends Table {
+  @override
+  String get tableName => 'admissions';
+
+  TextColumn get id => text().clientDefault(() => _uuid.v4())();
+  TextColumn get patientId =>
+      text().references(Patients, #id, onDelete: KeyAction.cascade)();
+  TextColumn get hospitalId =>
+      text().references(Hospitals, #id, onDelete: KeyAction.cascade)();
+  TextColumn get wardName => text().nullable()();
+  TextColumn get bedNumber => text().nullable()();
+  DateTimeColumn get admissionTime =>
+      dateTime().withDefault(currentDateAndTime)();
+  DateTimeColumn get dischargeTime => dateTime().nullable()();
+  // 'active' while inpatient, 'discharged' once the episode is closed.
+  TextColumn get status => text().withDefault(const Constant('active'))();
 
   @override
   Set<Column<Object>> get primaryKey => {id};

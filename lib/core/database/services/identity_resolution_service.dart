@@ -4,6 +4,7 @@ import 'package:drift/drift.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../models/ai_extraction_result.dart';
+import '../../utils/datetime_utils.dart';
 import '../local/local_database.dart';
 
 class IdentityResolutionService {
@@ -26,7 +27,7 @@ class IdentityResolutionService {
         ),
       ])..where(
           _database.patients.ownerId.equals(ownerId) &
-              _database.patientHospitalIdentifiers.hospitalRegNo.equals(
+              _database.patientHospitalIdentifiers.mrn.equals(
                 registrationNumber,
               ),
         );
@@ -50,8 +51,8 @@ class IdentityResolutionService {
           ))
         .get();
     for (final candidate in candidates) {
-        final candidateAge = candidate.approximateAge ??
-          _ageOn(candidate.dateOfBirth, DateTime.now());
+        final candidateAge =
+          DateTimeUtils.ageOn(candidate.dateOfBirth, DateTime.now());
       if (candidateAge != null && (candidateAge - age).abs() <= 2) {
         return candidate;
       }
@@ -77,8 +78,7 @@ class IdentityResolutionService {
             ))
           .get();
       for (final candidate in candidates) {
-        final age = candidate.approximateAge ??
-          _ageOn(candidate.dateOfBirth, DateTime.now());
+        final age = DateTimeUtils.ageOn(candidate.dateOfBirth, DateTime.now());
         if (age != null && (age - extractedData.age!).abs() <= 2) {
           return candidate.id;
         }
@@ -96,9 +96,8 @@ class IdentityResolutionService {
         id: Value(id),
         ownerId: ownerId,
         fullName: name?.isNotEmpty == true ? name! : 'Unknown patient',
-        approximateAge: Value(extractedData.age),
         gender: Value(gender?.isNotEmpty == true ? gender : null),
-        dateOfBirth: Value(_dateOfBirthFromAge(extractedData.age)),
+        dateOfBirth: Value(DateTimeUtils.dateOfBirthFromAge(extractedData.age)),
         ),
       );
       final hospital = await (_database.select(_database.hospitals)
@@ -115,9 +114,12 @@ class IdentityResolutionService {
         PatientHospitalIdentifiersCompanion.insert(
           patientId: id,
           hospitalId: hospitalId,
-          hospitalRegNo: registrationNumber?.isNotEmpty == true
-              ? registrationNumber!
-              : generatedRegistration,
+          mrn: Value(
+            registrationNumber?.isNotEmpty == true
+                ? registrationNumber!
+                : generatedRegistration,
+          ),
+          identifierType: const Value('MRN'),
           isPrimary: const Value(true),
         ),
       );
@@ -132,12 +134,17 @@ class IdentityResolutionService {
           jsonEncode({
             'id': id,
             'owner_id': ownerId,
+            'mrn': registrationNumber?.isNotEmpty == true
+                ? registrationNumber
+                : generatedRegistration,
+            // Legacy alias kept for older sync peers.
             'hospital_reg_no': registrationNumber?.isNotEmpty == true
                 ? registrationNumber
                 : generatedRegistration,
             'full_name': name?.isNotEmpty == true ? name : 'Unknown patient',
+            'gender': gender?.isNotEmpty == true ? gender : null,
             'sex': gender?.isNotEmpty == true ? gender : null,
-            'date_of_birth': _dateOfBirthFromAge(extractedData.age)
+            'date_of_birth': DateTimeUtils.dateOfBirthFromAge(extractedData.age)
                 ?.toIso8601String(),
           }),
         ),
@@ -145,22 +152,6 @@ class IdentityResolutionService {
       ),
     );
     return id;
-  }
-
-  int? _ageOn(DateTime? dateOfBirth, DateTime date) {
-    if (dateOfBirth == null) return null;
-    var age = date.year - dateOfBirth.year;
-    if (date.month < dateOfBirth.month ||
-        (date.month == dateOfBirth.month && date.day < dateOfBirth.day)) {
-      age--;
-    }
-    return age;
-  }
-
-  DateTime? _dateOfBirthFromAge(int? age) {
-    if (age == null || age < 0) return null;
-    final today = DateTime.now();
-    return DateTime(today.year - age, today.month, today.day);
   }
 
   String _formatDate(DateTime date) =>

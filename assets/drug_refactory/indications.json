@@ -1,0 +1,245 @@
+{
+  "amoxicillin": [
+    "Acute Otitis Media",
+    "Community Acquired Pneumonia",
+    "Streptococcal Pharyngitis",
+    "Bacterial Sinusitis"
+  ],
+  "clavulanic acid": [
+    "Beta-Lactamase Inhibitor Adjunct"
+  ],
+  "paracetamol": [
+    "Mild to Moderate Pain",
+    "Pyrexia",
+    "Osteoarthritis"
+  ],
+  "metformin": [
+    "Type 2 Diabetes Mellitus",
+    "Polycystic Ovary Syndrome",
+    "Prediabetes"
+  ],
+  "atorvastatin": [
+    "Hypercholesterolemia",
+    "Primary Prevention of Cardiovascular Disease",
+    "Secondary Prevention of Atherosclerotic Cardiovascular Disease"
+  ],
+  "rosuvastatin": [
+    "Dyslipidemia",
+    "Atherosclerotic Cardiovascular Disease"
+  ],
+  "amlodipine": [
+    "Essential Hypertension",
+    "Chronic Stable Angina",
+    "Vasospastic Angina"
+  ],
+  "telmisartan": [
+    "Essential Hypertension",
+    "Cardiovascular Risk Reduction",
+    "Diabetic Nephropathy"
+  ],
+  "losartan": [
+    "Essential Hypertension",
+    "Diabetic Nephropathy",
+    "Stroke Reduction in Hypertensive LVH"
+  ],
+  "ramipril": [
+    "Hypertension",
+    "Heart Failure Post-Myocardial Infarction",
+    "Cardiovascular Event Prophylaxis"
+  ],
+  "furosemide": [
+    "Congestive Heart Failure",
+    "Acute Pulmonary Edema",
+    "Cirrhotic Ascites",
+    "Chronic Kidney Disease Edema"
+  ],
+  "spironolactone": [
+    "Heart Failure with Reduced Ejection Fraction",
+    "Primary Hyperaldosteronism",
+    "Refractory Hypertension",
+    "Cirrhotic Ascites"
+  ],
+  "hydrochlorothiazide": [
+    "Essential Hypertension",
+    "Mild Fluid Retention"
+  ],
+  "pantoprazole": [
+    "Gastroesophageal Reflux Disease",
+    "Erosive Esophagitis",
+    "Peptic Ulcer Disease",
+    "Zollinger-Ellison Syndrome"
+  ],
+  "omeprazole": [
+    "Gastroesophageal Reflux Disease",
+    "Peptic Ulcer Disease",
+    "H. pylori Eradication Adjunct"
+  ],
+  "rabeprazole": [
+    "Gastroesophageal Reflux Disease",
+    "Gastric Ulcer Disease"
+  ],
+  "ciprofloxacin": [
+    "Complicated Urinary Tract Infection",
+    "Infectious Diarrhea",
+    "Typhoid Fever",
+    "Chronic Bacterial Prostatitis"
+  ],
+  "levofloxacin": [
+    "Community Acquired Pneumonia",
+    "Pyelonephritis",
+    "Exacerbation of Chronic Bronchitis"
+  ],
+  "azithromycin": [
+    "Community Acquired Pneumonia",
+    "Acute Bacterial Exacerbation of COPD",
+    "Atypical Mycobacterial Infection",
+    "Trachoma"
+  ],
+  "ceftriaxone": [
+    "Bacterial Meningitis",
+    "Intra-abdominal Infections",
+    "Infective Endocarditis",
+    "Severe Sepsis"
+  ],
+  "cefixime": [
+    "Uncomplicated Urinary Tract Infection",
+    "Acute Exacerbation of Chronic Bronchitis",
+    "Enteric Fever"
+  ],
+  "piperacillin": [
+    "Severe Hospital-Acquired Pneumonia",
+    "Pseudomonal Sepsis"
+  ],
+  "tazobactam": [
+    "Beta-Lactamase Inhibitor Adjunct"
+  ],
+  "aspirin": [
+    "Acute Coronary Syndrome",
+    "Secondary Prevention of Ischemic Stroke",
+    "Transient Ischemic Attack Prophylaxis"
+  ],
+  "clopidogrel": [
+    "Acute Coronary Syndrome",
+    "Recent Ischemic Stroke",
+    "Peripheral Arterial Disease"
+  ],
+  "ibuprofen": [
+    "Inflammatory Arthropathy",
+    "Mild to Moderate Pain",
+    "Fever"
+  ],
+  "diclofenac": [
+    "Rheumatoid Arthritis",
+    "Ankylosing Spondylitis",
+    "Acute Musculoskeletal Pain"
+  ],
+  "aceclofenac": [
+    "Osteoarthritis",
+    "Rheumatoid Arthritis",
+    "Dental Pain"
+  ],
+  "tramadol": [
+    "Moderate to Moderately Severe Pain"
+  ],
+  "ondansetron": [
+    "Chemotherapy-Induced Nausea and Vomiting",
+    "Postoperative Nausea and Vomiting",
+    "Radiation-Induced Emesis"
+  ],
+  "domperidone": [
+    "Nausea and Vomiting",
+    "Gastroparesis"
+  ],
+  "glimepiride": [
+    "Type 2 Diabetes Mellitus"
+  ],
+  "gliclazide": [
+    "Type 2 Diabetes Mellitus"
+  ],
+  "vildagliptin": [
+    "Type 2 Diabetes Mellitus"
+  ],
+  "sitagliptin": [
+    "Type 2 Diabetes Mellitus"
+  ],
+  "dapagliflozin": [
+    "Type 2 Diabetes Mellitus",
+    "Heart Failure with Reduced Ejection Fraction",
+    "Chronic Kidney Disease"
+  ],
+  "empagliflozin": [
+    "Type 2 Diabetes Mellitus",
+    "Heart Failure",
+    "Cardiovascular Risk Reduction in T2DM"
+  ],
+  "salbutamol": [
+    "Acute Bronchospasm",
+    "Asthma Exacerbation",
+    "Exercise-Induced Bronchospasm"
+  ],
+  "ipratropium": [
+    "Chronic Obstructive Pulmonary Disease",
+    "Acute Severe Asthma Adjunct"
+  ],
+  "budesonide": [
+    "Persistent Asthma Maintenance",
+    "COPD Maintenance",
+    "Crohn's Disease"
+  ],
+  "formoterol": [
+    "Asthma Long-term Maintenance",
+    "COPD Bronchodilation"
+  ],
+  "montelukast": [
+    "Asthma Maintenance",
+    "Allergic Rhinitis"
+  ],
+  "levocetirizine": [
+    "Allergic Rhinitis",
+    "Chronic Idiopathic Urticaria"
+  ],
+  "cetirizine": [
+    "Allergic Rhinitis",
+    "Chronic Urticaria"
+  ],
+  "amiodarone": [
+    "Refractory Ventricular Arrhythmias",
+    "Atrial Fibrillation Rhythm Control"
+  ],
+  "digoxin": [
+    "Heart Failure with Reduced Ejection Fraction",
+    "Atrial Fibrillation Rate Control"
+  ],
+  "insulin": [
+    "Type 1 Diabetes Mellitus",
+    "Type 2 Diabetes Mellitus",
+    "Diabetic Ketoacidosis"
+  ],
+  "alprazolam": [
+    "Generalized Anxiety Disorder",
+    "Panic Disorder"
+  ],
+  "clonazepam": [
+    "Seizure Disorders",
+    "Panic Disorder"
+  ],
+  "fluoxetine": [
+    "Major Depressive Disorder",
+    "Obsessive-Compulsive Disorder",
+    "Bulimia Nervosa"
+  ],
+  "sertraline": [
+    "Major Depressive Disorder",
+    "Panic Disorder",
+    "PTSD"
+  ],
+  "vancomycin": [
+    "MRSA Bacteremia",
+    "Infective Endocarditis",
+    "Clostridioides difficile Colitis"
+  ],
+  "gentamicin": [
+    "Gram-Negative Sepsis",
+    "Synergistic Endocarditis Therapy"
+  ]
+}

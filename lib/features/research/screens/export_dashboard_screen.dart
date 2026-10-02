@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/database/daos/clinical_dao.dart';
 import '../../../core/database/local_database.dart';
 import '../../../core/providers/app_providers.dart';
+import '../../../core/utils/datetime_utils.dart';
 import 'export_sink.dart';
 
 class ExportDashboardScreen extends ConsumerStatefulWidget {
@@ -72,7 +73,7 @@ class _ExportDashboardScreenState extends ConsumerState<ExportDashboardScreen> {
       final rows = <List<dynamic>>[
         [
           'Subject ID',
-          if (!_deIdentify) ...['Patient Name', 'Hospital CR/UHID', 'Phone'],
+          if (!_deIdentify) ...['Patient Name', 'Hospital MR No'],
           'Age (Years)',
           'Gender',
           'Primary Problem / Diagnosis',
@@ -97,9 +98,12 @@ class _ExportDashboardScreenState extends ConsumerState<ExportDashboardScreen> {
             if (!_deIdentify) ...[
               records[i].patient.fullName,
               records[i].hospitalRegNo,
-              records[i].patient.phone ?? '',
             ],
-            records[i].patient.approximateAge ?? '',
+            DateTimeUtils.ageOn(
+                  records[i].patient.dateOfBirth,
+                  DateTime.now(),
+                )?.toString() ??
+                '',
             records[i].patient.gender ?? 'Unspecified',
             records[i].primaryProblem,
             records[i].problemStatus,
@@ -116,7 +120,7 @@ class _ExportDashboardScreenState extends ConsumerState<ExportDashboardScreen> {
                     .toIso8601String()
                     .split('T')
                     .first ??
-                records[i].patient.createdAt.toIso8601String().split('T').first,
+                records[i].registeredAt.toIso8601String().split('T').first,
             records[i].encounter?.clinicalAssessment ??
                 records[i].encounter?.chiefComplaints ??
                 '',
@@ -166,7 +170,10 @@ class _ExportDashboardScreenState extends ConsumerState<ExportDashboardScreen> {
               'cr_number': records[i].hospitalRegNo,
             },
             'demographics': {
-              'age': records[i].patient.approximateAge,
+              'age': DateTimeUtils.ageOn(
+                records[i].patient.dateOfBirth,
+                DateTime.now(),
+              ),
               'gender': records[i].patient.gender,
             },
             'problem_trajectory': {
@@ -464,6 +471,7 @@ class _ExportDashboardScreenState extends ConsumerState<ExportDashboardScreen> {
         _ResearchRecord(
           patient: p,
           hospitalRegNo: regNo,
+          registeredAt: latestEncounter?.occurredAt ?? DateTime.now(),
           encounter: latestEncounter,
           primaryProblem: primaryProb,
           problemStatus: probStatus,
@@ -495,7 +503,7 @@ class _ExportDashboardScreenState extends ConsumerState<ExportDashboardScreen> {
       }
 
       if (_dateRange != null) {
-        final d = item.encounter?.occurredAt ?? item.patient.createdAt;
+        final d = item.encounter?.occurredAt ?? item.registeredAt;
         if (d.isBefore(_dateRange!.start) ||
             d.isAfter(_dateRange!.end.add(const Duration(days: 1)))) {
           return false;
@@ -511,6 +519,7 @@ class _ResearchRecord {
   _ResearchRecord({
     required this.patient,
     required this.hospitalRegNo,
+    required this.registeredAt,
     required this.encounter,
     required this.primaryProblem,
     required this.problemStatus,
@@ -518,6 +527,7 @@ class _ResearchRecord {
 
   final Patient patient;
   final String hospitalRegNo;
+  final DateTime registeredAt;
   final ClinicalEncounter? encounter;
   final String primaryProblem;
   final String problemStatus;
@@ -538,7 +548,7 @@ class _ResearchDataTableSource extends DataTableSource {
         : r.hospitalRegNo;
     final dateStr =
         r.encounter?.occurredAt.toIso8601String().split('T').first ??
-        r.patient.createdAt.toIso8601String().split('T').first;
+        r.registeredAt.toIso8601String().split('T').first;
 
     return DataRow(
       cells: [
@@ -548,7 +558,7 @@ class _ResearchDataTableSource extends DataTableSource {
         if (!deIdentify) DataCell(Text(r.patient.fullName)),
         DataCell(
           Text(
-            '${r.patient.approximateAge ?? '--'}y · ${r.patient.gender ?? '?'}',
+            '${DateTimeUtils.ageOn(r.patient.dateOfBirth, DateTime.now()) ?? '--'}y · ${r.patient.gender ?? '?'}',
           ),
         ),
         DataCell(Text(r.primaryProblem)),

@@ -1,0 +1,66 @@
+{
+  "diclofenac sodium": {
+    "parent": "diclofenac",
+    "salt": "sodium"
+  },
+  "diclofenac potassium": {
+    "parent": "diclofenac",
+    "salt": "potassium"
+  },
+  "diclofenac diethylamine": {
+    "parent": "diclofenac",
+    "salt": "diethylamine"
+  },
+  "metformin hcl": {
+    "parent": "metformin",
+    "salt": "hydrochloride"
+  },
+  "metformin hydrochloride": {
+    "parent": "metformin",
+    "salt": "hydrochloride"
+  },
+  "amlodipine besylate": {
+    "parent": "amlodipine",
+    "salt": "besylate"
+  },
+  "atorvastatin calcium": {
+    "parent": "atorvastatin",
+    "salt": "calcium"
+  },
+  "losartan potassium": {
+    "parent": "losartan",
+    "salt": "potassium"
+  },
+  "ceftriaxone sodium": {
+    "parent": "ceftriaxone",
+    "salt": "sodium"
+  },
+  "ciprofloxacin hydrochloride": {
+    "parent": "ciprofloxacin",
+    "salt": "hydrochloride"
+  },
+  "ondansetron hydrochloride": {
+    "parent": "ondansetron",
+    "salt": "hydrochloride"
+  },
+  "tramadol hydrochloride": {
+    "parent": "tramadol",
+    "salt": "hydrochloride"
+  },
+  "montelukast sodium": {
+    "parent": "montelukast",
+    "salt": "sodium"
+  },
+  "levocetirizine dihydrochloride": {
+    "parent": "levocetirizine",
+    "salt": "dihydrochloride"
+  },
+  "pantoprazole sodium": {
+    "parent": "pantoprazole",
+    "salt": "sodium"
+  },
+  "rabeprazole sodium": {
+    "parent": "rabeprazole",
+    "salt": "sodium"
+  }
+}

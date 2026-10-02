@@ -1,0 +1,94 @@
+{
+  "tablet": [
+    "tablet",
+    "tablets",
+    "tab",
+    "tabs",
+    "caplet",
+    "dispersible tablet",
+    "dt",
+    "chewable tablet",
+    "effervescent"
+  ],
+  "capsule": [
+    "capsule",
+    "capsules",
+    "cap",
+    "caps",
+    "softgel"
+  ],
+  "injection": [
+    "injection",
+    "injections",
+    "inj",
+    "vial",
+    "ampoule",
+    "infusion",
+    "iv",
+    "im"
+  ],
+  "syrup": [
+    "syrup",
+    "syrups",
+    "syr",
+    "suspension",
+    "susp",
+    "elixir",
+    "liquid",
+    "oral solution"
+  ],
+  "cream": [
+    "cream",
+    "creams",
+    "cr",
+    "ointment",
+    "oint",
+    "gel",
+    "lotion",
+    "emulgel",
+    "liniment"
+  ],
+  "drops": [
+    "drops",
+    "drop",
+    "eye drops",
+    "ear drops",
+    "nasal drops",
+    "eye/ear drops"
+  ],
+  "inhaler": [
+    "inhaler",
+    "inhalers",
+    "mdi",
+    "respule",
+    "respules",
+    "rotacap",
+    "rotacaps",
+    "rotahaler",
+    "dry powder inhaler"
+  ],
+  "spray": [
+    "spray",
+    "sprays",
+    "nasal spray",
+    "metered dose spray"
+  ],
+  "powder": [
+    "powder",
+    "powders",
+    "sachet",
+    "sachets",
+    "granules"
+  ],
+  "suppository": [
+    "suppository",
+    "suppositories",
+    "pessary",
+    "pessaries"
+  ],
+  "patch": [
+    "patch",
+    "patches",
+    "transdermal patch"
+  ]
+}

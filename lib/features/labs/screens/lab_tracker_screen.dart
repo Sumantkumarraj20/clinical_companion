@@ -8,6 +8,7 @@ import 'package:uuid/uuid.dart';
 import '../../../core/database/daos/clinical_dao.dart';
 import '../../../core/database/local_database.dart';
 import '../../../core/providers/app_providers.dart';
+import '../../../core/utils/datetime_utils.dart';
 import '../../../core/widgets/shimmer_loading.dart';
 
 const _uuid = Uuid();
@@ -104,7 +105,7 @@ class _LabTrackerScreenState extends ConsumerState<LabTrackerScreen> {
             if (_searchQuery.isNotEmpty) {
               final testName = order.testName.toLowerCase();
               final patientName = item.patient.fullName.toLowerCase();
-              final cr = item.hospitalRegNo.toLowerCase();
+              final cr = item.mrn.toLowerCase();
               return testName.contains(_searchQuery) ||
                   patientName.contains(_searchQuery) ||
                   cr.contains(_searchQuery);
@@ -310,7 +311,7 @@ class _InvestigationCard extends ConsumerWidget {
                         ),
                       ),
                       Text(
-                        'CR No: ${item.hospitalRegNo} · ${patient.gender ?? '?'}, ${patient.approximateAge ?? '--'} yrs',
+                        'CR No: ${item.mrn} · ${patient.gender ?? '?'}, ${DateTimeUtils.ageOn(patient.dateOfBirth, DateTime.now()) ?? '--'} yrs',
                         style: TextStyle(
                           fontSize: 12,
                           color: theme.colorScheme.onSurfaceVariant,

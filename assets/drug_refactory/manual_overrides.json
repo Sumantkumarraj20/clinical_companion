@@ -1,0 +1,18 @@
+{
+  "abc forte": {
+    "canonical_name": "Paracetamol",
+    "ingredients": [
+      "paracetamol"
+    ],
+    "confidence": "HIGH"
+  },
+  "triple-cardio-fix": {
+    "canonical_name": "Amlodipine + Atorvastatin + Telmisartan",
+    "ingredients": [
+      "amlodipine",
+      "atorvastatin",
+      "telmisartan"
+    ],
+    "confidence": "HIGH"
+  }
+}

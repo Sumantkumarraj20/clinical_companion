@@ -2,7 +2,9 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../ai/document_ai_service.dart';
@@ -14,7 +16,9 @@ import '../database/daos/cdss_dao.dart';
 import '../database/local_database.dart';
 import '../models/ai_extraction_result.dart';
 import '../models/document_task.dart';
+import '../services/app_updater_service.dart';
 import '../services/extraction_pipeline_service.dart';
+import '../sync/catalog_sync_service.dart';
 import '../sync/sync_service.dart';
 import '../../features/billing/services/clinical_coding_service.dart';
 
@@ -66,6 +70,44 @@ final syncServiceProvider = Provider<SyncService?>((ref) {
   if (client == null) return null;
   final service = SyncService(ref.watch(clinicalDaoProvider), client)
     ..startPeriodic();
+  ref.onDispose(service.dispose);
+  return service;
+});
+
+// ==========================================
+// OTA CATALOG SYNC (Sprint 7)
+// ==========================================
+
+/// Google Apps Script Web App publishing the nightly pharmacopeia tabs.
+/// Ships with the proven production endpoint; override at build time:
+/// --dart-define=CATALOG_SYNC_URL=https://script...
+const String catalogScriptUrl = String.fromEnvironment(
+  'CATALOG_SYNC_URL',
+  defaultValue: CatalogSyncService.defaultCatalogScriptUrl,
+);
+
+final catalogHttpClientProvider = Provider<http.Client>((ref) {
+  final client = http.Client();
+  ref.onDispose(client.close);
+  return client;
+});
+
+final catalogSyncProvider = Provider<CatalogSyncService>((ref) {
+  return CatalogSyncService(
+    pharmacopeiaDao: ref.watch(pharmacopeiaDaoProvider),
+    httpClient: ref.watch(catalogHttpClientProvider),
+  );
+});
+
+// ==========================================
+// IN-APP BINARY UPDATES (Sprint 8)
+// ==========================================
+
+/// GitHub Release update probe behind the dashboard's MaterialBanner.
+/// `checkForUpdate()` is fail-soft (never throws, resolves `null` when
+/// offline), so watching it can never block or crash the dashboard.
+final appUpdaterServiceProvider = Provider<AppUpdaterService>((ref) {
+  final service = AppUpdaterService();
   ref.onDispose(service.dispose);
   return service;
 });
@@ -327,6 +369,18 @@ class AppStatus extends Notifier<AppStatusState> {
     ref.listen(connectivityProvider, (_, next) {
       state = state.copyWith(isOnline: next.asData?.value ?? false);
     });
+    // Sprint 7 — OTA catalog sync: fire-and-forget the nightly Google Apps
+    // Script merge as soon as the app opens and has connectivity. Runs
+    // entirely off the UI isolate (async HTTP + Drift batch); failures are
+    // logged silently so a broken sheet never blocks the clinician.
+    unawaited(
+      ref
+          .read(catalogSyncProvider)
+          .syncCatalogFromCloud(catalogScriptUrl)
+          .catchError((Object error) {
+            debugPrint('[AppStatus] OTA catalog sync skipped: $error');
+          }),
+    );
     return AppStatusState(
       isOnline: ref.watch(connectivityProvider).asData?.value ?? false,
       syncStatus: SyncStatus.idle,

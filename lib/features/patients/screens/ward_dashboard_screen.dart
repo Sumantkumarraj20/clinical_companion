@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/database/daos/clinical_dao.dart';
 import '../../../core/database/local_database.dart';
 import '../../../core/providers/app_providers.dart';
+import '../../../core/utils/datetime_utils.dart';
 import '../../../core/widgets/shimmer_loading.dart';
 import '../../bedside/screens/dynamic_encounter_screen.dart';
 import '../../bedside/screens/vitals_entry_screen.dart';
@@ -394,7 +395,7 @@ class _InpatientCensusCard extends ConsumerWidget {
                           future: dao.getPatientHospitalRegNo(patient.id),
                           builder: (context, regSnap) {
                             return Text(
-                              'CR: ${regSnap.data ?? '…'} · ${patient.gender ?? '?'}, ${patient.approximateAge ?? '--'} yrs',
+                              'CR: ${regSnap.data ?? '…'} · ${patient.gender ?? '?'}, ${DateTimeUtils.ageOn(patient.dateOfBirth, DateTime.now()) ?? '--'} yrs',
                               style: TextStyle(
                                 fontSize: 12,
                                 color: theme.colorScheme.onSurfaceVariant,

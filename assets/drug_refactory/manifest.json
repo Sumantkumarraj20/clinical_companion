@@ -1,0 +1,6 @@
+{
+  "schema_version": "1.0.0",
+  "knowledge_version": "2026.09.01",
+  "compiler_version": "1.0.0",
+  "description": "Curated offline clinical pharmacology knowledge base for CDSS"
+}

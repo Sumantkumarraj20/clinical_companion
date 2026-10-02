@@ -1,0 +1,48 @@
+{
+  "amoxicillin": [
+    "Methotrexate: Reduced renal clearance increasing methotrexate toxicity risk.",
+    "Warfarin: May prolong INR through disruption of gut flora producing Vitamin K."
+  ],
+  "paracetamol": [
+    "Chronic Alcohol Consumption: Potentiates CYP2E1 induction and hepatotoxicity.",
+    "Warfarin: Regular high-dose paracetamol may modestly elevate INR."
+  ],
+  "metformin": [
+    "Iodinated Radiographic Contrast: Increases acute renal failure and lactic acidosis risk; hold for 48 hours.",
+    "Cimetidine / Dolutegravir: OCT2 inhibitors increase systemic metformin exposure."
+  ],
+  "atorvastatin": [
+    "Clarithromycin / Ketoconazole: Strong CYP3A4 inhibitors increase statin levels and rhabdomyolysis risk.",
+    "Gemfibrozil: Marked increase in statin-induced myopathy; avoid combination."
+  ],
+  "amlodipine": [
+    "Simvastatin: Limit simvastatin dose to 20 mg daily due to CYP3A4 inhibition.",
+    "Cyclosporine / Tacrolimus: May increase calcineurin inhibitor blood levels."
+  ],
+  "telmisartan": [
+    "Potassium Supplements / Spironolactone: Additive risk of severe hyperkalemia.",
+    "NSAIDs: Reduce antihypertensive effect and increase acute renal failure risk."
+  ],
+  "ramipril": [
+    "Spironolactone / Triamterene: Dangerous synergistic hyperkalemia.",
+    "Lithium: Decreased lithium excretion causing neurotoxicity.",
+    "NSAIDs: Blunts ACEi vasodilation and precipitates prerenal azotemia."
+  ],
+  "furosemide": [
+    "Aminoglycosides: Potentiated ototoxicity and nephrotoxicity.",
+    "Digoxin: Loop-induced hypokalemia markedly increases digitalis toxicity and arrhythmias.",
+    "Lithium: Reduced lithium clearance resulting in toxic accumulation."
+  ],
+  "ciprofloxacin": [
+    "Theophylline: Potent CYP1A2 inhibition leads to toxic theophylline seizures.",
+    "Antacids / Iron / Calcium: Polyvalent cations chelate ciprofloxacin, eliminating oral bioavailability.",
+    "Warfarin: Enhances anticoagulant effect."
+  ],
+  "tramadol": [
+    "SSRIs / SNRIs / Linezolid: High risk of life-threatening Serotonin Syndrome.",
+    "Carbamazepine: Enhances tramadol metabolism via CYP3A4, reducing analgesic efficacy."
+  ],
+  "clopidogrel": [
+    "Omeprazole / Esomeprazole: CYP2C19 inhibition reduces clopidogrel active metabolite formation; prefer pantoprazole."
+  ]
+}

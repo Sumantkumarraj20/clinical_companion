@@ -1,0 +1,183 @@
+{
+  "amoxicillin": [
+    "Aminopenicillin",
+    "Beta-Lactam Antibiotic"
+  ],
+  "clavulanic acid": [
+    "Beta-Lactamase Inhibitor"
+  ],
+  "paracetamol": [
+    "Analgesic",
+    "Antipyretic"
+  ],
+  "metformin": [
+    "Biguanide",
+    "Antidiabetic Agent"
+  ],
+  "atorvastatin": [
+    "HMG-CoA Reductase Inhibitor",
+    "Statin",
+    "Lipid-Lowering Agent"
+  ],
+  "rosuvastatin": [
+    "HMG-CoA Reductase Inhibitor",
+    "Statin"
+  ],
+  "amlodipine": [
+    "Dihydropyridine Calcium Channel Blocker",
+    "Antihypertensive"
+  ],
+  "telmisartan": [
+    "Angiotensin II Receptor Blocker (ARB)",
+    "Antihypertensive"
+  ],
+  "losartan": [
+    "Angiotensin II Receptor Blocker (ARB)",
+    "Antihypertensive"
+  ],
+  "ramipril": [
+    "ACE Inhibitor",
+    "Antihypertensive"
+  ],
+  "furosemide": [
+    "Loop Diuretic"
+  ],
+  "spironolactone": [
+    "Aldosterone Antagonist",
+    "Potassium-Sparing Diuretic"
+  ],
+  "hydrochlorothiazide": [
+    "Thiazide Diuretic"
+  ],
+  "pantoprazole": [
+    "Proton Pump Inhibitor (PPI)",
+    "Gastric Acid Suppressant"
+  ],
+  "omeprazole": [
+    "Proton Pump Inhibitor (PPI)"
+  ],
+  "rabeprazole": [
+    "Proton Pump Inhibitor (PPI)"
+  ],
+  "ciprofloxacin": [
+    "Fluoroquinolone Antibacterial"
+  ],
+  "levofloxacin": [
+    "Fluoroquinolone Antibacterial"
+  ],
+  "azithromycin": [
+    "Macrolide Antibiotic"
+  ],
+  "ceftriaxone": [
+    "Third-Generation Cephalosporin",
+    "Beta-Lactam Antibiotic"
+  ],
+  "cefixime": [
+    "Third-Generation Cephalosporin"
+  ],
+  "piperacillin": [
+    "Extended-Spectrum Penicillin",
+    "Antipseudomonal Penicillin"
+  ],
+  "tazobactam": [
+    "Beta-Lactamase Inhibitor"
+  ],
+  "aspirin": [
+    "NSAID",
+    "Antiplatelet Agent",
+    "Salicylate"
+  ],
+  "clopidogrel": [
+    "P2Y12 Platelet Inhibitor",
+    "Antiplatelet Agent"
+  ],
+  "ibuprofen": [
+    "Nonsteroidal Anti-inflammatory Drug (NSAID)",
+    "Propionic Acid Derivative"
+  ],
+  "diclofenac": [
+    "NSAID",
+    "Phenylacetic Acid Derivative"
+  ],
+  "aceclofenac": [
+    "NSAID"
+  ],
+  "tramadol": [
+    "Synthetic Opioid Analgesic",
+    "Centrally Acting Analgesic"
+  ],
+  "ondansetron": [
+    "5-HT3 Receptor Antagonist",
+    "Antiemetic"
+  ],
+  "domperidone": [
+    "Dopamine D2 Receptor Antagonist",
+    "Prokinetic"
+  ],
+  "glimepiride": [
+    "Second-Generation Sulfonylurea"
+  ],
+  "gliclazide": [
+    "Second-Generation Sulfonylurea"
+  ],
+  "vildagliptin": [
+    "DPP-4 Inhibitor",
+    "Incretin Enhancer"
+  ],
+  "sitagliptin": [
+    "DPP-4 Inhibitor"
+  ],
+  "dapagliflozin": [
+    "SGLT2 Inhibitor"
+  ],
+  "empagliflozin": [
+    "SGLT2 Inhibitor"
+  ],
+  "salbutamol": [
+    "Short-Acting Beta-2 Adrenergic Agonist (SABA)",
+    "Bronchodilator"
+  ],
+  "ipratropium": [
+    "Short-Acting Muscarinic Antagonist (SAMA)",
+    "Anticholinergic Bronchodilator"
+  ],
+  "budesonide": [
+    "Inhaled Corticosteroid (ICS)"
+  ],
+  "formoterol": [
+    "Long-Acting Beta-2 Adrenergic Agonist (LABA)"
+  ],
+  "montelukast": [
+    "Leukotriene Receptor Antagonist (LTRA)"
+  ],
+  "levocetirizine": [
+    "Second-Generation Antihistamine",
+    "H1 Receptor Antagonist"
+  ],
+  "cetirizine": [
+    "Second-Generation Antihistamine"
+  ],
+  "amiodarone": [
+    "Class III Antiarrhythmic",
+    "Potassium Channel Blocker"
+  ],
+  "digoxin": [
+    "Cardiac Glycoside",
+    "Inotropic Agent"
+  ],
+  "alprazolam": [
+    "Benzodiazepine",
+    "Anxiolytic"
+  ],
+  "clonazepam": [
+    "Benzodiazepine",
+    "Anticonvulsant"
+  ],
+  "fluoxetine": [
+    "Selective Serotonin Reuptake Inhibitor (SSRI)",
+    "Antidepressant"
+  ],
+  "sertraline": [
+    "Selective Serotonin Reuptake Inhibitor (SSRI)"
+  ]
+}

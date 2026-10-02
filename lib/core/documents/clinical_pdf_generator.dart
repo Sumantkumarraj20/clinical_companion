@@ -2,6 +2,7 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 
 import '../database/local_database.dart';
+import '../utils/datetime_utils.dart';
 
 class ClinicalPdfGenerator {
   /// Standardized Institutional Header
@@ -26,7 +27,7 @@ class ClinicalPdfGenerator {
         .split(' ')
         .first;
     final ageGender =
-        '${patient.gender ?? 'Unspecified'}, ${patient.approximateAge != null ? '${patient.approximateAge} yrs' : '--'}';
+        '${patient.gender ?? 'Unspecified'}, ${DateTimeUtils.ageOn(patient.dateOfBirth, DateTime.now()) != null ? '${DateTimeUtils.ageOn(patient.dateOfBirth, DateTime.now())} yrs' : '--'}';
 
     return pw.Column(
       crossAxisAlignment: pw.CrossAxisAlignment.start,

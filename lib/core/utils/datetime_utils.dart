@@ -10,6 +10,28 @@
 class DateTimeUtils {
   const DateTimeUtils._();
 
+  /// Whole years elapsed between [dateOfBirth] and [date]; `null` when the
+  /// birth date is unknown. Used wherever the UI previously read the now
+  /// removed `approximateAge` patient column.
+  static int? ageOn(DateTime? dateOfBirth, DateTime date) {
+    if (dateOfBirth == null) return null;
+    var age = date.year - dateOfBirth.year;
+    if (date.month < dateOfBirth.month ||
+        (date.month == dateOfBirth.month && date.day < dateOfBirth.day)) {
+      age--;
+    }
+    return age;
+  }
+
+  /// Best-effort birth [DateTime] anchored on "today" for a whole-number
+  /// approximate age (used by forms that capture age instead of a calendar
+  /// date). Returns `null` for unknown ages.
+  static DateTime? dateOfBirthFromAge(int? age) {
+    if (age == null || age < 0) return null;
+    final today = DateTime.now();
+    return DateTime(today.year - age, today.month, today.day);
+  }
+
   /// Parse [value] into a UTC [DateTime], or `null` when unparseable.
   static DateTime? parseToUtc(Object? value) {
     if (value == null) return null;

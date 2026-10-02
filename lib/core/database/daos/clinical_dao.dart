@@ -23,12 +23,12 @@ class PendingInvestigation {
   const PendingInvestigation({
     required this.investigation,
     required this.patient,
-    required this.hospitalRegNo,
+    required this.mrn,
   });
 
   final InvestigationOrder investigation;
   final Patient patient;
-  final String hospitalRegNo;
+  final String mrn;
 }
 
 @DriftAccessor(
@@ -56,6 +56,7 @@ class PendingInvestigation {
     HbpStratifications,
     clinical_records.DocumentRegistries,
     clinical_records.ClinicalObservations,
+    clinical_records.Admissions,
   ],
 )
 class ClinicalDao extends DatabaseAccessor<AppDatabase>
@@ -212,7 +213,6 @@ class ClinicalDao extends DatabaseAccessor<AppDatabase>
   // =========================================================================
   Stream<List<Patient>> watchAllPatients() {
     return (select(patients)
-          ..where((row) => row.isActive.equals(true))
           ..orderBy([(row) => OrderingTerm(expression: row.fullName)]))
         .watch();
   }
@@ -237,7 +237,7 @@ class ClinicalDao extends DatabaseAccessor<AppDatabase>
         entityId: row.id,
         operation: 'insert',
         payload: _patientPayload(row),
-        clientUpdatedAt: row.updatedAt,
+        clientUpdatedAt: DateTime.now().toUtc(),
       );
       return row;
     });
@@ -246,7 +246,8 @@ class ClinicalDao extends DatabaseAccessor<AppDatabase>
   Future<Patient> insertPatientWithHospitalId({
     required PatientsCompanion patient,
     required String hospitalId,
-    required String hospitalRegNo,
+    required String mrn,
+    String identifierType = 'MRN',
   }) async {
     final patientId = patient.id.present ? patient.id.value : _ids.v4();
     return transaction(() async {
@@ -256,7 +257,8 @@ class ClinicalDao extends DatabaseAccessor<AppDatabase>
           id: Value(_ids.v4()),
           patientId: patientId,
           hospitalId: hospitalId,
-          hospitalRegNo: hospitalRegNo.trim(),
+          mrn: Value(mrn.trim().isEmpty ? null : mrn.trim()),
+          identifierType: Value(identifierType),
           isPrimary: const Value(true),
         ),
       );
@@ -269,7 +271,7 @@ class ClinicalDao extends DatabaseAccessor<AppDatabase>
         entityId: saved.id,
         operation: 'insert',
         payload: _patientPayload(saved),
-        clientUpdatedAt: saved.updatedAt,
+        clientUpdatedAt: DateTime.now().toUtc(),
       );
       return saved;
     });
@@ -287,16 +289,19 @@ class ClinicalDao extends DatabaseAccessor<AppDatabase>
       HospitalsCompanion.insert(
         id: Value(id),
         name: 'Primary Facility',
-        shortName: const Value('Primary'),
       ),
     );
     return id;
   }
 
+  /// Upserts the canonical hospital MRN for a patient. Older rows written
+  /// against the legacy `hospitalRegNo` column are read transparently through
+  /// [getPatientHospitalRegNo] after the v17 migration backfills `mrn`.
   Future<void> upsertPatientHospitalIdentifier({
     required String patientId,
     required String hospitalId,
-    required String hospitalRegNo,
+    required String mrn,
+    String identifierType = 'MRN',
     bool isPrimary = true,
   }) async {
     final existing =
@@ -311,9 +316,9 @@ class ClinicalDao extends DatabaseAccessor<AppDatabase>
       id: existing == null ? Value(_ids.v4()) : Value(existing.id),
       patientId: Value(patientId),
       hospitalId: Value(hospitalId),
-      hospitalRegNo: Value(hospitalRegNo.trim()),
+      mrn: Value(mrn.trim().isEmpty ? null : mrn.trim()),
+      identifierType: Value(identifierType),
       isPrimary: Value(isPrimary),
-      updatedAt: Value(DateTime.now().toUtc()),
     );
 
     if (existing == null) {
@@ -330,20 +335,36 @@ class ClinicalDao extends DatabaseAccessor<AppDatabase>
                   row.patientId.equals(patientId) & row.isPrimary.equals(true),
             ))
             .getSingleOrNull();
-    return identifier?.hospitalRegNo ?? 'No Reg No';
+    final mrn = identifier?.mrn;
+    return mrn == null || mrn.trim().isEmpty ? 'No Reg No' : mrn.trim();
+  }
+
+  /// Streams all currently-active inpatient stays for a hospital (MRN / bed
+  /// board feed). Emits a fresh list whenever an admission is created,
+  /// discharged or updated, oldest-stay-first.
+  Stream<List<Admission>> watchActiveAdmissions(String hospitalId) {
+    return (select(admissions)
+          ..where(
+            (row) =>
+                row.hospitalId.equals(hospitalId) &
+                row.status.equals('active'),
+          )
+          ..orderBy([
+            (row) => OrderingTerm(expression: row.admissionTime),
+          ]))
+        .watch();
   }
 
   Future<void> updatePatient(Patient patient) async {
     await transaction(() async {
-      final updated = patient.copyWith(updatedAt: DateTime.now().toUtc());
-      await update(patients).replace(updated);
+      await update(patients).replace(patient);
       await _enqueue(
-        ownerId: updated.ownerId,
+        ownerId: patient.ownerId,
         entityType: 'patients',
-        entityId: updated.id,
+        entityId: patient.id,
         operation: 'update',
-        payload: _patientPayload(updated),
-        clientUpdatedAt: updated.updatedAt,
+        payload: _patientPayload(patient),
+        clientUpdatedAt: DateTime.now().toUtc(),
       );
     });
   }
@@ -423,7 +444,6 @@ class ClinicalDao extends DatabaseAccessor<AppDatabase>
     required String patientName,
     required int? patientAge,
     required String? patientGender,
-    required String? patientPhone,
     required int? sbp,
     required int? dbp,
     required int? pulse,
@@ -445,19 +465,6 @@ class ClinicalDao extends DatabaseAccessor<AppDatabase>
           database: attachedDatabase,
           ownerId: ownerId,
         ).resolvePatient(identity);
-
-        if (patientPhone?.trim().isNotEmpty == true) {
-          final patient = await findPatient(resolvedPatientId);
-          if (patient != null && patient.phone == null) {
-            final updatedAt = DateTime.now().toUtc();
-            await update(patients).write(
-              PatientsCompanion(
-                phone: Value(patientPhone!.trim()),
-                updatedAt: Value(updatedAt),
-              ),
-            );
-          }
-        }
       }
 
       final id = _ids.v4();
@@ -814,10 +821,11 @@ class ClinicalDao extends DatabaseAccessor<AppDatabase>
       return rows
           .map((row) {
             final identifier = row.readTableOrNull(patientHospitalIdentifiers);
+            final mrn = identifier?.mrn;
             return PendingInvestigation(
               investigation: row.readTable(investigationOrders),
               patient: row.readTable(patients),
-              hospitalRegNo: identifier?.hospitalRegNo ?? 'No Reg No',
+              mrn: mrn == null || mrn.trim().isEmpty ? 'No Reg No' : mrn,
             );
           })
           .toList(growable: false);
@@ -1156,28 +1164,40 @@ class ClinicalDao extends DatabaseAccessor<AppDatabase>
   ) async {
     final id = json['id'] as String;
     final existing = await findPatient(id);
-    if (_remoteIsOlder(existing?.updatedAt, json['updated_at'], syncedAt)) {
-      return;
+    // Patients no longer carry an `updated_at` column (stable identity table).
+    // Guard against older remote frames overwriting a newer local edit by
+    // comparing against the most recent local pending sync-frame instead.
+    if (existing != null) {
+      final pending =
+          await (select(offlineSyncQueue)
+                ..where(
+                  (row) =>
+                      row.entityType.equals('patients') &
+                      row.entityId.equals(id),
+                )
+                ..orderBy([
+                  (row) => OrderingTerm(
+                    expression: row.clientUpdatedAt,
+                    mode: OrderingMode.desc,
+                  ),
+                ])
+                ..limit(1))
+              .getSingleOrNull();
+      if (pending != null && pending.clientUpdatedAt.isAfter(syncedAt)) {
+        return;
+      }
     }
+    final residence = json['residence'] as String? ??
+        json['address_or_location'] as String?;
     await into(patients).insertOnConflictUpdate(
       PatientsCompanion(
         id: Value(id),
-        ownerId: Value(json['owner_id'] as String),
-        fullName: Value(json['full_name'] as String),
+        ownerId: Value(json['owner_id'] as String? ?? defaultOwnerId),
+        fullName: Value(json['full_name'] as String? ?? 'Unknown patient'),
         dateOfBirth: Value(_date(json['date_of_birth'])),
-        approximateAge: Value(json['approximate_age'] as int?),
         gender: Value(json['gender'] as String?),
-        heightCm: Value((json['height_cm'] as num?)?.toDouble()),
-        weightKg: Value((json['weight_kg'] as num?)?.toDouble()),
-        addressOrLocation: Value(json['address_or_location'] as String?),
+        residence: Value(residence),
         occupation: Value(json['occupation'] as String?),
-        phone: Value(json['phone'] as String?),
-        alternatePhone: Value(json['alternate_phone'] as String?),
-        isActive: Value(json['is_active'] as bool? ?? true),
-        metadata: Value(jsonEncode(json['metadata'] ?? <String, dynamic>{})),
-        createdAt: Value(_date(json['created_at']) ?? syncedAt),
-        updatedAt: Value(_date(json['updated_at']) ?? syncedAt),
-        lastSyncedAt: Value(syncedAt),
       ),
     );
   }
@@ -1314,7 +1334,6 @@ class ClinicalDao extends DatabaseAccessor<AppDatabase>
             PatientHospitalIdentifiersCompanion(
               patientId: Value(primaryPatientId),
               isPrimary: const Value(false),
-              updatedAt: Value(now),
             ),
           );
         } else {
@@ -1531,18 +1550,11 @@ class ClinicalDao extends DatabaseAccessor<AppDatabase>
     'owner_id': row.ownerId,
     'full_name': row.fullName,
     'date_of_birth': row.dateOfBirth?.toIso8601String(),
-    'approximate_age': row.approximateAge,
     'gender': row.gender,
-    'height_cm': row.heightCm,
-    'weight_kg': row.weightKg,
-    'address_or_location': row.addressOrLocation,
+    'residence': row.residence,
+    // Legacy alias kept so older sync peers can still map the field.
+    'address_or_location': row.residence,
     'occupation': row.occupation,
-    'phone': row.phone,
-    'alternate_phone': row.alternatePhone,
-    'is_active': row.isActive,
-    'metadata': _decodedOrEmpty(row.metadata),
-    'created_at': row.createdAt.toIso8601String(),
-    'updated_at': row.updatedAt.toIso8601String(),
   };
 
   Map<String, dynamic> _clinicalEncounterPayload(ClinicalEncounter row) => {
@@ -1551,6 +1563,7 @@ class ClinicalDao extends DatabaseAccessor<AppDatabase>
     'patient_id': row.patientId,
     'hospital_id': row.hospitalId,
     'encounter_type': row.encounterType,
+    'care_setting': row.careSetting,
     'occurred_at': row.occurredAt.toIso8601String(),
     'department': row.department,
     'ward_name': row.wardName,
@@ -1574,6 +1587,8 @@ class ClinicalDao extends DatabaseAccessor<AppDatabase>
     'clinical_assessment': row.clinicalAssessment,
     'consultant_advice': row.consultantAdvice,
     'dynamic_data': row.dynamicData,
+    'pediatric_history': row.pediatricHistory,
+    'ob_gyn_history': row.obGynHistory,
     'image_path': row.imagePath,
     'ai_summary': row.aiSummary,
     'created_at': row.createdAt.toIso8601String(),
@@ -1636,14 +1651,6 @@ class ClinicalDao extends DatabaseAccessor<AppDatabase>
       (val * 1000).toInt(),
       isUtc: true,
     );
-  }
-
-  Object _decodedOrEmpty(String value) {
-    try {
-      return jsonDecode(value) ?? <String, dynamic>{};
-    } catch (_) {
-      return <String, dynamic>{};
-    }
   }
 
   bool _remoteIsOlder(

@@ -2,10 +2,10 @@ import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/database/local_database.dart';
 import '../../../core/providers/app_providers.dart';
+import '../../../core/utils/datetime_utils.dart';
 
 class PatientRegistryScreen extends ConsumerStatefulWidget {
   const PatientRegistryScreen({super.key});
@@ -88,11 +88,11 @@ class _PatientRegistryScreenState extends ConsumerState<PatientRegistryScreen> {
           final patients = allPatients.where((p) {
             if (_searchQuery.isEmpty) return true;
             final name = p.fullName.toLowerCase();
-            final phone = p.phone?.toLowerCase() ?? '';
-            final location = p.addressOrLocation?.toLowerCase() ?? '';
+            final residence = p.residence?.toLowerCase() ?? '';
+            final occupation = p.occupation?.toLowerCase() ?? '';
             return name.contains(_searchQuery) ||
-                phone.contains(_searchQuery) ||
-                location.contains(_searchQuery);
+                residence.contains(_searchQuery) ||
+                occupation.contains(_searchQuery);
           }).toList();
 
           if (allPatients.isEmpty) {
@@ -256,7 +256,7 @@ class _PatientCard extends ConsumerWidget {
                           },
                         ),
                         Text(
-                          '${patient.gender ?? 'Unspecified'} · ${patient.approximateAge != null ? '${patient.approximateAge}y' : '--'}',
+                          '${patient.gender ?? 'Unspecified'} · ${DateTimeUtils.ageOn(patient.dateOfBirth, DateTime.now()) != null ? '${DateTimeUtils.ageOn(patient.dateOfBirth, DateTime.now())}y' : '--'}',
                           style: TextStyle(
                             fontSize: 13,
                             color: Theme.of(
@@ -266,15 +266,10 @@ class _PatientCard extends ConsumerWidget {
                         ),
                       ],
                     ),
-                    if (patient.addressOrLocation?.isNotEmpty == true ||
-                        patient.phone?.isNotEmpty == true) ...[
+                    if (patient.residence?.isNotEmpty == true) ...[
                       const SizedBox(height: 4),
                       Text(
-                        [
-                          if (patient.addressOrLocation?.isNotEmpty == true)
-                            patient.addressOrLocation,
-                          if (patient.phone?.isNotEmpty == true) patient.phone,
-                        ].join(' · '),
+                        patient.residence!,
                         style: TextStyle(
                           fontSize: 12,
                           color: Theme.of(
@@ -291,13 +286,6 @@ class _PatientCard extends ConsumerWidget {
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  if (patient.phone?.isNotEmpty == true)
-                    IconButton(
-                      tooltip: 'Call Phone',
-                      icon: const Icon(Icons.phone_outlined, size: 20),
-                      onPressed: () =>
-                          launchUrl(Uri(scheme: 'tel', path: patient.phone)),
-                    ),
                   IconButton(
                     tooltip: 'Edit Profile',
                     icon: const Icon(Icons.edit_outlined, size: 20),
@@ -328,23 +316,26 @@ class _PatientEditorState extends ConsumerState<_PatientEditor> {
     text: widget.patient?.fullName ?? '',
   );
   late final _age = TextEditingController(
-    text: widget.patient?.approximateAge?.toString() ?? '',
+    text: DateTimeUtils.ageOn(
+          widget.patient?.dateOfBirth,
+          DateTime.now(),
+        )?.toString() ??
+        '',
   );
   late final _regNo = TextEditingController();
-  late final _phone = TextEditingController(text: widget.patient?.phone ?? '');
-  late final _altPhone = TextEditingController(
-    text: widget.patient?.alternatePhone ?? '',
-  );
-  late final _location = TextEditingController(
-    text: widget.patient?.addressOrLocation ?? '',
+  late final _residence = TextEditingController(
+    text: widget.patient?.residence ?? '',
   );
   late final _occupation = TextEditingController(
     text: widget.patient?.occupation ?? '',
   );
-  late final _height = TextEditingController(
+  late final _phone = TextEditingController(
+    text: widget.patient?.phone ?? '',
+  );
+  late final _heightCm = TextEditingController(
     text: widget.patient?.heightCm?.toString() ?? '',
   );
-  late final _weight = TextEditingController(
+  late final _weightKg = TextEditingController(
     text: widget.patient?.weightKg?.toString() ?? '',
   );
 
@@ -396,12 +387,11 @@ class _PatientEditorState extends ConsumerState<_PatientEditor> {
     _name.dispose();
     _age.dispose();
     _regNo.dispose();
-    _phone.dispose();
-    _altPhone.dispose();
-    _location.dispose();
+    _residence.dispose();
     _occupation.dispose();
-    _height.dispose();
-    _weight.dispose();
+    _phone.dispose();
+    _heightCm.dispose();
+    _weightKg.dispose();
     super.dispose();
   }
 
@@ -425,6 +415,21 @@ class _PatientEditorState extends ConsumerState<_PatientEditor> {
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      // ======== SECTION: Local Hospital MRN ========
+                      // Facility-scoped identifier: belongs to the hospital,
+                      // not to the global patient profile below.
+                      Text(
+                        'Local Hospital MRN',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.primary.withValues(alpha: 0.8),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+
                       // Hospital & Identifier Row
                       Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -442,9 +447,7 @@ class _PatientEditorState extends ConsumerState<_PatientEditor> {
                                 return DropdownMenuItem(
                                   value: h.id,
                                   child: Text(
-                                    h.shortName?.isNotEmpty == true
-                                        ? h.shortName!
-                                        : h.name,
+                                    h.name,
                                     overflow: TextOverflow.ellipsis,
                                   ),
                                 );
@@ -459,7 +462,7 @@ class _PatientEditorState extends ConsumerState<_PatientEditor> {
                             child: TextFormField(
                               controller: _regNo,
                               decoration: const InputDecoration(
-                                labelText: 'CR / UHID No.',
+                                labelText: 'MRN / UHID No.',
                                 prefixIcon: Icon(Icons.badge_outlined),
                                 isDense: true,
                               ),
@@ -468,6 +471,19 @@ class _PatientEditorState extends ConsumerState<_PatientEditor> {
                         ],
                       ),
                       const SizedBox(height: 16),
+
+                      // ======== SECTION: Global Patient Info ========
+                      Text(
+                        'Global Patient Info',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.primary.withValues(alpha: 0.8),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
 
                       // Full Name
                       TextFormField(
@@ -528,15 +544,16 @@ class _PatientEditorState extends ConsumerState<_PatientEditor> {
                       ),
                       const SizedBox(height: 16),
 
-                      // Phone & Alternate Phone
+                      // Phone & Anthropometrics — baseline contact + dose math
                       Row(
                         children: [
                           Expanded(
+                            flex: 2,
                             child: TextFormField(
                               controller: _phone,
                               keyboardType: TextInputType.phone,
                               decoration: const InputDecoration(
-                                labelText: 'Phone Number',
+                                labelText: 'Phone',
                                 prefixIcon: Icon(Icons.phone_outlined),
                                 isDense: true,
                               ),
@@ -545,11 +562,27 @@ class _PatientEditorState extends ConsumerState<_PatientEditor> {
                           const SizedBox(width: 12),
                           Expanded(
                             child: TextFormField(
-                              controller: _altPhone,
-                              keyboardType: TextInputType.phone,
+                              controller: _heightCm,
+                              keyboardType:
+                                  const TextInputType.numberWithOptions(
+                                    decimal: true,
+                                  ),
                               decoration: const InputDecoration(
-                                labelText: 'Alternate Contact',
-                                prefixIcon: Icon(Icons.contact_phone_outlined),
+                                labelText: 'Height (cm)',
+                                isDense: true,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: TextFormField(
+                              controller: _weightKg,
+                              keyboardType:
+                                  const TextInputType.numberWithOptions(
+                                    decimal: true,
+                                  ),
+                              decoration: const InputDecoration(
+                                labelText: 'Weight (kg)',
                                 isDense: true,
                               ),
                             ),
@@ -558,14 +591,14 @@ class _PatientEditorState extends ConsumerState<_PatientEditor> {
                       ),
                       const SizedBox(height: 16),
 
-                      // Address / Area & Occupation
+                      // Residence / Area & Occupation
                       Row(
                         children: [
                           Expanded(
                             child: TextFormField(
-                              controller: _location,
+                              controller: _residence,
                               decoration: const InputDecoration(
-                                labelText: 'District / Village / Town',
+                                labelText: 'Residence / District / Village',
                                 prefixIcon: Icon(Icons.location_on_outlined),
                                 isDense: true,
                               ),
@@ -578,42 +611,6 @@ class _PatientEditorState extends ConsumerState<_PatientEditor> {
                               decoration: const InputDecoration(
                                 labelText: 'Occupation',
                                 prefixIcon: Icon(Icons.work_outline),
-                                isDense: true,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-
-                      // Height & Weight (for Clinical Dosing / BSA)
-                      Row(
-                        children: [
-                          Expanded(
-                            child: TextFormField(
-                              controller: _height,
-                              keyboardType:
-                                  const TextInputType.numberWithOptions(
-                                    decimal: true,
-                                  ),
-                              decoration: const InputDecoration(
-                                labelText: 'Height (cm)',
-                                suffixText: 'cm',
-                                isDense: true,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: TextFormField(
-                              controller: _weight,
-                              keyboardType:
-                                  const TextInputType.numberWithOptions(
-                                    decimal: true,
-                                  ),
-                              decoration: const InputDecoration(
-                                labelText: 'Weight (kg)',
-                                suffixText: 'kg',
                                 isDense: true,
                               ),
                             ),
@@ -658,22 +655,20 @@ class _PatientEditorState extends ConsumerState<_PatientEditor> {
       final dao = ref.read(clinicalDaoProvider);
       final ownerId = ref.read(currentOwnerIdProvider);
 
+      final ageYears = int.tryParse(_age.text.trim());
       final patientCompanion = PatientsCompanion(
         ownerId: Value(ownerId),
         fullName: Value(_name.text.trim()),
-        approximateAge: Value(int.tryParse(_age.text.trim())),
+        dateOfBirth: Value(DateTimeUtils.dateOfBirthFromAge(ageYears)),
         gender: Value(_gender),
-        phone: Value(_clean(_phone.text)),
-        alternatePhone: Value(_clean(_altPhone.text)),
-        addressOrLocation: Value(_clean(_location.text)),
+        residence: Value(_clean(_residence.text)),
         occupation: Value(_clean(_occupation.text)),
-        heightCm: Value(double.tryParse(_height.text.trim())),
-        weightKg: Value(double.tryParse(_weight.text.trim())),
-        isActive: const Value(true),
-        updatedAt: Value(DateTime.now().toUtc()),
+        phone: Value(_clean(_phone.text)),
+        heightCm: Value(double.tryParse(_heightCm.text.trim())),
+        weightKg: Value(double.tryParse(_weightKg.text.trim())),
       );
 
-      final enteredRegNo = _regNo.text.trim().isEmpty
+      final enteredMrn = _regNo.text.trim().isEmpty
           ? 'TEMP-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}'
           : _regNo.text.trim();
 
@@ -682,21 +677,19 @@ class _PatientEditorState extends ConsumerState<_PatientEditor> {
           patient: patientCompanion,
           hospitalId:
               _selectedHospitalId ?? await dao.ensureDefaultHospitalId(),
-          hospitalRegNo: enteredRegNo,
+          mrn: enteredMrn,
         );
       } else {
         await dao.updatePatient(
           widget.patient!.copyWith(
             fullName: _name.text.trim(),
-            approximateAge: Value(int.tryParse(_age.text.trim())),
+            dateOfBirth: Value(DateTimeUtils.dateOfBirthFromAge(ageYears)),
             gender: Value(_gender),
-            phone: Value(_clean(_phone.text)),
-            alternatePhone: Value(_clean(_altPhone.text)),
-            addressOrLocation: Value(_clean(_location.text)),
+            residence: Value(_clean(_residence.text)),
             occupation: Value(_clean(_occupation.text)),
-            heightCm: Value(double.tryParse(_height.text.trim())),
-            weightKg: Value(double.tryParse(_weight.text.trim())),
-            updatedAt: DateTime.now().toUtc(),
+            phone: Value(_clean(_phone.text)),
+            heightCm: Value(double.tryParse(_heightCm.text.trim())),
+            weightKg: Value(double.tryParse(_weightKg.text.trim())),
           ),
         );
 
@@ -704,7 +697,7 @@ class _PatientEditorState extends ConsumerState<_PatientEditor> {
           await dao.upsertPatientHospitalIdentifier(
             patientId: widget.patient!.id,
             hospitalId: _selectedHospitalId!,
-            hospitalRegNo: enteredRegNo,
+            mrn: enteredMrn,
             isPrimary: true,
           );
         }

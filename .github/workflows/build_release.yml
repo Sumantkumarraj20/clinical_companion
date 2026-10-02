@@ -1,0 +1,52 @@
+# =============================================================================
+# Sprint 8 — CI/CD & In-App Binary Updates
+#
+# Push a version tag (e.g. `git tag v1.0.5 && git push --tags`) and this
+# workflow builds the release APK and publishes it as a GitHub Release. The
+# in-app updater (lib/core/services/app_updater_service.dart) then polls
+# GET /releases/latest, notices the new `tag_name`, and offers the clinician
+# a direct download of the attached app-release.apk asset.
+# =============================================================================
+name: Build & Release APK
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+# Required so the release step can create releases and upload assets.
+permissions:
+  contents: write
+
+jobs:
+  build-release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Install Dependencies
+        run: flutter pub get
+
+      - name: Build Release APK
+        run: flutter build apk --release
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Clinical Companion ${{ github.ref_name }}
+          generate_release_notes: true
+          files: build/app/outputs/flutter-apk/app-release.apk

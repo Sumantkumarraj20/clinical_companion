@@ -1,0 +1,554 @@
+{
+  "amoxicillin": [
+    {
+      "term": "Anaphylaxis",
+      "severity": "life_threatening"
+    },
+    {
+      "term": "Clostridioides difficile Colitis",
+      "severity": "organ_threatening"
+    },
+    {
+      "term": "Diarrhea",
+      "severity": "common"
+    },
+    {
+      "term": "Nausea",
+      "severity": "usually_mild"
+    },
+    {
+      "term": "Maculopapular Rash",
+      "severity": "clinically_important"
+    }
+  ],
+  "clavulanic acid": [
+    {
+      "term": "Cholestatic Jaundice",
+      "severity": "organ_threatening"
+    },
+    {
+      "term": "Diarrhea",
+      "severity": "common"
+    },
+    {
+      "term": "Abdominal Cramping",
+      "severity": "usually_mild"
+    }
+  ],
+  "paracetamol": [
+    {
+      "term": "Acute Hepatic Failure (in overdose)",
+      "severity": "life_threatening"
+    },
+    {
+      "term": "Stevens-Johnson Syndrome",
+      "severity": "potentially_serious"
+    },
+    {
+      "term": "Nausea",
+      "severity": "minor"
+    }
+  ],
+  "metformin": [
+    {
+      "term": "Lactic Acidosis",
+      "severity": "life_threatening"
+    },
+    {
+      "term": "Vitamin B12 Deficiency",
+      "severity": "clinically_important"
+    },
+    {
+      "term": "Diarrhea",
+      "severity": "common"
+    },
+    {
+      "term": "Nausea and Vomiting",
+      "severity": "common"
+    },
+    {
+      "term": "Flatulence",
+      "severity": "usually_mild"
+    }
+  ],
+  "atorvastatin": [
+    {
+      "term": "Rhabdomyolysis",
+      "severity": "life_threatening"
+    },
+    {
+      "term": "Hepatotoxicity / Transaminitis",
+      "severity": "organ_threatening"
+    },
+    {
+      "term": "Myalgia",
+      "severity": "clinically_important"
+    },
+    {
+      "term": "Dyspepsia",
+      "severity": "usually_mild"
+    }
+  ],
+  "rosuvastatin": [
+    {
+      "term": "Rhabdomyolysis",
+      "severity": "life_threatening"
+    },
+    {
+      "term": "Myalgia",
+      "severity": "clinically_important"
+    },
+    {
+      "term": "Elevated Liver Transaminases",
+      "severity": "organ_threatening"
+    }
+  ],
+  "amlodipine": [
+    {
+      "term": "Peripheral Ankle Edema",
+      "severity": "common"
+    },
+    {
+      "term": "Flushing",
+      "severity": "usually_mild"
+    },
+    {
+      "term": "Dizziness / Orthostatic Hypotension",
+      "severity": "clinically_important"
+    },
+    {
+      "term": "Gingival Hyperplasia",
+      "severity": "minor"
+    }
+  ],
+  "telmisartan": [
+    {
+      "term": "Hyperkalemia",
+      "severity": "organ_threatening"
+    },
+    {
+      "term": "Acute Kidney Injury in Renal Artery Stenosis",
+      "severity": "organ_threatening"
+    },
+    {
+      "term": "Dizziness / Hypotension",
+      "severity": "common"
+    }
+  ],
+  "losartan": [
+    {
+      "term": "Hyperkalemia",
+      "severity": "organ_threatening"
+    },
+    {
+      "term": "Acute Renal Impairment",
+      "severity": "organ_threatening"
+    },
+    {
+      "term": "Dizziness",
+      "severity": "common"
+    }
+  ],
+  "ramipril": [
+    {
+      "term": "Angioedema",
+      "severity": "life_threatening"
+    },
+    {
+      "term": "Hyperkalemia",
+      "severity": "organ_threatening"
+    },
+    {
+      "term": "Persistent Dry Cough",
+      "severity": "clinically_important"
+    },
+    {
+      "term": "Hypotension",
+      "severity": "common"
+    }
+  ],
+  "furosemide": [
+    {
+      "term": "Severe Hypokalemia / Cardiac Arrhythmias",
+      "severity": "life_threatening"
+    },
+    {
+      "term": "Ototoxicity",
+      "severity": "organ_threatening"
+    },
+    {
+      "term": "Hyponatremia and Dehydration",
+      "severity": "clinically_important"
+    },
+    {
+      "term": "Hyperuricemia / Gout Precipitation",
+      "severity": "clinically_important"
+    }
+  ],
+  "spironolactone": [
+    {
+      "term": "Severe Hyperkalemia",
+      "severity": "life_threatening"
+    },
+    {
+      "term": "Gynecomastia",
+      "severity": "clinically_important"
+    },
+    {
+      "term": "Menstrual Irregularities",
+      "severity": "usually_mild"
+    }
+  ],
+  "hydrochlorothiazide": [
+    {
+      "term": "Hypokalemia",
+      "severity": "organ_threatening"
+    },
+    {
+      "term": "Hyponatremia",
+      "severity": "organ_threatening"
+    },
+    {
+      "term": "Hyperuricemia",
+      "severity": "clinically_important"
+    },
+    {
+      "term": "Impaired Glucose Tolerance",
+      "severity": "clinically_important"
+    }
+  ],
+  "pantoprazole": [
+    {
+      "term": "Clostridioides difficile Infection",
+      "severity": "organ_threatening"
+    },
+    {
+      "term": "Hypomagnesemia",
+      "severity": "clinically_important"
+    },
+    {
+      "term": "Increased Fracture Risk (long-term)",
+      "severity": "clinically_important"
+    },
+    {
+      "term": "Headache",
+      "severity": "usually_mild"
+    }
+  ],
+  "omeprazole": [
+    {
+      "term": "C. difficile-associated Diarrhea",
+      "severity": "organ_threatening"
+    },
+    {
+      "term": "Hypomagnesemia",
+      "severity": "clinically_important"
+    },
+    {
+      "term": "Vitamin B12 Malabsorption",
+      "severity": "clinically_important"
+    }
+  ],
+  "ciprofloxacin": [
+    {
+      "term": "Tendon Rupture / Tendinitis",
+      "severity": "organ_threatening"
+    },
+    {
+      "term": "QT Interval Prolongation",
+      "severity": "life_threatening"
+    },
+    {
+      "term": "Peripheral Neuropathy",
+      "severity": "organ_threatening"
+    },
+    {
+      "term": "Photosensitivity",
+      "severity": "clinically_important"
+    },
+    {
+      "term": "Nausea / Diarrhea",
+      "severity": "common"
+    }
+  ],
+  "levofloxacin": [
+    {
+      "term": "QT Prolongation",
+      "severity": "life_threatening"
+    },
+    {
+      "term": "Tendonitis and Tendon Rupture",
+      "severity": "organ_threatening"
+    },
+    {
+      "term": "Dysglycemia",
+      "severity": "clinically_important"
+    }
+  ],
+  "azithromycin": [
+    {
+      "term": "QT Prolongation / Torsades de Pointes",
+      "severity": "life_threatening"
+    },
+    {
+      "term": "Cholestatic Jaundice",
+      "severity": "organ_threatening"
+    },
+    {
+      "term": "Abdominal Cramping / Diarrhea",
+      "severity": "common"
+    }
+  ],
+  "ceftriaxone": [
+    {
+      "term": "Anaphylactic Shock",
+      "severity": "life_threatening"
+    },
+    {
+      "term": "Biliary Sludge / Pseudolithiasis",
+      "severity": "clinically_important"
+    },
+    {
+      "term": "C. difficile Colitis",
+      "severity": "organ_threatening"
+    }
+  ],
+  "piperacillin": [
+    {
+      "term": "Severe Anaphylaxis",
+      "severity": "life_threatening"
+    },
+    {
+      "term": "Bone Marrow Suppression (prolonged use)",
+      "severity": "organ_threatening"
+    },
+    {
+      "term": "Diarrhea",
+      "severity": "common"
+    }
+  ],
+  "tazobactam": [
+    {
+      "term": "Hypokalemia",
+      "severity": "clinically_important"
+    }
+  ],
+  "aspirin": [
+    {
+      "term": "Major Gastrointestinal Hemorrhage",
+      "severity": "life_threatening"
+    },
+    {
+      "term": "Aspirin-Exacerbated Respiratory Disease / Bronchospasm",
+      "severity": "life_threatening"
+    },
+    {
+      "term": "Dyspepsia and Peptic Ulceration",
+      "severity": "clinically_important"
+    },
+    {
+      "term": "Tinnitus (salicylism)",
+      "severity": "clinically_important"
+    }
+  ],
+  "clopidogrel": [
+    {
+      "term": "Fatal Hemorrhage",
+      "severity": "life_threatening"
+    },
+    {
+      "term": "Thrombotic Thrombocytopenic Purpura (TTP)",
+      "severity": "life_threatening"
+    },
+    {
+      "term": "Hematoma / Epistaxis",
+      "severity": "common"
+    }
+  ],
+  "ibuprofen": [
+    {
+      "term": "Gastrointestinal Perforation / Bleeding",
+      "severity": "life_threatening"
+    },
+    {
+      "term": "Acute Kidney Injury",
+      "severity": "organ_threatening"
+    },
+    {
+      "term": "Cardiovascular Thrombotic Events",
+      "severity": "life_threatening"
+    },
+    {
+      "term": "Fluid Retention",
+      "severity": "clinically_important"
+    }
+  ],
+  "diclofenac": [
+    {
+      "term": "Hepatotoxicity",
+      "severity": "organ_threatening"
+    },
+    {
+      "term": "GI Ulceration / Bleeding",
+      "severity": "life_threatening"
+    },
+    {
+      "term": "Increased Cardiovascular Risk",
+      "severity": "life_threatening"
+    }
+  ],
+  "aceclofenac": [
+    {
+      "term": "GI Bleeding",
+      "severity": "life_threatening"
+    },
+    {
+      "term": "Renal Impairment",
+      "severity": "organ_threatening"
+    },
+    {
+      "term": "Nausea / Dyspepsia",
+      "severity": "common"
+    }
+  ],
+  "tramadol": [
+    {
+      "term": "Respiratory Depression",
+      "severity": "life_threatening"
+    },
+    {
+      "term": "Seizures",
+      "severity": "life_threatening"
+    },
+    {
+      "term": "Serotonin Syndrome",
+      "severity": "life_threatening"
+    },
+    {
+      "term": "Constipation / Nausea",
+      "severity": "common"
+    }
+  ],
+  "ondansetron": [
+    {
+      "term": "QT Interval Prolongation",
+      "severity": "life_threatening"
+    },
+    {
+      "term": "Constipation",
+      "severity": "common"
+    },
+    {
+      "term": "Headache",
+      "severity": "common"
+    }
+  ],
+  "glimepiride": [
+    {
+      "term": "Severe Prolonged Hypoglycemia",
+      "severity": "life_threatening"
+    },
+    {
+      "term": "Weight Gain",
+      "severity": "clinically_important"
+    }
+  ],
+  "dapagliflozin": [
+    {
+      "term": "Euglycemic Diabetic Ketoacidosis",
+      "severity": "life_threatening"
+    },
+    {
+      "term": "Fournier's Gangrene",
+      "severity": "life_threatening"
+    },
+    {
+      "term": "Genital Mycotic Infections",
+      "severity": "common"
+    },
+    {
+      "term": "Volume Depletion / Hypotension",
+      "severity": "clinically_important"
+    }
+  ],
+  "salbutamol": [
+    {
+      "term": "Tachycardia / Palpitations",
+      "severity": "clinically_important"
+    },
+    {
+      "term": "Tremor",
+      "severity": "common"
+    },
+    {
+      "term": "Hypokalemia",
+      "severity": "organ_threatening"
+    }
+  ],
+  "budesonide": [
+    {
+      "term": "Oropharyngeal Candidiasis",
+      "severity": "clinically_important"
+    },
+    {
+      "term": "Dysphonia / Hoarseness",
+      "severity": "usually_mild"
+    }
+  ],
+  "montelukast": [
+    {
+      "term": "Neuropsychiatric Events / Depression / Suicidal Ideation",
+      "severity": "potentially_serious"
+    },
+    {
+      "term": "Headache",
+      "severity": "usually_mild"
+    }
+  ],
+  "levocetirizine": [
+    {
+      "term": "Somnolence / Sedation",
+      "severity": "common"
+    },
+    {
+      "term": "Dry Mouth",
+      "severity": "usually_mild"
+    }
+  ],
+  "amiodarone": [
+    {
+      "term": "Pulmonary Toxicity / Interstitial Pneumonitis",
+      "severity": "life_threatening"
+    },
+    {
+      "term": "Fatal Arrhythmias / Torsades de Pointes",
+      "severity": "life_threatening"
+    },
+    {
+      "term": "Hepatotoxicity",
+      "severity": "organ_threatening"
+    },
+    {
+      "term": "Thyroid Dysfunction (Hypo/Hyperthyroidism)",
+      "severity": "organ_threatening"
+    },
+    {
+      "term": "Corneal Microdeposits",
+      "severity": "minor"
+    }
+  ],
+  "digoxin": [
+    {
+      "term": "Fatal Digitalis Toxicity Arrhythmias",
+      "severity": "life_threatening"
+    },
+    {
+      "term": "Visual Disturbances (Yellow/Green Halos)",
+      "severity": "clinically_important"
+    },
+    {
+      "term": "Anorexia / Nausea / Vomiting",
+      "severity": "common"
+    }
+  ]
+}

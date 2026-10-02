@@ -9,6 +9,7 @@ import '../../../core/database/services/identity_resolution_service.dart';
 import '../../../core/models/ai_extraction_result.dart';
 import '../../../core/models/document_task.dart';
 import '../../../core/providers/app_providers.dart';
+import '../../../core/utils/datetime_utils.dart';
 
 class ExtractionReviewScreen extends ConsumerStatefulWidget {
   const ExtractionReviewScreen({
@@ -391,7 +392,7 @@ class _ExtractionReviewScreenState
                                     builder: (context, regSnap) {
                                       final reg = regSnap.data ?? '…';
                                       return Text(
-                                        '${p.fullName} (CR: $reg) · ${p.gender ?? '?'}, ${p.approximateAge ?? '--'}y',
+                                        '${p.fullName} (CR: $reg) · ${p.gender ?? '?'}, ${DateTimeUtils.ageOn(p.dateOfBirth, DateTime.now()) ?? '--'}y',
                                         overflow: TextOverflow.ellipsis,
                                       );
                                     },

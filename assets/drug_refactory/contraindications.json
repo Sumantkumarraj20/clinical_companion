@@ -1,0 +1,67 @@
+{
+  "amoxicillin": [
+    "Documented Severe Penicillin Anaphylaxis / Hypersensitivity",
+    "Infectious Mononucleosis (risk of extensive maculopapular rash)"
+  ],
+  "paracetamol": [
+    "Severe Active Hepatic Impairment / Acute Liver Failure"
+  ],
+  "metformin": [
+    "Severe Renal Impairment (eGFR < 30 mL/min/1.73m2)",
+    "Acute Metabolic Acidosis / Diabetic Ketoacidosis",
+    "Severe Tissue Hypoxemia (Septic Shock, Decompensated Heart Failure)"
+  ],
+  "atorvastatin": [
+    "Active Liver Disease / Unexplained Persistent Transaminase Elevation",
+    "Pregnancy and Lactation"
+  ],
+  "telmisartan": [
+    "Pregnancy (Teratogenic in 2nd and 3rd trimesters)",
+    "Bilateral Renal Artery Stenosis",
+    "Concomitant use with Aliskiren in Diabetes"
+  ],
+  "ramipril": [
+    "History of ACE-inhibitor Induced Angioedema",
+    "Pregnancy",
+    "Bilateral Renal Artery Stenosis"
+  ],
+  "furosemide": [
+    "Anuria",
+    "Severe Electrolyte Depletion / Refractory Hypokalemia",
+    "Hypovolemic Shock"
+  ],
+  "spironolactone": [
+    "Hyperkalemia (Serum K > 5.0 mEq/L)",
+    "Severe Renal Impairment (eGFR < 30 mL/min)",
+    "Addison's Disease"
+  ],
+  "ceftriaxone": [
+    "Absolute Incompatibility with IV Calcium Solutions in Neonates",
+    "Severe Cephalosporin Anaphylaxis"
+  ],
+  "aspirin": [
+    "Active Peptic Ulcer Bleeding",
+    "Hemophilia and Bleeding Disorders",
+    "Children/Adolescents with Viral Illness (Reye Syndrome Risk)"
+  ],
+  "ibuprofen": [
+    "Active Peptic Ulcer Disease",
+    "Severe Heart Failure (NYHA Class IV)",
+    "Third Trimester of Pregnancy",
+    "Perioperative Pain in CABG Surgery"
+  ],
+  "ciprofloxacin": [
+    "Concomitant Tizanidine Administration",
+    "History of Tendon Disorder Associated with Fluoroquinolones",
+    "Myasthenia Gravis (Black Box Warning)"
+  ],
+  "tramadol": [
+    "Acute Intoxication with Alcohol, Hypnotics, or Psychotropics",
+    "Concomitant MAO Inhibitor Therapy within 14 Days",
+    "Uncontrolled Epilepsy"
+  ],
+  "dapagliflozin": [
+    "History of Serious Hypersensitivity",
+    "Dialysis / End-stage Renal Disease"
+  ]
+}

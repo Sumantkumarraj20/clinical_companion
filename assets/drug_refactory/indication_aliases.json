@@ -1,0 +1,20 @@
+{
+  "cap": "Community Acquired Pneumonia",
+  "community pneumonia": "Community Acquired Pneumonia",
+  "community acquired pneumonias": "Community Acquired Pneumonia",
+  "pneumonia community acquired": "Community Acquired Pneumonia",
+  "aom": "Acute Otitis Media",
+  "acute otitis": "Acute Otitis Media",
+  "gerd": "Gastroesophageal Reflux Disease",
+  "gastro-oesophageal reflux disease": "Gastroesophageal Reflux Disease",
+  "gastroesophageal reflux": "Gastroesophageal Reflux Disease",
+  "pyrexia": "Pyrexia",
+  "fever": "Pyrexia",
+  "t2dm": "Type 2 Diabetes Mellitus",
+  "type ii diabetes mellitus": "Type 2 Diabetes Mellitus",
+  "type 2 dm": "Type 2 Diabetes Mellitus",
+  "niddm": "Type 2 Diabetes Mellitus",
+  "essential hypertension": "Essential Hypertension",
+  "htn": "Essential Hypertension",
+  "hypertension": "Essential Hypertension"
+}

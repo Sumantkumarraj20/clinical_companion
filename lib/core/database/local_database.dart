@@ -70,8 +70,12 @@ class StringListConverter extends TypeConverter<List<String>, String>
 }
 
 // ==========================================
-// 1. PATIENT DEMOGRAPHICS (STRICTLY INVARIANT)
+// 1. PATIENT DEMOGRAPHICS (STABLE IDENTITY)
 // ==========================================
+// Stable identity PLUS baseline clinical/contact data needed for rapid dose
+// calculations at the point of care. Height/weight feed weight-based dosing;
+// phones enable follow-up outreach. These map onto legacy SQLite columns that
+// were already present in seeded files, so no migration is required.
 @DataClassName('Patient')
 @TableIndex(name: 'patients_full_name_idx', columns: {#fullName})
 class Patients extends Table {
@@ -82,19 +86,17 @@ class Patients extends Table {
   TextColumn get ownerId => text()();
   TextColumn get fullName => text()();
   DateTimeColumn get dateOfBirth => dateTime().nullable()();
-  IntColumn get approximateAge => integer().nullable()();
   TextColumn get gender => text().nullable()();
+  TextColumn get residence => text().nullable()();
+  TextColumn get occupation => text().nullable()();
+
+  // Baseline anthropometrics — used for weight-based / BSA dose calculations.
   RealColumn get heightCm => real().nullable()();
   RealColumn get weightKg => real().nullable()();
-  TextColumn get addressOrLocation => text().nullable()();
-  TextColumn get occupation => text().nullable()();
+
+  // Contact info for follow-up and outreach.
   TextColumn get phone => text().nullable()();
   TextColumn get alternatePhone => text().nullable()();
-  BoolColumn get isActive => boolean().withDefault(const Constant(true))();
-  TextColumn get metadata => text().withDefault(const Constant('{}'))();
-  DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
-  DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
-  DateTimeColumn get lastSyncedAt => dateTime().nullable()();
 
   @override
   Set<Column<Object>> get primaryKey => {id};
@@ -110,11 +112,8 @@ class Hospitals extends Table {
 
   TextColumn get id => text().clientDefault(() => _uuid.v4())();
   TextColumn get name => text()();
-  TextColumn get shortName => text().nullable()();
   TextColumn get address => text().nullable()();
   BoolColumn get isActive => boolean().withDefault(const Constant(true))();
-  DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
-  DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
 
   @override
   Set<Column<Object>> get primaryKey => {id};
@@ -140,8 +139,8 @@ class Wards extends Table {
 
 @DataClassName('PatientHospitalIdentifier')
 @TableIndex(
-  name: 'patient_hosp_reg_idx',
-  columns: {#hospitalId, #hospitalRegNo},
+  name: 'patient_hosp_mrn_idx',
+  columns: {#hospitalId, #mrn},
 )
 class PatientHospitalIdentifiers extends Table {
   @override
@@ -152,10 +151,14 @@ class PatientHospitalIdentifiers extends Table {
       text().references(Patients, #id, onDelete: KeyAction.cascade)();
   TextColumn get hospitalId =>
       text().references(Hospitals, #id, onDelete: KeyAction.cascade)();
-  TextColumn get hospitalRegNo => text()();
+  // Medical Record Number assigned by the hospital for this patient.
+  TextColumn get mrn => text().nullable()();
+  // What kind of identifier is stored (defaults to 'MRN'; e.g. UHID, CR No).
+  TextColumn get identifierType =>
+      text().withDefault(const Constant('MRN'))();
+  // Kept so a patient may hold multiple historical MRNs per hospital while a
+  // single one stays canonical for identity resolution.
   BoolColumn get isPrimary => boolean().withDefault(const Constant(false))();
-  DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
-  DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
 
   @override
   Set<Column<Object>> get primaryKey => {id};
@@ -183,6 +186,11 @@ class ClinicalEncounters extends Table {
   TextColumn get encounterType => text().withDefault(
     const Constant('OPD'),
   )(); // OPD, Admission, Ward Round, Emergency, Operative
+  // Sprint 3 — Dynamic Encounter & POMR. Canonical care context for the
+  // encounter: 'OPD', 'IPD' or 'ER'. Derived from encounterType but stored
+  // explicitly so the bedside UI can branch without parsing free text.
+  TextColumn get careSetting =>
+      text().withDefault(const Constant('OPD'))(); // OPD, IPD, ER
   DateTimeColumn get occurredAt => dateTime().withDefault(currentDateAndTime)();
 
   // Episodic Bedside Context
@@ -218,6 +226,17 @@ class ClinicalEncounters extends Table {
   TextColumn get aiSummary => text().nullable()();
 
   TextColumn get dynamicData =>
+      text().map(const JsonMapConverter()).withDefault(const Constant('{}'))();
+
+  // Sprint 3 — Structured speciality histories. Stored as JSON maps so new
+  // fields can be captured without further migrations.
+  // pediatricHistory: e.g. {"birthHistory": "...", "immunization": "...",
+  // "developmentalMilestones": "...", "feedingHistory": "..."}
+  TextColumn get pediatricHistory =>
+      text().map(const JsonMapConverter()).withDefault(const Constant('{}'))();
+  // obGynHistory: e.g. {"gravida": 2, "para": 1, "lmp": "...",
+  // "menstrualHistory": "...", "contraception": "..."}
+  TextColumn get obGynHistory =>
       text().map(const JsonMapConverter()).withDefault(const Constant('{}'))();
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
   DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
@@ -414,6 +433,156 @@ class Drugs extends Table {
 
   @override
   Set<Column<Object>> get primaryKey => {id};
+}
+
+// ==========================================
+// 7b. MASTER CLINICAL DRUGS TABLE (POMR-integrated)
+// ==========================================
+// Hyper-optimized replacement for the bloated 3-table drug knowledge graph
+// (ActiveIngredients → Formulations → Brands), which produced 222,000+
+// duplicate rows. Populated offline by scripts/build_clinical_drugs.py:
+//   1. Reads the legacy drug_master table (~248k rows)
+//   2. Regex-strips forms/strengths from generic_name → base molecule
+//   3. Keeps the top 3,000 most common molecules
+//   4. Groups top 5 brands (₹) + unique forms per molecule
+//   5. Enriches via gemini-1.5-flash → canonical problem arrays
+//
+// problemIndications & prioritizedSideEffects store JSON-encoded
+// List<String> of canonical diagnosis strings (SNOMED/ICD-11 style) so they
+// link directly to PatientProblems.problemName. Decoded in Dart via
+// jsonDecode (see PharmacopeiaDao helpers).
+// ==========================================
+@DataClassName('ClinicalDrug')
+class ClinicalDrugs extends Table {
+  @override
+  String get tableName => 'clinical_drugs';
+
+  TextColumn get id => text().clientDefault(() => _uuid.v4())();
+  TextColumn get genericMolecule => text()();
+  // JSON-encoded List<String> of standard problem names.
+  TextColumn get problemIndications => text().withDefault(const Constant('[]'))();
+  // JSON-encoded List<String> of prioritised side-effect problem names.
+  TextColumn get prioritizedSideEffects =>
+      text().withDefault(const Constant('[]'))();
+  TextColumn get prescribingPearls => text().nullable()();
+  // Comma-separated, e.g. 'Tablet, Syrup, Injection'.
+  TextColumn get availableForms => text().nullable()();
+  // Comma-separated, e.g. 'Augmentin (₹120), Clavam (₹110)'.
+  TextColumn get topBrands => text().nullable()();
+  IntColumn get usageFrequency => integer().withDefault(const Constant(0))();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
+// ==========================================
+// 7c. OTA DRUG CATALOG (Sprint 7 — nightly Apps Script sync)
+// ==========================================
+// Mirrors the live Google Apps Script Web App JSON export, one table per
+// sheet tab (row counts measured against the production endpoint):
+//   clinical_core                  -> active_ingredients  (76 rows)
+//   indications_dosing_matrix      -> indications         (77 rows)
+//   formulations_administration    -> formulations        (76 rows)
+//   commercial_brands_trust_layer  -> brands              (76 rows)
+//
+// Rows are upserted by PharmacopeiaDao.upsertOtaCatalog() using
+// InsertMode.insertOrReplace keyed on the sheet's natural IDs
+// ("Drug ID" / "Indication ID" / "Formulation ID" / "Brand ID"), so
+// re-running a nightly sync is idempotent. Patient-owned data (drug_master
+// trust flags, encounters, problems, prescriptions, notes) lives in separate
+// tables and is NEVER touched by the OTA merge.
+//
+// Sheet IDs follow `<PREFIX>-<CODE>-<n>` (DRG-CEF-001, BRD-CEF-001); the
+// middle token is derived into `moleculeCode` so the four tabs join without
+// FK constraints — a malformed nightly row can never abort the transaction.
+// ==========================================
+@DataClassName('ActiveIngredient')
+@TableIndex(name: 'active_ingredients_generic_idx', columns: {#genericName})
+@TableIndex(name: 'active_ingredients_code_idx', columns: {#moleculeCode})
+class ActiveIngredients extends Table {
+  @override
+  String get tableName => 'active_ingredients';
+
+  // Natural key from the sheet ("Drug ID") — UUIDs would break
+  // insertOrReplace idempotency.
+  TextColumn get ingredientId => text()();
+  // Derived molecule token shared by all four tabs, e.g. 'CEF'.
+  TextColumn get moleculeCode => text().nullable()();
+  TextColumn get genericName => text()();
+  TextColumn get pharmacologicalClass => text().nullable()();
+  TextColumn get mechanismOfAction => text().nullable()();
+  TextColumn get primaryRoutes => text().nullable()();
+  TextColumn get renalAdjustment => text().nullable()();
+  TextColumn get hepaticRisk => text().nullable()();
+  TextColumn get criticalAlerts => text().nullable()();
+  TextColumn get pregnancyCategory => text().nullable()();
+  DateTimeColumn get syncedAt => dateTime().withDefault(currentDateAndTime)();
+
+  @override
+  Set<Column<Object>> get primaryKey => {ingredientId};
+}
+
+@DataClassName('Indication')
+@TableIndex(name: 'indications_code_idx', columns: {#moleculeCode})
+class Indications extends Table {
+  @override
+  String get tableName => 'indications';
+
+  TextColumn get indicationId => text()();
+  TextColumn get moleculeCode => text().nullable()();
+  TextColumn get clinicalIndication => text().nullable()();
+  TextColumn get patientCohort => text().nullable()();
+  TextColumn get standardRegimen => text().nullable()();
+  TextColumn get routeFrequency => text().nullable()();
+  TextColumn get typicalDuration => text().nullable()();
+  TextColumn get maxDailyCeiling => text().nullable()();
+  TextColumn get evidenceLevel => text().nullable()();
+  TextColumn get clinicalProtocol => text().nullable()();
+  DateTimeColumn get syncedAt => dateTime().withDefault(currentDateAndTime)();
+
+  @override
+  Set<Column<Object>> get primaryKey => {indicationId};
+}
+
+@DataClassName('Formulation')
+@TableIndex(name: 'formulations_code_idx', columns: {#moleculeCode})
+class Formulations extends Table {
+  @override
+  String get tableName => 'formulations';
+
+  TextColumn get formulationId => text()();
+  TextColumn get moleculeCode => text().nullable()();
+  TextColumn get dosageFormStrength => text().nullable()();
+  TextColumn get reconstitution => text().nullable()();
+  TextColumn get administrationRoute => text().nullable()();
+  TextColumn get storageStability => text().nullable()();
+  TextColumn get compatibilityAlerts => text().nullable()();
+  DateTimeColumn get syncedAt => dateTime().withDefault(currentDateAndTime)();
+
+  @override
+  Set<Column<Object>> get primaryKey => {formulationId};
+}
+
+@DataClassName('Brand')
+@TableIndex(name: 'brands_code_idx', columns: {#moleculeCode})
+@TableIndex(name: 'brands_name_idx', columns: {#brandName})
+class Brands extends Table {
+  @override
+  String get tableName => 'brands';
+
+  TextColumn get brandId => text()();
+  TextColumn get moleculeCode => text().nullable()();
+  TextColumn get brandName => text()();
+  TextColumn get manufacturer => text().nullable()();
+  TextColumn get packagingUnitStrength => text().nullable()();
+  TextColumn get trustTier => text().nullable()();
+  // "Approx. MRP (INR)" — arrives as number or '₹5,400.00' string.
+  RealColumn get mrp => real().nullable()();
+  TextColumn get trustNotes => text().nullable()();
+  DateTimeColumn get syncedAt => dateTime().withDefault(currentDateAndTime)();
+
+  @override
+  Set<Column<Object>> get primaryKey => {brandId};
 }
 
 // ==========================================
@@ -627,6 +796,11 @@ class OfflineSyncQueue extends Table {
     InvestigationResults,
     LearnedCatalog,
     Drugs,
+    ClinicalDrugs,
+    Indications,
+    ActiveIngredients,
+    Formulations,
+    Brands,
     PersonalWiki,
     OfflineSyncQueue,
     CdssRules,
@@ -638,13 +812,18 @@ class OfflineSyncQueue extends Table {
     ClinicalObservations,
     MicrobiologyCultures,
     ImagingStudies,
+    Admissions,
   ],
 )
 class AppDatabase extends _$AppDatabase {
-  AppDatabase() : super(openAppDatabaseExecutor());
+  // Executor is injectable so tests / smoke checks can run against an
+  // in-memory NativeDatabase; production falls back to the encrypted
+  // file-backed executor.
+  AppDatabase([QueryExecutor? executor])
+    : super(executor ?? openAppDatabaseExecutor());
 
   @override
-  int get schemaVersion => 16;
+  int get schemaVersion => 22;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -682,6 +861,7 @@ class AppDatabase extends _$AppDatabase {
         try { await m.createTable(clinicalObservations); } catch (_) {}
         try { await m.createTable(microbiologyCultures); } catch (_) {}
         try { await m.createTable(imagingStudies); } catch (_) {}
+        try { await m.createTable(admissions); } catch (_) {}
 
         // Apply fallback columns to drug_master in case Python script was old
         try { await m.addColumn(drugs, drugs.usageFrequency); } catch (_) {}
@@ -718,6 +898,94 @@ class AppDatabase extends _$AppDatabase {
           try { await m.addColumn(patientProblems, patientProblems.currentStatus); } catch (_) {}
           try { await m.addColumn(patientProblems, patientProblems.resolvedDate); } catch (_) {}
           try { await m.addColumn(investigationOrders, investigationOrders.problemId); } catch (_) {}
+        }
+        if (from < 17) {
+          // Sprint 1 — Core Identity & Schema Integrity:
+          // * New Admissions (inpatient episode) table.
+          // * PatientHospitalIdentifiers gains the canonical MRN + identifierType.
+          // * Patients gains `residence` (replaces the old addressOrLocation field).
+          // Legacy columns are NOT dropped (no data loss); they simply fall out of
+          // the schema, and existing values are backfilled into the new columns.
+          try { await m.createTable(admissions); } catch (_) {}
+          try { await m.addColumn(patients, patients.residence); } catch (_) {}
+          try { await m.addColumn(patientHospitalIdentifiers, patientHospitalIdentifiers.mrn); } catch (_) {}
+          try { await m.addColumn(patientHospitalIdentifiers, patientHospitalIdentifiers.identifierType); } catch (_) {}
+
+          // Backfill canonical columns from the legacy ones so existing records
+          // stay fully readable after the upgrade. Raw SQL is required because
+          // the moved columns are not yet part of any query builder definition.
+          try {
+            await customStatement(
+              'UPDATE patient_hospital_identifiers SET mrn = hospitalRegNo '
+                  "WHERE (mrn IS NULL OR mrn = '') AND hospitalRegNo IS NOT NULL",
+            );
+          } catch (_) {}
+          try {
+            await customStatement(
+              'UPDATE patients SET residence = addressOrLocation '
+                  "WHERE (residence IS NULL OR residence = '') "
+                  'AND addressOrLocation IS NOT NULL',
+            );
+          } catch (_) {}
+        }
+        if (from < 19) {
+          // POMR integration — collapse the 3-table drug knowledge graph
+          // (ActiveIngredients / Formulations / Brands — 222k+ duplicate rows)
+          // into the single hyper-optimized `clinical_drugs` master table.
+          // Old tables are dropped; the legacy `drug_master` fallback is kept.
+          try { await customStatement('DROP TABLE IF EXISTS brands'); } catch (_) {}
+          try { await customStatement('DROP TABLE IF EXISTS formulations'); } catch (_) {}
+          try { await customStatement('DROP TABLE IF EXISTS active_ingredients'); } catch (_) {}
+          try { await m.createTable(clinicalDrugs); } catch (_) {}
+        }
+        if (from < 20) {
+          try { await m.addColumn(clinicalEncounters, clinicalEncounters.careSetting); } catch (_) {}
+          try { await m.addColumn(clinicalEncounters, clinicalEncounters.pediatricHistory); } catch (_) {}
+          try { await m.addColumn(clinicalEncounters, clinicalEncounters.obGynHistory); } catch (_) {}
+
+          // Backfill careSetting from the legacy free-text encounterType so
+          // existing rows remain correctly classified in the bedside UI.
+          try {
+            await customStatement(
+              "UPDATE clinical_encounters SET care_setting = 'IPD' "
+              "WHERE care_setting = 'OPD' AND (encounter_type LIKE '%mission%' "
+              "OR encounter_type LIKE '%Ward%' OR encounter_type LIKE '%ICU%')",
+            );
+            await customStatement(
+              "UPDATE clinical_encounters SET care_setting = 'ER' "
+              "WHERE care_setting = 'OPD' AND encounter_type LIKE '%mergen%'",
+            );
+          } catch (_) {}
+        }
+        if (from < 21) {
+          // Sprint 7 (OTA Catalog Sync) — re-introduce the hierarchical
+          // active_ingredients / formulations / brands tables as the nightly
+          // Google Apps Script catalog target. v19 had dropped the legacy
+          // copies; these are freshly created with the OTA schema and filled
+          // by PharmacopeiaDao.upsertOtaCatalog(). Patient data is untouched.
+          try { await m.createTable(activeIngredients); } catch (_) {}
+          try { await m.createTable(formulations); } catch (_) {}
+          try { await m.createTable(brands); } catch (_) {}
+        }
+        if (from < 22) {
+          // Sprint 7.1 — align the OTA catalog with the LIVE Apps Script
+          // payload (adds `indications`, reshapes the clinical_core /
+          // formulations / brands columns to the real column names, and adds
+          // the shared moleculeCode join key). These four tables hold ONLY
+          // nightly-synced catalog rows — never patient data — so recreating
+          // them is loss-free: the next sync refills them from the sheet.
+          for (final table in const [
+            'active_ingredients',
+            'indications',
+            'formulations',
+            'brands',
+          ]) {
+            try { await customStatement('DROP TABLE IF EXISTS $table'); } catch (_) {}
+          }
+          try { await m.createTable(indications); } catch (_) {}
+          try { await m.createTable(activeIngredients); } catch (_) {}
+          try { await m.createTable(formulations); } catch (_) {}
+          try { await m.createTable(brands); } catch (_) {}
         }
       }
     },

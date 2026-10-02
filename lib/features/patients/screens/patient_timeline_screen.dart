@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/database/daos/clinical_dao.dart';
 import '../../../core/database/local_database.dart';
@@ -136,13 +135,6 @@ class _PatientTimelineScreenState extends ConsumerState<PatientTimelineScreen> {
           ],
         ),
         actions: [
-          if (widget.patient.phone?.isNotEmpty == true)
-            IconButton(
-              tooltip: 'Call patient',
-              icon: const Icon(Icons.call_outlined),
-              onPressed: () =>
-                  launchUrl(Uri(scheme: 'tel', path: widget.patient.phone)),
-            ),
           IconButton(
             tooltip: 'PM-JAY Pre-Auth Check',
             icon: const Icon(Icons.account_balance_wallet_outlined),

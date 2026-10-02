@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/database/local_database.dart';
 import '../../../core/providers/app_providers.dart';
 import '../../../core/database/daos/clinical_dao.dart';
+import '../../../core/utils/datetime_utils.dart';
 
 class DataManagementScreen extends ConsumerStatefulWidget {
   const DataManagementScreen({super.key});
@@ -51,10 +52,7 @@ class _DataManagementScreenState extends ConsumerState<DataManagementScreen> {
               .where((patient) {
                 return query.isEmpty ||
                     patient.fullName.toLowerCase().contains(query) ||
-                    (patient.phone ?? '').contains(query) ||
-                    (patient.addressOrLocation ?? '').toLowerCase().contains(
-                      query,
-                    );
+                    (patient.residence ?? '').toLowerCase().contains(query);
               })
               .toList(growable: false);
 
@@ -270,7 +268,7 @@ class _DataManagementScreenState extends ConsumerState<DataManagementScreen> {
               builder: (context, snapshot) {
                 final cr = snapshot.data ?? '…';
                 return Text(
-                  '${patient.fullName} (CR: $cr) · ${patient.gender ?? '?'}, ${patient.approximateAge ?? '--'}y',
+                  '${patient.fullName} (CR: $cr) · ${patient.gender ?? '?'}, ${DateTimeUtils.ageOn(patient.dateOfBirth, DateTime.now()) ?? '--'}y',
                   overflow: TextOverflow.ellipsis,
                 );
               },

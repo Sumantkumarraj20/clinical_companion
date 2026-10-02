@@ -1,0 +1,42 @@
+{
+  "metformin": [
+    "Review baseline renal function (eGFR) prior to initiation and dose titration.",
+    "Administer with meals to minimize GI distress.",
+    "Hold 48 hours prior to and following iodinated IV contrast procedures."
+  ],
+  "amoxicillin": [
+    "Dose adjust in moderate-to-severe renal impairment.",
+    "Complete full duration to prevent bacterial resistance emergence."
+  ],
+  "paracetamol": [
+    "Maximum daily adult dose is 4,000 mg (2,000-3,000 mg in chronic liver disease or frail elderly).",
+    "Educate patients on hidden paracetamol in OTC cold and cough formulations."
+  ],
+  "atorvastatin": [
+    "Advise patients to immediately report unexplained muscle tenderness, pain, or dark tea-colored urine.",
+    "Obtain baseline ALT/AST before starting therapy."
+  ],
+  "ramipril": [
+    "Monitor serum creatinine and potassium 1-2 weeks after initiation and titration.",
+    "Warn patients about benign persistent dry cough; transition to ARB if intolerable."
+  ],
+  "furosemide": [
+    "Monitor daily weights, blood pressure, serum electrolytes (K+, Na+), and renal parameters.",
+    "Prescribe morning dosing to avoid nocturnal polyuria."
+  ],
+  "spironolactone": [
+    "Check serum potassium at Day 3, Day 7, and monthly for the first 3 months.",
+    "Advise against high-potassium diets and salt substitutes containing KCl."
+  ],
+  "ciprofloxacin": [
+    "Maintain adequate patient hydration to prevent crystalluria in alkaline urine.",
+    "Separate oral administration from multivalent cations (dairy, antacids, iron) by at least 2 hours."
+  ],
+  "dapagliflozin": [
+    "Counsel patients on genital hygiene to prevent mycotic infections.",
+    "Hold medication during acute surgical stress, critical illness, or prolonged fasting (EKA risk)."
+  ],
+  "ondansetron": [
+    "Screen for baseline prolonged QTc interval and hypomagnesemia before IV administration."
+  ]
+}

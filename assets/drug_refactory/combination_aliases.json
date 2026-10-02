@@ -1,0 +1,174 @@
+{
+  "amoxicillin clavulanate": [
+    "amoxicillin",
+    "clavulanic acid"
+  ],
+  "amoxicillin clavulanic acid": [
+    "amoxicillin",
+    "clavulanic acid"
+  ],
+  "amoxicillin and clavulanate potassium": [
+    "amoxicillin",
+    "clavulanic acid"
+  ],
+  "amoxycillin and clavulanic acid": [
+    "amoxicillin",
+    "clavulanic acid"
+  ],
+  "co amoxiclav": [
+    "amoxicillin",
+    "clavulanic acid"
+  ],
+  "co-amoxiclav": [
+    "amoxicillin",
+    "clavulanic acid"
+  ],
+  "piperacillin and tazobactam": [
+    "piperacillin",
+    "tazobactam"
+  ],
+  "piperacillin tazobactam": [
+    "piperacillin",
+    "tazobactam"
+  ],
+  "pip tazo": [
+    "piperacillin",
+    "tazobactam"
+  ],
+  "telmisartan and amlodipine": [
+    "amlodipine",
+    "telmisartan"
+  ],
+  "telmisartan amlodipine": [
+    "amlodipine",
+    "telmisartan"
+  ],
+  "telmisartan and hydrochlorothiazide": [
+    "hydrochlorothiazide",
+    "telmisartan"
+  ],
+  "telmisartan hctz": [
+    "hydrochlorothiazide",
+    "telmisartan"
+  ],
+  "paracetamol and aceclofenac": [
+    "aceclofenac",
+    "paracetamol"
+  ],
+  "aceclofenac and paracetamol": [
+    "aceclofenac",
+    "paracetamol"
+  ],
+  "paracetamol and tramadol": [
+    "paracetamol",
+    "tramadol"
+  ],
+  "tramadol and paracetamol": [
+    "paracetamol",
+    "tramadol"
+  ],
+  "paracetamol and ibuprofen": [
+    "ibuprofen",
+    "paracetamol"
+  ],
+  "ibuprofen and paracetamol": [
+    "ibuprofen",
+    "paracetamol"
+  ],
+  "diclofenac and paracetamol": [
+    "diclofenac",
+    "paracetamol"
+  ],
+  "paracetamol and diclofenac": [
+    "diclofenac",
+    "paracetamol"
+  ],
+  "atorvastatin and clopidogrel": [
+    "atorvastatin",
+    "clopidogrel"
+  ],
+  "clopidogrel and aspirin": [
+    "aspirin",
+    "clopidogrel"
+  ],
+  "aspirin and clopidogrel": [
+    "aspirin",
+    "clopidogrel"
+  ],
+  "aspirin and atorvastatin": [
+    "aspirin",
+    "atorvastatin"
+  ],
+  "glimepiride and metformin": [
+    "glimepiride",
+    "metformin"
+  ],
+  "metformin and glimepiride": [
+    "glimepiride",
+    "metformin"
+  ],
+  "metformin and vildagliptin": [
+    "metformin",
+    "vildagliptin"
+  ],
+  "vildagliptin and metformin": [
+    "metformin",
+    "vildagliptin"
+  ],
+  "metformin and sitagliptin": [
+    "metformin",
+    "sitagliptin"
+  ],
+  "sitagliptin and metformin": [
+    "metformin",
+    "sitagliptin"
+  ],
+  "metformin and dapagliflozin": [
+    "dapagliflozin",
+    "metformin"
+  ],
+  "dapagliflozin and metformin": [
+    "dapagliflozin",
+    "metformin"
+  ],
+  "montelukast and levocetirizine": [
+    "levocetirizine",
+    "montelukast"
+  ],
+  "levocetirizine and montelukast": [
+    "levocetirizine",
+    "montelukast"
+  ],
+  "formoterol and budesonide": [
+    "budesonide",
+    "formoterol"
+  ],
+  "budesonide and formoterol": [
+    "budesonide",
+    "formoterol"
+  ],
+  "salbutamol and ipratropium": [
+    "ipratropium",
+    "salbutamol"
+  ],
+  "ipratropium and salbutamol": [
+    "ipratropium",
+    "salbutamol"
+  ],
+  "pantoprazole and domperidone": [
+    "domperidone",
+    "pantoprazole"
+  ],
+  "rabeprazole and domperidone": [
+    "domperidone",
+    "rabeprazole"
+  ],
+  "spironolactone and furosemide": [
+    "furosemide",
+    "spironolactone"
+  ],
+  "furosemide and spironolactone": [
+    "furosemide",
+    "spironolactone"
+  ]
+}

@@ -4,6 +4,7 @@ import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/database/daos/pharmacopeia_dao.dart';
 import '../../../core/database/local_database.dart';
 import '../../../core/providers/app_providers.dart';
 
@@ -15,15 +16,23 @@ class DrugReferenceScreen extends ConsumerStatefulWidget {
       _DrugReferenceScreenState();
 }
 
-class _DrugReferenceScreenState extends ConsumerState<DrugReferenceScreen> {
+class _DrugReferenceScreenState extends ConsumerState<DrugReferenceScreen>
+    with SingleTickerProviderStateMixin {
   final _search = TextEditingController();
+  final _cloudSearch = TextEditingController();
   Timer? _debounce;
+  Timer? _cloudDebounce;
   String _term = '';
+  String _cloudTerm = '';
+  late final TabController _tab = TabController(length: 3, vsync: this);
 
   @override
   void dispose() {
     _debounce?.cancel();
+    _cloudDebounce?.cancel();
     _search.dispose();
+    _cloudSearch.dispose();
+    _tab.dispose();
     super.dispose();
   }
 
@@ -35,81 +44,211 @@ class _DrugReferenceScreenState extends ConsumerState<DrugReferenceScreen> {
     );
   }
 
+  void _onCloudSearchChanged(String value) {
+    _cloudDebounce?.cancel();
+    _cloudDebounce = Timer(
+      const Duration(milliseconds: 200),
+      () => setState(() => _cloudTerm = value),
+    );
+  }
+
+  bool _isCatalogSyncing = false;
+
+  /// Manual OTA catalog pull (mirrors the silent nightly sync that runs at
+  /// app startup). Network + Drift work is fully async — the UI stays live.
+  Future<void> _triggerCatalogSync() async {
+    final messenger = ScaffoldMessenger.of(context);
+    setState(() => _isCatalogSyncing = true);
+    messenger.showSnackBar(
+      const SnackBar(
+        content: Text('Syncing latest clinical catalog...'),
+        duration: Duration(seconds: 2),
+      ),
+    );
+    try {
+      await ref
+          .read(catalogSyncProvider)
+          .syncCatalogFromCloud(catalogScriptUrl);
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Catalog up to date.')),
+      );
+    } catch (error) {
+      messenger.showSnackBar(
+        SnackBar(content: Text('Catalog sync failed: $error')),
+      );
+    } finally {
+      if (mounted) setState(() => _isCatalogSyncing = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final stream = ref
-        .watch(pharmacopeiaDaoProvider)
-        .searchDrugsPaged(query: _term);
+    final dao = ref.watch(pharmacopeiaDaoProvider);
+    final clinicalFuture = dao.searchClinicalDrugs(_term);
+    final stream = dao.searchDrugsPaged(query: _term);
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('Drug Reference & Editor')),
-      // Kept away from the global bottom-right Smart Camera FAB.
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _showDrugEditor(context),
-        icon: const Icon(Icons.add),
-        label: const Text('New Drug'),
+    return DefaultTabController(
+      length: 3,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Drug Reference & Editor'),
+          actions: [
+            IconButton(
+              icon: _isCatalogSyncing
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.sync),
+              tooltip: 'Sync latest clinical catalog',
+              onPressed: _isCatalogSyncing ? null : _triggerCatalogSync,
+            ),
+          ],
+          bottom: TabBar(
+            controller: _tab,
+            tabs: const [
+              Tab(
+                icon: Icon(Icons.medical_services_outlined),
+                text: 'Clinical Reference',
+              ),
+              Tab(icon: Icon(Icons.edit_note), text: 'My Catalog'),
+              Tab(icon: Icon(Icons.cloud_outlined), text: 'Cloud Catalog'),
+            ],
+          ),
+        ),
+        body: TabBarView(
+          controller: _tab,
+          children: [
+            _buildClinicalTab(clinicalFuture),
+            _buildCatalogTab(stream),
+            _buildCloudTab(dao),
+          ],
+        ),
       ),
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: TextField(
-              controller: _search,
-              onChanged: _onSearchChanged,
-              decoration: InputDecoration(
-                prefixIcon: const Icon(Icons.search),
-                labelText: 'Search generic, brand, uses, or class',
-                suffixIcon: IconButton(
-                  icon: const Icon(Icons.clear),
-                  onPressed: () {
-                    _search.clear();
-                    _onSearchChanged('');
-                  },
-                ),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
+    );
+  }
+
+  // =========================================================================
+  // TAB 1 — CLINICAL REFERENCE (POMR-integrated master table)
+  // =========================================================================
+  Widget _buildClinicalTab(Future<List<ClinicalDrug>> future) {
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(12),
+          child: TextField(
+            controller: _search,
+            onChanged: _onSearchChanged,
+            decoration: const InputDecoration(
+              prefixIcon: Icon(Icons.search),
+              labelText:
+                  'Search molecule, brand, form, or clinical problem',
+              border: OutlineInputBorder(),
+            ),
+          ),
+        ),
+        Expanded(
+          child: FutureBuilder<List<ClinicalDrug>>(
+            future: future,
+            builder: (context, snapshot) {
+              if (snapshot.hasError) {
+                return Center(
+                  child: Text(
+                    'ClinicalDrugs error: ${snapshot.error}',
+                    style: const TextStyle(color: Colors.red),
+                  ),
+                );
+              }
+              if (!snapshot.hasData) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              final drugs = snapshot.data!;
+              if (drugs.isEmpty) {
+                return const Center(
+                  child: Text(
+                    'No clinical drugs found.\n'
+                    'Run scripts/build_clinical_drugs.py to populate.',
+                    textAlign: TextAlign.center,
+                  ),
+                );
+              }
+              return ListView.builder(
+                padding: const EdgeInsets.only(bottom: 24),
+                itemCount: drugs.length,
+                itemBuilder: (context, index) =>
+                    _ClinicalDrugCard(drug: drugs[index]),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  // =========================================================================
+  // TAB 2 — MY CATALOG (user's own editable drug list)
+  // =========================================================================
+  Widget _buildCatalogTab(Stream<List<Drug>> stream) {
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(12),
+          child: TextField(
+            controller: _search,
+            onChanged: _onSearchChanged,
+            decoration: InputDecoration(
+              prefixIcon: const Icon(Icons.search),
+              labelText: 'Search generic, brand, uses, or class',
+              suffixIcon: IconButton(
+                icon: const Icon(Icons.clear),
+                onPressed: () {
+                  _search.clear();
+                  _onSearchChanged('');
+                },
+              ),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
               ),
             ),
           ),
-          Expanded(
-            child: StreamBuilder<List<Drug>>(
-              stream: stream,
-              builder: (context, snapshot) {
-                if (snapshot.hasError) {
-                  return Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(24.0),
-                      child: Text(
-                        'Database Schema Error: \n${snapshot.error}',
-                        style: const TextStyle(color: Colors.red),
-                      ),
+        ),
+        Expanded(
+          child: StreamBuilder<List<Drug>>(
+            stream: stream,
+            builder: (context, snapshot) {
+              if (snapshot.hasError) {
+                return Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24.0),
+                    child: Text(
+                      'Database Schema Error: \n${snapshot.error}',
+                      style: const TextStyle(color: Colors.red),
                     ),
-                  );
-                }
-                if (!snapshot.hasData) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-
-                final drugs = snapshot.data!;
-                if (drugs.isEmpty) {
-                  return const Center(child: Text('No matching drugs found.'));
-                }
-
-                return ListView.builder(
-                  padding: const EdgeInsets.only(bottom: 80),
-                  itemCount: drugs.length,
-                  itemBuilder: (context, index) {
-                    final drug = drugs[index];
-                    return _buildDrugCard(drug);
-                  },
+                  ),
                 );
-              },
-            ),
+              }
+              if (!snapshot.hasData) {
+                return const Center(child: CircularProgressIndicator());
+              }
+
+              final drugs = snapshot.data!;
+              if (drugs.isEmpty) {
+                return const Center(child: Text('No matching drugs found.'));
+              }
+
+              return ListView.builder(
+                padding: const EdgeInsets.only(bottom: 80),
+                itemCount: drugs.length,
+                itemBuilder: (context, index) {
+                  final drug = drugs[index];
+                  return _buildDrugCard(drug);
+                },
+              );
+            },
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
@@ -423,4 +562,459 @@ class _DrugReferenceScreenState extends ConsumerState<DrugReferenceScreen> {
       );
     }
   }
+
+  // =========================================================================
+  // TAB 3 — CLOUD CATALOG (nightly OTA merge, Sprint 7)
+  // =========================================================================
+
+  /// Streams the rows merged by [PharmacopeiaDao.upsertOtaCatalog]; the
+  /// catalog is read-only for the clinician and never touches patient tables.
+  Widget _buildCloudTab(PharmacopeiaDao dao) {
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(12),
+          child: TextField(
+            controller: _cloudSearch,
+            onChanged: _onCloudSearchChanged,
+            decoration: const InputDecoration(
+              prefixIcon: Icon(Icons.search),
+              labelText: 'Search synced drug, ID, or pharmacological class',
+              border: OutlineInputBorder(),
+            ),
+          ),
+        ),
+        Expanded(
+          child: StreamBuilder<List<ActiveIngredient>>(
+            stream: dao.watchOtaIngredients(query: _cloudTerm),
+            builder: (context, snapshot) {
+              if (snapshot.hasError) {
+                return Center(
+                  child: Text('Cloud catalog error: ${snapshot.error}'),
+                );
+              }
+              if (!snapshot.hasData) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              final items = snapshot.data!;
+              if (items.isEmpty) {
+                return const Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(24),
+                    child: Text(
+                      'Cloud catalog is empty.\n'
+                      'Tap the sync icon above to fetch the nightly sheet.',
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                );
+              }
+              return ListView.builder(
+                padding: const EdgeInsets.only(bottom: 24),
+                itemCount: items.length,
+                itemBuilder: (context, index) {
+                  final item = items[index];
+                  final subtitle = [
+                    if (item.pharmacologicalClass != null)
+                      item.pharmacologicalClass!,
+                    if (item.primaryRoutes != null)
+                      'Routes: ${item.primaryRoutes}',
+                  ].join('\n');
+                  return ListTile(
+                    leading: const Icon(Icons.medication_outlined),
+                    title: Text(item.genericName),
+                    subtitle: subtitle.isEmpty ? null : Text(subtitle),
+                    trailing: Text(
+                      item.moleculeCode ?? item.ingredientId,
+                      style: Theme.of(context).textTheme.labelSmall,
+                    ),
+                    onTap: () => _showCloudDrugDetail(item),
+                  );
+                },
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+  /// One synced molecule in full: pharmacology + safety fields from
+  /// `clinical_core`, then the dose matrix / formulation / brand rows joined
+  /// through the derived molecule code.
+  void _showCloudDrugDetail(ActiveIngredient ingredient) {
+    final dao = ref.read(pharmacopeiaDaoProvider);
+    final code = ingredient.moleculeCode;
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(ingredient.genericName),
+        content: SizedBox(
+          width: 460,
+          child: ListView(
+            shrinkWrap: true,
+            children: [
+              _sectionHeader(
+                dialogContext,
+                Icons.biotech_outlined,
+                'Pharmacology',
+                Colors.teal,
+              ),
+              _cloudField('Class', ingredient.pharmacologicalClass),
+              _cloudField('Mechanism', ingredient.mechanismOfAction),
+              _cloudField('Primary routes', ingredient.primaryRoutes),
+              _sectionHeader(
+                dialogContext,
+                Icons.warning_amber_outlined,
+                'Safety',
+                Colors.orange,
+              ),
+              _cloudField('Renal', ingredient.renalAdjustment),
+              _cloudField('Hepatic', ingredient.hepaticRisk),
+              _cloudField('Pregnancy', ingredient.pregnancyCategory),
+              _cloudField('Critical alerts', ingredient.criticalAlerts),
+              if (code != null) ...[
+                _cloudFutureSection<Indication>(
+                  future: dao.indicationsForMolecule(code),
+                  icon: Icons.playlist_add_check_circle_outlined,
+                  color: Colors.indigo,
+                  label: 'Indications & dosing',
+                  titleOf: (row) =>
+                      row.clinicalIndication ?? row.indicationId,
+                  subtitleOf: (row) => [
+                    if (row.patientCohort != null) row.patientCohort!,
+                    if (row.standardRegimen != null) row.standardRegimen!,
+                    if (row.routeFrequency != null) row.routeFrequency!,
+                    if (row.typicalDuration != null)
+                      'Duration: ${row.typicalDuration}',
+                    if (row.evidenceLevel != null)
+                      'Evidence: ${row.evidenceLevel}',
+                  ].join(' · '),
+                ),
+                _cloudFutureSection<Formulation>(
+                  future: dao.formulationsForMolecule(code),
+                  icon: Icons.science_outlined,
+                  color: Colors.deepPurple,
+                  label: 'Formulations',
+                  titleOf: (row) =>
+                      row.dosageFormStrength ?? row.formulationId,
+                  subtitleOf: (row) => [
+                    if (row.administrationRoute != null)
+                      row.administrationRoute!,
+                    if (row.storageStability != null) row.storageStability!,
+                  ].join(' · '),
+                ),
+                _cloudFutureSection<Brand>(
+                  future: dao.brandsForMolecule(code),
+                  icon: Icons.sell_outlined,
+                  color: Colors.blueGrey,
+                  label: 'Brands',
+                  titleOf: (row) => row.brandName,
+                  subtitleOf: (row) => [
+                    if (row.manufacturer != null) row.manufacturer!,
+                    if (row.trustTier != null) 'Tier: ${row.trustTier}',
+                    if (row.mrp != null)
+                      'MRP ₹${row.mrp!.toStringAsFixed(2)}',
+                  ].join(' · '),
+                ),
+              ],
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+  /// Label + value row that disappears when the sheet cell was empty/NA.
+  Widget _cloudField(String label, String? value) {
+    if (value == null || value.trim().isEmpty) return const SizedBox.shrink();
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: Colors.grey[600],
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          Text(value, style: theme.textTheme.bodySmall),
+        ],
+      ),
+    );
+  }
+
+  /// Read-only section backed by one of the OTA child-table futures.
+  Widget _cloudFutureSection<T>({
+    required Future<List<T>> future,
+    required IconData icon,
+    required Color color,
+    required String label,
+    required String Function(T row) titleOf,
+    String Function(T row)? subtitleOf,
+  }) {
+    return FutureBuilder<List<T>>(
+      future: future,
+      builder: (context, snapshot) {
+        final rows = snapshot.data ?? <T>[];
+        if (rows.isEmpty) return const SizedBox.shrink();
+        return Padding(
+          padding: const EdgeInsets.only(top: 12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _sectionHeader(context, icon, '$label (${rows.length})', color),
+              const SizedBox(height: 4),
+              for (final row in rows)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 6),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        titleOf(row),
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                      if (subtitleOf != null && subtitleOf(row).isNotEmpty)
+                        Text(
+                          subtitleOf(row),
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+  /// Section heading used by the cloud-catalog detail dialogs (copy of
+  /// the card's helper — the two widgets are separate classes).
+  Widget _sectionHeader(
+      BuildContext context, IconData icon, String label, Color color) {
+    return Row(
+      children: [
+        Icon(icon, size: 16, color: color),
+        const SizedBox(width: 4),
+        Text(label,
+            style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                  color: color,
+                  fontWeight: FontWeight.w600,
+                )),
+      ],
+    );
+  }
+}
+
+// ===========================================================================
+// CLINICAL DRUG CARD — renders the POMR-integrated master row.
+// JSON-encoded arrays are safely decoded via PharmacopeiaDao.decodeStringList
+// and displayed as distinct ActionChips.
+// ===========================================================================
+class _ClinicalDrugCard extends StatelessWidget {
+  const _ClinicalDrugCard({required this.drug});
+
+  final ClinicalDrug drug;
+
+  static const _problemColor = Color(0xFF1565C0);
+  static const _sideEffectColor = Color(0xFFC62828);
+
+  @override
+  Widget build(BuildContext context) {
+    final problems = PharmacopeiaDao.decodeStringList(drug.problemIndications);
+    final sideEffects =
+        PharmacopeiaDao.decodeStringList(drug.prioritizedSideEffects);
+    final forms = (drug.availableForms ?? '')
+        .split(',')
+        .map((f) => f.trim())
+        .where((f) => f.isNotEmpty)
+        .toList();
+    final brands = (drug.topBrands ?? '')
+        .split(',')
+        .map((b) => b.trim())
+        .where((b) => b.isNotEmpty)
+        .toList();
+    final theme = Theme.of(context);
+
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    drug.genericMolecule,
+                    style: theme.textTheme.titleLarge
+                        ?.copyWith(fontWeight: FontWeight.bold),
+                  ),
+                ),
+                if (drug.usageFrequency > 0)
+                  Chip(
+                    avatar: const Icon(Icons.trending_up, size: 16),
+                    label: Text('${drug.usageFrequency}'),
+                    visualDensity: VisualDensity.compact,
+                  ),
+              ],
+            ),
+            if (problems.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              _sectionHeader(context, Icons.coronavirus_outlined,
+                  'Indicated For', _problemColor),
+              const SizedBox(height: 6),
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: problems
+                    .map((p) => ActionChip(
+                          label: Text(p, style: const TextStyle(fontSize: 12)),
+                          backgroundColor: _problemColor.withValues(alpha: 0.08),
+                          side: const BorderSide(color: _problemColor),
+                          onPressed: () => _showProblemDrugs(context, p),
+                        ))
+                    .toList(),
+              ),
+            ],
+
+            if (sideEffects.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              _sectionHeader(context, Icons.warning_amber_outlined,
+                  'Watch For (prioritized)', _sideEffectColor),
+              const SizedBox(height: 6),
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: sideEffects
+                    .map((s) => ActionChip(
+                          label: Text(s, style: const TextStyle(fontSize: 12)),
+                          backgroundColor: _sideEffectColor.withValues(alpha: 0.08),
+                          side: const BorderSide(color: _sideEffectColor),
+                          onPressed: () => _showProblemDrugs(context, s),
+                        ))
+                    .toList(),
+              ),
+            ],
+            if (drug.prescribingPearls?.isNotEmpty == true) ...[
+              const SizedBox(height: 12),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.amber.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(Icons.tips_and_updates_outlined,
+                        size: 18, color: Colors.amber),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        drug.prescribingPearls!,
+                        style: theme.textTheme.bodySmall,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+            if (forms.isNotEmpty || brands.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  ...forms.map((f) => Chip(
+                        label: Text(f, style: const TextStyle(fontSize: 12)),
+                        avatar: const Icon(Icons.medication, size: 16),
+                        visualDensity: VisualDensity.compact,
+                      )),
+                  ...brands.map((b) => Chip(
+                        label: Text(b, style: const TextStyle(fontSize: 12)),
+                        avatar: const Icon(Icons.sell_outlined, size: 16),
+                        visualDensity: VisualDensity.compact,
+                      )),
+                ],
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _sectionHeader(
+      BuildContext context, IconData icon, String label, Color color) {
+    return Row(
+      children: [
+        Icon(icon, size: 16, color: color),
+        const SizedBox(width: 4),
+        Text(label,
+            style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                  color: color,
+                  fontWeight: FontWeight.w600,
+                )),
+      ],
+    );
+  }
+
+  /// Tapping a problem chip performs a reverse POMR lookup: which other
+  /// molecules also treat this problem.
+  void _showProblemDrugs(BuildContext context, String problem) {
+    final dao = ProviderScope.containerOf(context).read(pharmacopeiaDaoProvider);
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(problem),
+        content: SizedBox(
+          width: 360,
+          child: FutureBuilder<List<ClinicalDrug>>(
+            future: dao.getDrugsForProblem(problem),
+            builder: (context, snapshot) {
+              if (!snapshot.hasData) {
+                return const Padding(
+                  padding: EdgeInsets.all(24),
+                  child: Center(child: CircularProgressIndicator()),
+                );
+              }
+              final drugs = snapshot.data!;
+              if (drugs.isEmpty) {
+                return const Text('No linked molecules found.');
+              }
+              return ListView.builder(
+                shrinkWrap: true,
+                itemCount: drugs.length,
+                itemBuilder: (context, index) => ListTile(
+                  dense: true,
+                  leading: Text('${index + 1}'),
+                  title: Text(drugs[index].genericMolecule),
+                ),
+              );
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
 }
