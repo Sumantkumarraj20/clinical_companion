@@ -41,6 +41,17 @@ jobs:
       - name: Install Dependencies
         run: flutter pub get
 
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Generate Clinical SQLite Database
+        run: python scripts/build_drug_db.py
+
+      - name: Build Release APK
+        run: flutter build apk --release
+
       - name: Build Release APK
         run: flutter build apk --release
 

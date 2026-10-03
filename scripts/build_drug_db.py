@@ -4,7 +4,7 @@ import sqlite3
 from pathlib import Path
 
 # Paste your Web App URL from Step 1 here
-GOOGLE_MACRO_URL = "YOUR_GOOGLE_WEB_APP_URL_HERE"
+GOOGLE_MACRO_URL = "https://script.googleusercontent.com/macros/echo?user_content_key=AUkAhnTy8LXWIEWA7t3j_8nGNBGCAOPRx_PQNy9fw9i2oDGDbX36lWNy0cI1bB2WznJ-DFiBDsZFJTH4FOvjKvlwnNglZd83N_RbLVUarR21TAkGaUS8Hz1Vl2epJiNmmWD93NwHSo7PC-umX-3VbZnvKsvuPVp7wFRPFLkHsJzhkfR5wgAFoFWMgT_4iPmLs7EJimEvElOwG7r9gpvVgWunXN-7DXX9xHK7Kd2DJY3J7iZhU_-22y9XwlxHq_WHmudrdFWrJ0TeT1MwYgjhLwzWc5gkdGNkyg&lib=MTXeStcT_4zsqnkjKuBXjUR07KVSSVcGI"
 DB_PATH = Path("assets/clinical_drugs.sqlite")
 
 def fetch_sheet_data():
