@@ -60,8 +60,7 @@ class DateTimeUtils {
       final asInt = int.tryParse(candidate);
       if (asInt != null) return fromEpochValue(asInt.toDouble());
       final asDouble = double.tryParse(candidate);
-      if (asDouble != null &&
-          RegExp(r'^-?\d+\.\d+$').hasMatch(candidate)) {
+      if (asDouble != null && RegExp(r'^-?\d+\.\d+$').hasMatch(candidate)) {
         return fromEpochValue(asDouble);
       }
       return DateTime.tryParse(trimmed)?.toUtc() ??
@@ -72,6 +71,24 @@ class DateTimeUtils {
 
   /// Interpret a numeric epoch as seconds, milliseconds, or microseconds
   /// based on magnitude, returning a UTC [DateTime].
+  /// Compact human-readable elapsed time, e.g. "just now", "3h ago", "12d ago".
+  ///
+  /// Deliberately coarse: these strings label *record freshness* in a list, and
+  /// false precision ("2 hours 14 minutes ago") would imply a precision the
+  /// data does not carry. Future timestamps (clock skew during offline sync)
+  /// return "just now" rather than a negative duration.
+  static String relative(DateTime value, {DateTime? now}) {
+    final reference = now ?? DateTime.now();
+    final elapsed = reference.difference(value);
+
+    if (elapsed.isNegative || elapsed.inMinutes < 1) return 'just now';
+    if (elapsed.inMinutes < 60) return '${elapsed.inMinutes}m ago';
+    if (elapsed.inHours < 24) return '${elapsed.inHours}h ago';
+    if (elapsed.inDays < 7) return '${elapsed.inDays}d ago';
+    if (elapsed.inDays < 365) return '${(elapsed.inDays / 7).floor()}w ago';
+    return '${(elapsed.inDays / 365).floor()}y ago';
+  }
+
   static DateTime fromEpochValue(double val) {
     final abs = val.abs();
     if (abs >= 1e14) {

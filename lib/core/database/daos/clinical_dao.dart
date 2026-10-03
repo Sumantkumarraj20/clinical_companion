@@ -177,6 +177,30 @@ class ClinicalDao extends DatabaseAccessor<AppDatabase>
         clientUpdatedAt: savedEncounter.updatedAt,
       );
 
+      // STEP 1 (Sprint 14) — give the scanned page a first-class row in
+      // `document_registries`. Nothing wrote this table before, so the
+      // timeline's document cards could never appear and the tables that
+      // FK-reference it (prescriptions, microbiology, imaging) had no parent.
+      //
+      // [occurredAt] already holds the date *printed on the document*
+      // (ClinicalDateParser -> file mtime -> now), which is exactly what
+      // `documentedAt` must mean: when the care happened, not when we
+      // scanned it.
+      final documentId = _ids.v4();
+      await into(documentRegistries).insert(
+        DocumentRegistriesCompanion.insert(
+          id: documentId,
+          patientId: patientId,
+          documentCategory: result.encounterContext.documentType.trim().isEmpty
+              ? 'Clinical Document'
+              : result.encounterContext.documentType.trim(),
+          imagePath: imagePath,
+          rawOcrTranscript: Value(result.clinicalSummary),
+          confidenceScore: const Value(0.0),
+          documentedAt: occurredAt,
+        ),
+      );
+
       // Track extracted laboratory investigations
       for (final lab in result.labResults) {
         final orderId = _ids.v4();
@@ -425,6 +449,317 @@ class ClinicalDao extends DatabaseAccessor<AppDatabase>
           )
           ..orderBy([(row) => OrderingTerm(expression: row.admissionTime)]))
         .watch();
+  }
+
+  /// Creates or updates the patient's *active* inpatient episode.
+  ///
+  /// STEP 1 (Sprint 14): demographics previously wrote only the hospital-scoped
+  /// MRN, so "where is this patient admitted?" had no answer. This keeps a
+  /// single active [Admission] row per patient — ward and bed live on the
+  /// episode, not on the patient master, so one patient can be tracked across
+  /// hospitals without their identity record being rewritten.
+  ///
+  /// Passing a null [wardName]/[bedNumber] leaves the existing value intact so
+  /// a demographics-only edit does not wipe the bed board.
+  Future<void> upsertActiveAdmission({
+    required String patientId,
+    required String hospitalId,
+    String? wardName,
+    String? bedNumber,
+    DateTime? admissionTime,
+  }) async {
+    await transaction(() async {
+      final existing =
+          await (select(admissions)..where(
+                (row) =>
+                    row.patientId.equals(patientId) &
+                    row.status.equals('active'),
+              ))
+              .getSingleOrNull();
+
+      if (existing == null) {
+        await into(admissions).insert(
+          AdmissionsCompanion.insert(
+            patientId: patientId,
+            hospitalId: hospitalId,
+            wardName: Value(_blankToNull(wardName)),
+            bedNumber: Value(_blankToNull(bedNumber)),
+            admissionTime: Value(admissionTime ?? DateTime.now()),
+            status: const Value('active'),
+          ),
+        );
+        return;
+      }
+
+      await (update(
+        admissions,
+      )..where((row) => row.id.equals(existing.id))).write(
+        AdmissionsCompanion(
+          hospitalId: Value(hospitalId),
+          wardName: wardName == null
+              ? const Value.absent()
+              : Value(_blankToNull(wardName)),
+          bedNumber: bedNumber == null
+              ? const Value.absent()
+              : Value(_blankToNull(bedNumber)),
+        ),
+      );
+    });
+  }
+
+  /// Post-operative day for [patientId], or null when no surgery is recorded.
+  ///
+  /// Returns 0 for an operation performed today. A future-dated procedure
+  /// returns null rather than a negative day: that is a scheduling or
+  /// data-entry state, not a post-operative one, and rendering "POD #-1" on a
+  /// patient card would be actively misleading.
+  Future<int?> getPostOpDay(String patientId) async {
+    final surgery = await getLastSurgicalIntervention(patientId);
+    if (surgery == null) return null;
+
+    final performed = surgery.performedAt.toLocal();
+    final now = DateTime.now();
+    final day = DateTime(now.year, now.month, now.day)
+        .difference(DateTime(performed.year, performed.month, performed.day))
+        .inDays;
+    return day < 0 ? null : day;
+  }
+
+  /// The patient's current inpatient episode, or null when they are not admitted.
+  Future<Admission?> getActiveAdmission(String patientId) {
+    return (select(admissions)..where(
+          (row) =>
+              row.patientId.equals(patientId) & row.status.equals('active'),
+        ))
+        .getSingleOrNull();
+  }
+
+  /// Closes the active admission for [patientId] (discharge / death / LAMA).
+  Future<void> closeActiveAdmission(
+    String patientId, {
+    DateTime? dischargeTime,
+  }) async {
+    await (update(admissions)..where(
+          (row) =>
+              row.patientId.equals(patientId) & row.status.equals('active'),
+        ))
+        .write(
+          AdmissionsCompanion(
+            status: const Value('discharged'),
+            dischargeTime: Value(dischargeTime ?? DateTime.now()),
+          ),
+        );
+  }
+
+  static String? _blankToNull(String? value) =>
+      (value == null || value.trim().isEmpty) ? null : value.trim();
+
+  /// Currently-admitted patients, joined with demographics and MRN in a single
+  /// query so the bed board needs no per-row lookups (STEP 2 — avoids N+1).
+  Stream<List<WardRoundPatient>> watchActiveWardRounds({String? hospitalId}) {
+    final query =
+        select(admissions).join([
+            innerJoin(patients, patients.id.equalsExp(admissions.patientId)),
+            leftOuterJoin(
+              patientHospitalIdentifiers,
+              patientHospitalIdentifiers.patientId.equalsExp(
+                    admissions.patientId,
+                  ) &
+                  patientHospitalIdentifiers.isPrimary.equals(true) &
+                  patientHospitalIdentifiers.hospitalId.equalsExp(
+                    admissions.hospitalId,
+                  ),
+            ),
+          ])
+          ..where(
+            admissions.status.equals('active') &
+                (hospitalId == null
+                    ? const Constant(true)
+                    : admissions.hospitalId.equals(hospitalId)),
+          )
+          ..orderBy([
+            OrderingTerm(expression: admissions.wardName),
+            OrderingTerm(expression: admissions.bedNumber),
+          ]);
+
+    return query.watch().map(
+      (rows) => rows
+          .map(
+            (row) => WardRoundPatient(
+              admission: row.readTable(admissions),
+              patient: row.readTable(patients),
+              mrn: row.readTableOrNull(patientHospitalIdentifiers)?.mrn,
+            ),
+          )
+          .toList(growable: false),
+    );
+  }
+
+  /// Every investigation still awaiting a result, joined to the patient and MRN
+  /// in one statement (STEP 2 — avoids the N+1 the old day-scoped query caused
+  /// when the workspace lists everything outstanding, not just today's).
+  ///
+  /// Distinct from [watchPendingInvestigationsWithPatients], which is scoped
+  /// to a single calendar day for the lab tracker.
+  Stream<List<PendingInvestigation>> watchOutstandingInvestigations({
+    int limit = 50,
+  }) {
+    final query =
+        select(investigationOrders).join([
+            innerJoin(
+              patients,
+              patients.id.equalsExp(investigationOrders.patientId),
+            ),
+            leftOuterJoin(
+              patientHospitalIdentifiers,
+              patientHospitalIdentifiers.patientId.equalsExp(patients.id) &
+                  patientHospitalIdentifiers.isPrimary.equals(true),
+            ),
+          ])
+          ..where(
+            investigationOrders.resultReceivedAt.isNull() &
+                investigationOrders.status.isIn(const [
+                  'ordered',
+                  'sample_sent',
+                ]),
+          )
+          ..orderBy([OrderingTerm(expression: investigationOrders.orderedAt)])
+          ..limit(limit);
+
+    return query.watch().map(
+      (rows) => rows
+          .map((row) {
+            final mrn = row.readTableOrNull(patientHospitalIdentifiers)?.mrn;
+            return PendingInvestigation(
+              investigation: row.readTable(investigationOrders),
+              patient: row.readTable(patients),
+              mrn: (mrn == null || mrn.trim().isEmpty)
+                  ? 'No Reg No'
+                  : mrn.trim(),
+            );
+          })
+          .toList(growable: false),
+    );
+  }
+
+  /// Follow-up *candidates*: patients who had a recent procedure, or who carry an
+  /// unresolved problem. The clinician decides who actually needs review — this
+  /// query organises attention, it does not recommend care.
+  Stream<List<SmartFollowUp>> watchSmartFollowUps({
+    Duration since = const Duration(days: 7),
+    int limit = 50,
+  }) {
+    final cutoff = DateTime.now().subtract(since);
+
+    final recentProcedures = selectOnly(clinicalInterventions)
+      ..addColumns([clinicalInterventions.patientId])
+      ..where(clinicalInterventions.performedAt.isBiggerOrEqualValue(cutoff))
+      ..groupBy([clinicalInterventions.patientId]);
+
+    final activeProblems = selectOnly(patientProblems)
+      ..addColumns([patientProblems.patientId])
+      ..where(
+        patientProblems.currentStatus.isIn(const [
+              'Active',
+              'Improving',
+              'Deteriorating',
+            ]) &
+            patientProblems.resolvedDate.isNull(),
+      )
+      ..groupBy([patientProblems.patientId]);
+
+    // A subquery union keeps this to one statement instead of two round trips.
+    final flagged = selectOnly(patients, distinct: true)
+      ..addColumns([patients.id])
+      ..where(
+        patients.id.isInQuery(recentProcedures) |
+            patients.id.isInQuery(activeProblems),
+      );
+
+    final query =
+        select(patients).join([
+            leftOuterJoin(
+              clinicalEncounters,
+              clinicalEncounters.patientId.equalsExp(patients.id),
+            ),
+          ])
+          ..where(patients.id.isInQuery(flagged))
+          ..orderBy([
+            OrderingTerm(
+              expression: clinicalEncounters.occurredAt,
+              mode: OrderingMode.desc,
+            ),
+          ])
+          ..limit(limit);
+
+    return query.watch().map((rows) {
+      // The encounter join fans one patient out into many rows; collapse back
+      // to the most recent encounter so the tab stays N rows, not N*M.
+      final seen = <String, SmartFollowUp>{};
+      for (final row in rows) {
+        final patient = row.readTable(patients);
+        seen.putIfAbsent(
+          patient.id,
+          () => SmartFollowUp(
+            patient: patient,
+            lastSeenAt: row.readTableOrNull(clinicalEncounters)?.occurredAt,
+          ),
+        );
+      }
+      return seen.values.toList(growable: false);
+    });
+  }
+
+  /// Encounters saved as drafts and not yet signed (STEP 2).
+  Stream<List<PendingNote>> watchPendingNotes({int limit = 50}) {
+    final query =
+        select(clinicalEncounters).join([
+            innerJoin(
+              patients,
+              patients.id.equalsExp(clinicalEncounters.patientId),
+            ),
+          ])
+          ..where(clinicalEncounters.isDraft.equals(true))
+          ..orderBy([
+            OrderingTerm(
+              expression: clinicalEncounters.updatedAt,
+              mode: OrderingMode.desc,
+            ),
+          ])
+          ..limit(limit);
+
+    return query.watch().map(
+      (rows) => rows
+          .map(
+            (row) => PendingNote(
+              encounter: row.readTable(clinicalEncounters),
+              patient: row.readTable(patients),
+            ),
+          )
+          .toList(growable: false),
+    );
+  }
+
+  /// Most recent *surgical* intervention for [patientId] — the Post-Op Day
+  /// badge's data source. Returns null when no surgery is on record.
+  ///
+  /// Restricted to `interventionRole = 'Surgical'`: a diagnostic imaging study
+  /// is not an operation and must never produce a "POD #1".
+  Future<ClinicalIntervention?> getLastSurgicalIntervention(String patientId) {
+    return (select(clinicalInterventions)
+          ..where(
+            (row) =>
+                row.patientId.equals(patientId) &
+                row.interventionRole.equals('Surgical'),
+          )
+          ..orderBy([
+            (row) => OrderingTerm(
+              expression: row.performedAt,
+              mode: OrderingMode.desc,
+            ),
+          ])
+          ..limit(1))
+        .getSingleOrNull();
   }
 
   Future<void> updatePatient(Patient patient) async {
@@ -1806,6 +2141,43 @@ class ClinicalDao extends DatabaseAccessor<AppDatabase>
     final remote = _date(remoteUpdatedAt) ?? fallback;
     return localUpdatedAt != null && localUpdatedAt.isAfter(remote);
   }
+}
+
+// ===========================================================================
+// SPRINT 14 — "TODAY" WORKSPACE VIEW MODELS
+// ===========================================================================
+
+/// One row of the Ward Rounds tab: an active admission plus the demographics
+/// and MRN needed to render a patient card without further queries.
+class WardRoundPatient {
+  const WardRoundPatient({
+    required this.admission,
+    required this.patient,
+    this.mrn,
+  });
+
+  final Admission admission;
+  final Patient patient;
+  final String? mrn;
+
+  String? get wardName => admission.wardName;
+  String? get bedNumber => admission.bedNumber;
+}
+
+/// One row of the Follow-ups tab.
+class SmartFollowUp {
+  const SmartFollowUp({required this.patient, this.lastSeenAt});
+
+  final Patient patient;
+  final DateTime? lastSeenAt;
+}
+
+/// One row of the Drafts tab.
+class PendingNote {
+  const PendingNote({required this.encounter, required this.patient});
+
+  final ClinicalEncounter encounter;
+  final Patient patient;
 }
 
 class _HbpAccumulator {

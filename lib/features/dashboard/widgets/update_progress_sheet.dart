@@ -106,20 +106,19 @@ class _UpdateProgressSheetState extends State<_UpdateProgressSheet> {
   }
 
   String get _headline => switch (_phase) {
-        _UpdatePhase.downloading => 'Downloading Update…',
-        _UpdatePhase.launching => 'Opening installer…',
-        _UpdatePhase.failed =>
-          _cancelled ? 'Download cancelled' : 'Update failed',
-      };
+    _UpdatePhase.downloading => 'Downloading Update…',
+    _UpdatePhase.launching => 'Opening installer…',
+    _UpdatePhase.failed => _cancelled ? 'Download cancelled' : 'Update failed',
+  };
 
   String get _body => switch (_phase) {
-        _UpdatePhase.downloading =>
-          'Keep the app open. Your patient data stays on this device.',
-        _UpdatePhase.launching =>
-          'Android is opening the package installer. Tap "Install" to finish — '
-              'your records will be preserved.',
-        _UpdatePhase.failed => _error ?? 'Something went wrong.',
-      };
+    _UpdatePhase.downloading =>
+      'Keep the app open. Your patient data stays on this device.',
+    _UpdatePhase.launching =>
+      'Android is opening the package installer. Tap "Install" to finish — '
+          'your records will be preserved.',
+    _UpdatePhase.failed => _error ?? 'Something went wrong.',
+  };
 
   @override
   Widget build(BuildContext context) {

@@ -161,6 +161,7 @@ void main() {
         dynamicData: const {},
         createdAt: at,
         updatedAt: at,
+        isDraft: false,
       );
     }
 
@@ -310,6 +311,7 @@ void main() {
         drugAndAllergyHistory: allergy,
         sbp: sbp,
         pulse: pulse,
+        isDraft: false,
       );
     }
 

@@ -518,3 +518,42 @@ final clinicalCodingServiceProvider = Provider<ClinicalCodingService>((ref) {
   ref.onDispose(service.dispose);
   return service;
 });
+
+// ===========================================================================
+// SPRINT 14 — "TODAY" WORKSPACE STREAMS
+// ===========================================================================
+// Each tab is its own StreamProvider so a slow or empty tab never blocks the
+// others: the workspace renders whatever has arrived and fills in the rest.
+
+final wardRoundsProvider = StreamProvider(
+  (ref) => ref.watch(clinicalDaoProvider).watchActiveWardRounds(),
+);
+
+/// Every investigation still awaiting a result, not just today's.
+///
+/// The existing `pendingInvestigationsProvider` is scoped to the current
+/// calendar day (it backs the lab tracker). A workspace tab has to answer
+/// "what is outstanding?" across all days, so it gets its own stream rather
+/// than silently showing only today's slice.
+final outstandingInvestigationsProvider =
+    StreamProvider<List<PendingInvestigation>>(
+      (ref) => ref.watch(clinicalDaoProvider).watchOutstandingInvestigations(),
+    );
+
+final smartFollowUpsProvider = StreamProvider(
+  (ref) => ref.watch(clinicalDaoProvider).watchSmartFollowUps(),
+);
+
+final pendingNotesProvider = StreamProvider(
+  (ref) => ref.watch(clinicalDaoProvider).watchPendingNotes(),
+);
+
+/// Post-operative day for a single patient. `autoDispose` matters here — the
+/// ward-rounds list can hold dozens of cards, and each should drop its query
+/// when scrolled away rather than pinning every patient's surgery record.
+final postOpDayProvider = FutureProvider.autoDispose.family<int?, String>((
+  ref,
+  patientId,
+) {
+  return ref.watch(clinicalDaoProvider).getPostOpDay(patientId);
+});

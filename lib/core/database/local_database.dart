@@ -237,6 +237,10 @@ class ClinicalEncounters extends Table {
       text().map(const JsonMapConverter()).withDefault(const Constant('{}'))();
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
   DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
+  // Sprint 14 — draft lifecycle. An encounter saved mid-consultation but not
+  // yet signed off. Defaults to false so every existing row migrates to
+  // "signed" and never silently appears in the pending queue.
+  BoolColumn get isDraft => boolean().withDefault(const Constant(false))();
   DateTimeColumn get lastSyncedAt => dateTime().nullable()();
 
   @override
@@ -828,7 +832,7 @@ class AppDatabase extends _$AppDatabase {
     : super(executor ?? openAppDatabaseExecutor());
 
   @override
-  int get schemaVersion => 23;
+  int get schemaVersion => 24;
 
   /// Tables that must exist for the drug catalog and POMR to function.
   ///
@@ -1171,6 +1175,21 @@ class AppDatabase extends _$AppDatabase {
           } catch (_) {}
           try {
             await m.createTable(brands);
+          } catch (_) {}
+        }
+      if (from < 23) {
+          // (placeholder retained so the version chain stays readable)
+        }
+        if (from < 24) {
+          // Sprint 14 — draft flag for the "Pending Notes" workspace tab.
+          // Defaulted to false so every pre-existing encounter is treated as
+          // signed; a bulk "draft = true" backfill would bury the clinician in
+          // already-completed notes.
+          try {
+            await m.addColumn(
+              clinicalEncounters,
+              clinicalEncounters.isDraft,
+            );
           } catch (_) {}
         }
       }

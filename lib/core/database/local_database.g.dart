@@ -2270,6 +2270,21 @@ class $ClinicalEncountersTable extends ClinicalEncounters
     requiredDuringInsert: false,
     defaultValue: currentDateAndTime,
   );
+  static const VerificationMeta _isDraftMeta = const VerificationMeta(
+    'isDraft',
+  );
+  @override
+  late final GeneratedColumn<bool> isDraft = GeneratedColumn<bool>(
+    'is_draft',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_draft" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
   static const VerificationMeta _lastSyncedAtMeta = const VerificationMeta(
     'lastSyncedAt',
   );
@@ -2318,6 +2333,7 @@ class $ClinicalEncountersTable extends ClinicalEncounters
     obGynHistory,
     createdAt,
     updatedAt,
+    isDraft,
     lastSyncedAt,
   ];
   @override
@@ -2570,6 +2586,12 @@ class $ClinicalEncountersTable extends ClinicalEncounters
         updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
       );
     }
+    if (data.containsKey('is_draft')) {
+      context.handle(
+        _isDraftMeta,
+        isDraft.isAcceptableOrUnknown(data['is_draft']!, _isDraftMeta),
+      );
+    }
     if (data.containsKey('last_synced_at')) {
       context.handle(
         _lastSyncedAtMeta,
@@ -2735,6 +2757,10 @@ class $ClinicalEncountersTable extends ClinicalEncounters
         DriftSqlType.dateTime,
         data['${effectivePrefix}updated_at'],
       )!,
+      isDraft: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_draft'],
+      )!,
       lastSyncedAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}last_synced_at'],
@@ -2792,6 +2818,7 @@ class ClinicalEncounter extends DataClass
   final Map<String, dynamic> obGynHistory;
   final DateTime createdAt;
   final DateTime updatedAt;
+  final bool isDraft;
   final DateTime? lastSyncedAt;
   const ClinicalEncounter({
     required this.id,
@@ -2829,6 +2856,7 @@ class ClinicalEncounter extends DataClass
     required this.obGynHistory,
     required this.createdAt,
     required this.updatedAt,
+    required this.isDraft,
     this.lastSyncedAt,
   });
   @override
@@ -2935,6 +2963,7 @@ class ClinicalEncounter extends DataClass
     }
     map['created_at'] = Variable<DateTime>(createdAt);
     map['updated_at'] = Variable<DateTime>(updatedAt);
+    map['is_draft'] = Variable<bool>(isDraft);
     if (!nullToAbsent || lastSyncedAt != null) {
       map['last_synced_at'] = Variable<DateTime>(lastSyncedAt);
     }
@@ -3020,6 +3049,7 @@ class ClinicalEncounter extends DataClass
       obGynHistory: Value(obGynHistory),
       createdAt: Value(createdAt),
       updatedAt: Value(updatedAt),
+      isDraft: Value(isDraft),
       lastSyncedAt: lastSyncedAt == null && nullToAbsent
           ? const Value.absent()
           : Value(lastSyncedAt),
@@ -3088,6 +3118,7 @@ class ClinicalEncounter extends DataClass
       ),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+      isDraft: serializer.fromJson<bool>(json['isDraft']),
       lastSyncedAt: serializer.fromJson<DateTime?>(json['lastSyncedAt']),
     );
   }
@@ -3144,6 +3175,7 @@ class ClinicalEncounter extends DataClass
       ),
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
+      'isDraft': serializer.toJson<bool>(isDraft),
       'lastSyncedAt': serializer.toJson<DateTime?>(lastSyncedAt),
     };
   }
@@ -3184,6 +3216,7 @@ class ClinicalEncounter extends DataClass
     Map<String, dynamic>? obGynHistory,
     DateTime? createdAt,
     DateTime? updatedAt,
+    bool? isDraft,
     Value<DateTime?> lastSyncedAt = const Value.absent(),
   }) => ClinicalEncounter(
     id: id ?? this.id,
@@ -3241,6 +3274,7 @@ class ClinicalEncounter extends DataClass
     obGynHistory: obGynHistory ?? this.obGynHistory,
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
+    isDraft: isDraft ?? this.isDraft,
     lastSyncedAt: lastSyncedAt.present ? lastSyncedAt.value : this.lastSyncedAt,
   );
   ClinicalEncounter copyWithCompanion(ClinicalEncountersCompanion data) {
@@ -3322,6 +3356,7 @@ class ClinicalEncounter extends DataClass
           : this.obGynHistory,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+      isDraft: data.isDraft.present ? data.isDraft.value : this.isDraft,
       lastSyncedAt: data.lastSyncedAt.present
           ? data.lastSyncedAt.value
           : this.lastSyncedAt,
@@ -3366,6 +3401,7 @@ class ClinicalEncounter extends DataClass
           ..write('obGynHistory: $obGynHistory, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
+          ..write('isDraft: $isDraft, ')
           ..write('lastSyncedAt: $lastSyncedAt')
           ..write(')'))
         .toString();
@@ -3408,6 +3444,7 @@ class ClinicalEncounter extends DataClass
     obGynHistory,
     createdAt,
     updatedAt,
+    isDraft,
     lastSyncedAt,
   ]);
   @override
@@ -3449,6 +3486,7 @@ class ClinicalEncounter extends DataClass
           other.obGynHistory == this.obGynHistory &&
           other.createdAt == this.createdAt &&
           other.updatedAt == this.updatedAt &&
+          other.isDraft == this.isDraft &&
           other.lastSyncedAt == this.lastSyncedAt);
 }
 
@@ -3488,6 +3526,7 @@ class ClinicalEncountersCompanion extends UpdateCompanion<ClinicalEncounter> {
   final Value<Map<String, dynamic>> obGynHistory;
   final Value<DateTime> createdAt;
   final Value<DateTime> updatedAt;
+  final Value<bool> isDraft;
   final Value<DateTime?> lastSyncedAt;
   final Value<int> rowid;
   const ClinicalEncountersCompanion({
@@ -3526,6 +3565,7 @@ class ClinicalEncountersCompanion extends UpdateCompanion<ClinicalEncounter> {
     this.obGynHistory = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
+    this.isDraft = const Value.absent(),
     this.lastSyncedAt = const Value.absent(),
     this.rowid = const Value.absent(),
   });
@@ -3565,6 +3605,7 @@ class ClinicalEncountersCompanion extends UpdateCompanion<ClinicalEncounter> {
     this.obGynHistory = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
+    this.isDraft = const Value.absent(),
     this.lastSyncedAt = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : ownerId = Value(ownerId),
@@ -3605,6 +3646,7 @@ class ClinicalEncountersCompanion extends UpdateCompanion<ClinicalEncounter> {
     Expression<String>? obGynHistory,
     Expression<DateTime>? createdAt,
     Expression<DateTime>? updatedAt,
+    Expression<bool>? isDraft,
     Expression<DateTime>? lastSyncedAt,
     Expression<int>? rowid,
   }) {
@@ -3648,6 +3690,7 @@ class ClinicalEncountersCompanion extends UpdateCompanion<ClinicalEncounter> {
       if (obGynHistory != null) 'ob_gyn_history': obGynHistory,
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
+      if (isDraft != null) 'is_draft': isDraft,
       if (lastSyncedAt != null) 'last_synced_at': lastSyncedAt,
       if (rowid != null) 'rowid': rowid,
     });
@@ -3689,6 +3732,7 @@ class ClinicalEncountersCompanion extends UpdateCompanion<ClinicalEncounter> {
     Value<Map<String, dynamic>>? obGynHistory,
     Value<DateTime>? createdAt,
     Value<DateTime>? updatedAt,
+    Value<bool>? isDraft,
     Value<DateTime?>? lastSyncedAt,
     Value<int>? rowid,
   }) {
@@ -3731,6 +3775,7 @@ class ClinicalEncountersCompanion extends UpdateCompanion<ClinicalEncounter> {
       obGynHistory: obGynHistory ?? this.obGynHistory,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
+      isDraft: isDraft ?? this.isDraft,
       lastSyncedAt: lastSyncedAt ?? this.lastSyncedAt,
       rowid: rowid ?? this.rowid,
     );
@@ -3860,6 +3905,9 @@ class ClinicalEncountersCompanion extends UpdateCompanion<ClinicalEncounter> {
     if (updatedAt.present) {
       map['updated_at'] = Variable<DateTime>(updatedAt.value);
     }
+    if (isDraft.present) {
+      map['is_draft'] = Variable<bool>(isDraft.value);
+    }
     if (lastSyncedAt.present) {
       map['last_synced_at'] = Variable<DateTime>(lastSyncedAt.value);
     }
@@ -3907,6 +3955,7 @@ class ClinicalEncountersCompanion extends UpdateCompanion<ClinicalEncounter> {
           ..write('obGynHistory: $obGynHistory, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
+          ..write('isDraft: $isDraft, ')
           ..write('lastSyncedAt: $lastSyncedAt, ')
           ..write('rowid: $rowid')
           ..write(')'))
@@ -23807,6 +23856,7 @@ typedef $$ClinicalEncountersTableCreateCompanionBuilder =
       Value<Map<String, dynamic>> obGynHistory,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
+      Value<bool> isDraft,
       Value<DateTime?> lastSyncedAt,
       Value<int> rowid,
     });
@@ -23847,6 +23897,7 @@ typedef $$ClinicalEncountersTableUpdateCompanionBuilder =
       Value<Map<String, dynamic>> obGynHistory,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
+      Value<bool> isDraft,
       Value<DateTime?> lastSyncedAt,
       Value<int> rowid,
     });
@@ -24233,6 +24284,11 @@ class $$ClinicalEncountersTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<bool> get isDraft => $composableBuilder(
+    column: $table.isDraft,
+    builder: (column) => ColumnFilters(column),
+  );
+
   ColumnFilters<DateTime> get lastSyncedAt => $composableBuilder(
     column: $table.lastSyncedAt,
     builder: (column) => ColumnFilters(column),
@@ -24613,6 +24669,11 @@ class $$ClinicalEncountersTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<bool> get isDraft => $composableBuilder(
+    column: $table.isDraft,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get lastSyncedAt => $composableBuilder(
     column: $table.lastSyncedAt,
     builder: (column) => ColumnOrderings(column),
@@ -24815,6 +24876,9 @@ class $$ClinicalEncountersTableAnnotationComposer
 
   GeneratedColumn<DateTime> get updatedAt =>
       $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  GeneratedColumn<bool> get isDraft =>
+      $composableBuilder(column: $table.isDraft, builder: (column) => column);
 
   GeneratedColumn<DateTime> get lastSyncedAt => $composableBuilder(
     column: $table.lastSyncedAt,
@@ -25102,6 +25166,7 @@ class $$ClinicalEncountersTableTableManager
                 Value<Map<String, dynamic>> obGynHistory = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
+                Value<bool> isDraft = const Value.absent(),
                 Value<DateTime?> lastSyncedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => ClinicalEncountersCompanion(
@@ -25140,6 +25205,7 @@ class $$ClinicalEncountersTableTableManager
                 obGynHistory: obGynHistory,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
+                isDraft: isDraft,
                 lastSyncedAt: lastSyncedAt,
                 rowid: rowid,
               ),
@@ -25181,6 +25247,7 @@ class $$ClinicalEncountersTableTableManager
                 Value<Map<String, dynamic>> obGynHistory = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
+                Value<bool> isDraft = const Value.absent(),
                 Value<DateTime?> lastSyncedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => ClinicalEncountersCompanion.insert(
@@ -25219,6 +25286,7 @@ class $$ClinicalEncountersTableTableManager
                 obGynHistory: obGynHistory,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
+                isDraft: isDraft,
                 lastSyncedAt: lastSyncedAt,
                 rowid: rowid,
               ),

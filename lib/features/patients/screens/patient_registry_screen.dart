@@ -542,6 +542,12 @@ class _PatientEditorState extends ConsumerState<_PatientEditor> {
     text: widget.patient?.weightKg?.toString() ?? '',
   );
 
+  // STEP 1 (Sprint 14) — inpatient location. Empty means "OPD contact", in
+  // which case no `admissions` row is written.
+  late final _ward = TextEditingController();
+  late final _bed = TextEditingController();
+  bool _isAdmitted = false;
+
   String? _gender;
   String? _selectedHospitalId;
   List<Hospital> _hospitals = [];
@@ -578,6 +584,15 @@ class _PatientEditorState extends ConsumerState<_PatientEditor> {
       if (existingReg != 'No Reg No') {
         _regNo.text = existingReg;
       }
+
+      // Pre-fill from the active admission so editing demographics does not
+      // silently blank the bed board.
+      final admission = await dao.getActiveAdmission(widget.patient!.id);
+      if (admission != null) {
+        _isAdmitted = true;
+        _ward.text = admission.wardName ?? '';
+        _bed.text = admission.bedNumber ?? '';
+      }
     }
 
     if (mounted) {
@@ -595,6 +610,8 @@ class _PatientEditorState extends ConsumerState<_PatientEditor> {
     _phone.dispose();
     _heightCm.dispose();
     _weightKg.dispose();
+    _ward.dispose();
+    _bed.dispose();
     super.dispose();
   }
 
@@ -663,6 +680,47 @@ class _PatientEditorState extends ConsumerState<_PatientEditor> {
                         ),
                       ),
                       const SizedBox(height: 16),
+
+                      // ======== SECTION: Inpatient Location ========
+                      // Deliberately opt-in: leaving the switch off means this
+                      // is an OPD contact and no `admissions` row is created.
+                      SwitchListTile.adaptive(
+                        contentPadding: EdgeInsets.zero,
+                        dense: true,
+                        value: _isAdmitted,
+                        onChanged: (value) =>
+                            setState(() => _isAdmitted = value),
+                        title: const Text(
+                          'Currently admitted (inpatient)',
+                          style: TextStyle(fontSize: 14),
+                        ),
+                        subtitle: const Text(
+                          'Adds this patient to the ward bed board',
+                          style: TextStyle(fontSize: 12),
+                        ),
+                      ),
+                      if (_isAdmitted) ...[
+                        // Vertical stack keeps both fields legible on narrow
+                        // ward phones instead of clamping them side by side.
+                        TextFormField(
+                          controller: _ward,
+                          decoration: const InputDecoration(
+                            labelText: 'Ward / Unit',
+                            prefixIcon: Icon(Icons.apartment_outlined),
+                            isDense: true,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        TextFormField(
+                          controller: _bed,
+                          decoration: const InputDecoration(
+                            labelText: 'Bed No.',
+                            prefixIcon: Icon(Icons.bed_outlined),
+                            isDense: true,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                      ],
 
                       // ======== SECTION: Global Patient Info ========
                       Text(
@@ -894,6 +952,19 @@ class _PatientEditorState extends ConsumerState<_PatientEditor> {
             mrn: enteredMrn,
             isPrimary: true,
           );
+
+          // STEP 1 (Sprint 14) — ward/bed live on the *admission*, not the
+          // patient master, so a patient treated at two hospitals keeps two
+          // separate location histories. A null ward leaves the bed board
+          // untouched (this patient may be an OPD contact, not an inpatient).
+          if (_isAdmitted) {
+            await dao.upsertActiveAdmission(
+              patientId: widget.patient!.id,
+              hospitalId: _selectedHospitalId!,
+              wardName: _ward.text,
+              bedNumber: _bed.text,
+            );
+          }
         }
       }
 
