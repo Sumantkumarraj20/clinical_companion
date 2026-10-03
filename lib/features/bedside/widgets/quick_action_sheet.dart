@@ -62,10 +62,10 @@ class QuickActionSheet extends StatelessWidget {
       ),
       QuickAction(
         label: 'New OPD Consult',
-        caption: 'Full bedside encounter',
+        caption: 'Select or register patient',
         icon: Icons.assignment_ind_outlined,
         tint: const Color(0xFF1565C0),
-        onTap: () => go('/manual-entry'),
+        onTap: () => go('/patients', extra: const {'opdFlow': true}),
       ),
       QuickAction(
         label: 'Ward Round Note',

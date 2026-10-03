@@ -79,7 +79,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           ),
           GoRoute(
             path: '/patients',
-            builder: (context, state) => const PatientRegistryScreen(),
+            builder: (context, state) => PatientRegistryScreen(
+              selectForOpd:
+                  state.extra is Map && (state.extra as Map)['opdFlow'] == true,
+            ),
           ),
           GoRoute(
             path: '/ward-dashboard',

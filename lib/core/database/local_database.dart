@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:drift/drift.dart';
+import 'package:flutter/foundation.dart';
 import 'package:uuid/uuid.dart';
 
 import 'local/database_executor.dart';
@@ -827,7 +828,29 @@ class AppDatabase extends _$AppDatabase {
     : super(executor ?? openAppDatabaseExecutor());
 
   @override
-  int get schemaVersion => 22;
+  int get schemaVersion => 23;
+
+  /// Tables that must exist for the drug catalog and POMR to function.
+  ///
+  /// The bundled `clinical_drugs.sqlite` asset is a *different* database from
+  /// the app schema: it ships the four Google-Sheets source tabs and carries
+  /// `user_version = 1`. Opening it therefore runs the legacy `from == 1`
+  /// upgrade path, which historically skipped the drug catalog tables
+  /// entirely — so a fresh install ended up with no `drug_master`, and every
+  /// `PharmacopeiaDao` query died with "no such table: drug_master".
+  ///
+  /// Rather than adding yet another numbered migration (which only helps users
+  /// upgrading from one exact version and silently skips everyone else), the
+  /// invariant is enforced on every open in [_ensureCatalogTables], which is
+  /// idempotent and self-healing for any starting state.
+  static const _requiredTables = <String>[
+    'drug_master',
+    'clinical_drugs',
+    'active_ingredients',
+    'indications',
+    'formulations',
+    'brands',
+  ];
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -1157,6 +1180,42 @@ class AppDatabase extends _$AppDatabase {
       await customStatement('PRAGMA journal_mode = WAL');
       await customStatement('PRAGMA synchronous = NORMAL');
       await customStatement('PRAGMA busy_timeout = 5000');
+      await _ensureCatalogTables();
     },
   );
+
+  /// Creates any drug-catalog table that is missing from the opened file.
+  ///
+  /// Runs on every open. It is a no-op once the schema is correct, and it
+  /// repairs a database seeded from an older or differently-shaped asset — the
+  /// case that produced the "no such table: drug_master" crash.
+  Future<void> _ensureCatalogTables() async {
+    final existing = <String>{
+      for (final row in await customSelect(
+        "SELECT name FROM sqlite_master WHERE type = 'table'",
+      ).get())
+        row.read<String>('name'),
+    };
+    if (existing.containsAll(_requiredTables)) return;
+
+    final migrator = Migrator(this);
+    final tables = <TableInfo<Table, dynamic>>[
+      drugs,
+      clinicalDrugs,
+      activeIngredients,
+      indications,
+      formulations,
+      brands,
+    ];
+    for (final table in tables) {
+      if (existing.contains(table.entityName)) continue;
+      try {
+        await migrator.createTable(table);
+      } catch (error) {
+        debugPrint(
+          '[AppDatabase] Could not create ${table.entityName}: $error',
+        );
+      }
+    }
+  }
 }

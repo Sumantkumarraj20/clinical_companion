@@ -38,7 +38,11 @@ class _DynamicEncounterScreenState
   final _diagnosis = TextEditingController();
   final _assessment = TextEditingController();
   final _advice = TextEditingController();
-  final _departmentText = TextEditingController(text: 'Surgery');
+  // FIX 6 — default to general medicine rather than 'Surgery'. The AppBar
+  // renders "$department Encounter", so a 'Surgery' default made every
+  // paediatric/psychiatric/medical consult open as "Surgery Encounter" until
+  // the clinician manually overrode it.
+  final _departmentText = TextEditingController(text: 'General Medicine');
   final _wardName = TextEditingController();
   final _bedNumber = TextEditingController();
 
@@ -133,6 +137,18 @@ class _DynamicEncounterScreenState
     notifier.updateAdvice(_advice.text);
     notifier.updatePlan(_plan.text);
     notifier.setCareSetting(_isOpdMode ? CareSetting.opd : CareSetting.ipd);
+  }
+
+  /// FIX 6 — pediatric history is collected only for patients under 18.
+  bool get _isPediatricPatient {
+    final age = DateTimeUtils.ageOn(widget.patient.dateOfBirth, DateTime.now());
+    return age != null && age < 18;
+  }
+
+  /// FIX 6 — OB/GYN history is collected only for female patients.
+  bool get _isFemalePatient {
+    final gender = widget.patient.gender?.trim().toLowerCase() ?? '';
+    return gender == 'female' || gender == 'f';
   }
 
   @override
@@ -272,6 +288,23 @@ class _DynamicEncounterScreenState
       // bedside columns (vitals, ward, diagnosis, template blob) on top.
       final draftNotifier = ref.read(encounterNotifierProvider.notifier);
       _pushNarrativeToDraft();
+      // FIX 6 — persist the demographics-gated history sections. These fields
+      // were rendered but never written to the draft, so growth/immunization
+      // and menstrual/obstetric history were silently discarded on save.
+      if (_isPediatricPatient) {
+        draftNotifier.updatePediatric({
+          'birthHistory': _clean(_birthHistory.text),
+          'milestones': _clean(_milestones.text),
+          'vaccination': _clean(_vaccination.text),
+        });
+      }
+      if (_isFemalePatient) {
+        draftNotifier.updateObGyn({
+          'gplaa': _clean(_gplaa.text),
+          'lmp': _clean(_lmp.text),
+          'menstrualHistory': _clean(_menstrualHistory.text),
+        });
+      }
       draftNotifier.flush();
       final draft = ref.read(encounterNotifierProvider);
 
@@ -415,7 +448,13 @@ class _DynamicEncounterScreenState
         : _departmentText.text.trim();
 
     return Scaffold(
-      appBar: AppBar(title: Text('$department Encounter')),
+      appBar: AppBar(
+        title: Text(
+          department.trim().isEmpty
+              ? 'Clinical Encounter'
+              : '$department Encounter',
+        ),
+      ),
       body: Form(
         key: _formKey,
         child: ListView(
@@ -464,6 +503,12 @@ class _DynamicEncounterScreenState
                 lmp: _lmp,
                 menstrualHistory: _menstrualHistory,
                 examination: _examination,
+                // FIX 6 — demographics-aware gating. Pediatric history only for
+                // patients under 18; OB/GYN history only for female patients.
+                // Previously both flags were left at their default of `false`,
+                // so these sections were unreachable for every patient.
+                showPediatricHistory: _isPediatricPatient,
+                showObGynHistory: _isFemalePatient,
               ),
               const SizedBox(height: 12),
             ] else ...[

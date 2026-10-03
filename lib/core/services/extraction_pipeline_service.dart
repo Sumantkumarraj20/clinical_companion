@@ -6,10 +6,41 @@ import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart
 import '../ai/document_ai_service.dart';
 import '../models/ai_extraction_result.dart';
 import '../models/document_task.dart';
+import '../utils/clinical_date_parser.dart';
 
 /// Provenance of an extraction, surfaced to the UI so reviewers can tell
 /// "Locally Extracted (Free)" apart from "AI Extracted".
 enum PipelineSource { local, ai }
+
+/// Resolves the timestamp a scanned document should be filed under.
+///
+/// Priority order matters clinically — using the ingestion date instead of the
+/// performed date silently re-dates old reports as "today", which is the
+/// failure mode reported from the wards:
+///
+///  1. the date printed on the document (collection / performed date),
+///  2. the file's own last-modified time (a reasonable proxy when a document
+///     was exported or messaged shortly after being produced),
+///  3. the current time, only as a last resort.
+DateTime resolveDocumentedAt(
+  String rawOcrText,
+  String? filePath, {
+  DateTime? now,
+}) {
+  final fromText = ClinicalDateParser.parseClinicalDate(rawOcrText, now: now);
+  if (fromText != null) return fromText;
+
+  if (filePath != null && filePath.isNotEmpty) {
+    try {
+      final file = File(filePath);
+      if (file.existsSync()) return file.lastModifiedSync();
+    } catch (_) {
+      // Unreadable path (e.g. content:// on Android) — fall through.
+    }
+  }
+
+  return now ?? DateTime.now();
+}
 
 class PipelineExtraction {
   const PipelineExtraction({required this.result, required this.source});

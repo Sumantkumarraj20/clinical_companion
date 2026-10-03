@@ -5,6 +5,7 @@ import 'package:uuid/uuid.dart';
 
 import '../../models/ai_extraction_result.dart';
 import '../../../features/billing/services/clinical_coding_service.dart';
+import '../../services/extraction_pipeline_service.dart';
 import '../local_database.dart';
 import '../schema/clinical_records.dart' as clinical_records;
 import '../services/identity_resolution_service.dart';
@@ -118,8 +119,13 @@ class ClinicalDao extends DatabaseAccessor<AppDatabase>
         if (existing != null) return existing;
       }
 
+      // FIX 4 — the printed document date takes priority. `_date` handles only
+      // ISO8601/unix forms, which almost never appear on an Indian lab report
+      // (`12/03/2024`, `03-Sep-2023`), so it used to return null and the
+      // encounter was filed under `DateTime.now()` — the ingestion date.
       final occurredAt =
-          _date(result.encounterContext.date) ?? DateTime.now().toUtc();
+          _date(result.encounterContext.date) ??
+          resolveDocumentedAt(result.clinicalSummary, imagePath);
       final vitals = result.vitals;
       final encounterId = _ids.v4();
 

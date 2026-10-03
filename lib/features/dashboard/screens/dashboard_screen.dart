@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:url_launcher/url_launcher.dart';
-
 import '../../../core/providers/app_providers.dart';
+import '../widgets/update_progress_sheet.dart';
 
 /// Sprint 8 — CI/CD & In-App Binary Updates.
 ///
@@ -67,7 +66,9 @@ class DashboardScreen extends ConsumerWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'Keep your round notes current and synchronized.',
+                  status.isOnline
+                      ? 'Start the next clinical action in one tap.'
+                      : 'Offline mode: local records remain safe and ready to sync.',
                   style: Theme.of(context).textTheme.bodyLarge,
                 ),
                 const SizedBox(height: 20),
@@ -114,19 +115,22 @@ class DashboardScreen extends ConsumerWidget {
                       runSpacing: 12,
                       children: [
                         FilledButton.icon(
-                          onPressed: () => context.go('/vitals'),
-                          icon: const Icon(Icons.monitor_heart),
-                          label: const Text('Record bedside vitals'),
+                          onPressed: () => context.go(
+                            '/patients',
+                            extra: const {'opdFlow': true},
+                          ),
+                          icon: const Icon(Icons.medical_services_outlined),
+                          label: const Text('Start OPD consult'),
                         ),
                         OutlinedButton.icon(
-                          onPressed: () => context.go('/patients'),
-                          icon: const Icon(Icons.people_outline),
-                          label: const Text('Patient registry'),
+                          onPressed: () => context.go('/smart-capture'),
+                          icon: const Icon(Icons.document_scanner_outlined),
+                          label: const Text('Scan clinical document'),
                         ),
                         OutlinedButton.icon(
-                          onPressed: () => context.go('/labs'),
-                          icon: const Icon(Icons.science),
-                          label: const Text('Open lab tracker'),
+                          onPressed: () => context.go('/ward-dashboard'),
+                          icon: const Icon(Icons.local_hospital_outlined),
+                          label: const Text('Ward round'),
                         ),
                         OutlinedButton.icon(
                           onPressed: () => context.go('/research'),
@@ -146,7 +150,9 @@ class DashboardScreen extends ConsumerWidget {
                   const SizedBox(height: 12),
                   Text(
                     status.errorMessage!,
-                    style: TextStyle(color: Theme.of(context).colorScheme.error),
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
                   ),
                 ],
               ],
@@ -239,26 +245,11 @@ class _UpdateBanner extends ConsumerStatefulWidget {
 class _UpdateBannerState extends ConsumerState<_UpdateBanner> {
   bool _dismissed = false;
 
-  Future<void> _openUpdate(String apkUrl) async {
-    final uri = Uri.tryParse(apkUrl);
-    try {
-      final launched = uri != null &&
-          await launchUrl(uri, mode: LaunchMode.externalApplication);
-      if (!launched && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Could not open the update download link.'),
-          ),
-        );
-      }
-    } catch (error) {
-      // No browser/handler available — inform, never crash.
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not open the update: $error')),
-        );
-      }
-    }
+  void _startUpdate(String apkUrl) {
+    // The banner has done its job once the sheet is up; hiding it keeps the
+    // dashboard uncluttered behind the progress sheet.
+    setState(() => _dismissed = true);
+    showInAppUpdateSheet(context, apkUrl);
   }
 
   @override
@@ -283,7 +274,7 @@ class _UpdateBannerState extends ConsumerState<_UpdateBanner> {
       ),
       actions: [
         TextButton(
-          onPressed: () => _openUpdate(updateUrl),
+          onPressed: () => _startUpdate(updateUrl),
           child: const Text('Update Now'),
         ),
         TextButton(
@@ -294,4 +285,3 @@ class _UpdateBannerState extends ConsumerState<_UpdateBanner> {
     );
   }
 }
-

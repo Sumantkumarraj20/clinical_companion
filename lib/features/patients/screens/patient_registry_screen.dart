@@ -10,7 +10,9 @@ import '../../../core/utils/datetime_utils.dart';
 import '../widgets/cohort_tagger.dart';
 
 class PatientRegistryScreen extends ConsumerStatefulWidget {
-  const PatientRegistryScreen({super.key});
+  const PatientRegistryScreen({this.selectForOpd = false, super.key});
+
+  final bool selectForOpd;
 
   @override
   ConsumerState<PatientRegistryScreen> createState() =>
@@ -83,7 +85,11 @@ class _PatientRegistryScreenState extends ConsumerState<PatientRegistryScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Patient Registry'),
+        title: Text(
+          widget.selectForOpd
+              ? 'Select or Register for OPD'
+              : 'Patient Registry',
+        ),
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(60),
           child: Padding(
@@ -121,7 +127,7 @@ class _PatientRegistryScreenState extends ConsumerState<PatientRegistryScreen> {
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _showPatientEditor(context, ref),
         icon: const Icon(Icons.person_add_alt_1),
-        label: const Text('New Patient'),
+        label: Text(widget.selectForOpd ? 'Register Patient' : 'New Patient'),
       ),
       body: StreamBuilder<List<Patient>>(
         stream: dao.watchAllPatients(),
@@ -254,6 +260,12 @@ class _PatientRegistryScreenState extends ConsumerState<PatientRegistryScreen> {
                                 cohortTags:
                                     byPatient[patient.id] ??
                                     const <CohortTag>[],
+                                onSelectForOpd: widget.selectForOpd
+                                    ? () => context.go(
+                                        '/encounter',
+                                        extra: patient,
+                                      )
+                                    : null,
                                 onEdit: () => _showPatientEditor(
                                   context,
                                   ref,
@@ -288,12 +300,16 @@ class _PatientRegistryScreenState extends ConsumerState<PatientRegistryScreen> {
     WidgetRef ref, {
     Patient? patient,
   }) async {
-    final saved = await showDialog<bool>(
+    final saved = await showDialog<Patient>(
       context: context,
       barrierDismissible: false,
       builder: (_) => _PatientEditor(patient: patient),
     );
-    if (saved == true && context.mounted) {
+    if (saved != null && context.mounted) {
+      if (widget.selectForOpd) {
+        context.go('/encounter', extra: saved);
+        return;
+      }
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -310,11 +326,13 @@ class _PatientCard extends ConsumerWidget {
   const _PatientCard({
     required this.patient,
     required this.onEdit,
+    this.onSelectForOpd,
     this.cohortTags = const [],
   });
 
   final Patient patient;
   final VoidCallback onEdit;
+  final VoidCallback? onSelectForOpd;
 
   /// Derived research cohorts shown on the card (Sprint 11).
   final List<CohortTag> cohortTags;
@@ -333,7 +351,9 @@ class _PatientCard extends ConsumerWidget {
       ),
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
-        onTap: () => context.go('/patients/${patient.id}', extra: patient),
+        onTap:
+            onSelectForOpd ??
+            () => context.go('/patients/${patient.id}', extra: patient),
         child: Padding(
           padding: const EdgeInsets.all(12),
           child: Row(
@@ -613,45 +633,34 @@ class _PatientEditorState extends ConsumerState<_PatientEditor> {
                       ),
                       const SizedBox(height: 8),
 
-                      // Hospital & Identifier Row
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Expanded(
-                            flex: 3,
-                            child: DropdownButtonFormField<String>(
-                              initialValue: _selectedHospitalId,
-                              decoration: const InputDecoration(
-                                labelText: 'Hospital / Clinic',
-                                prefixIcon: Icon(Icons.local_hospital_outlined),
-                                isDense: true,
-                              ),
-                              items: _hospitals.map((h) {
-                                return DropdownMenuItem(
-                                  value: h.id,
-                                  child: Text(
-                                    h.name,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                );
-                              }).toList(),
-                              onChanged: (val) =>
-                                  setState(() => _selectedHospitalId = val),
+                      // A vertical layout keeps labels and values legible on
+                      // narrow ward phones and avoids clamped dialog fields.
+                      DropdownButtonFormField<String>(
+                        initialValue: _selectedHospitalId,
+                        isExpanded: true,
+                        decoration: const InputDecoration(
+                          labelText: 'Hospital / Clinic',
+                          prefixIcon: Icon(Icons.local_hospital_outlined),
+                        ),
+                        items: _hospitals.map((h) {
+                          return DropdownMenuItem(
+                            value: h.id,
+                            child: Text(
+                              h.name,
+                              overflow: TextOverflow.ellipsis,
                             ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            flex: 3,
-                            child: TextFormField(
-                              controller: _regNo,
-                              decoration: const InputDecoration(
-                                labelText: 'MRN / UHID No.',
-                                prefixIcon: Icon(Icons.badge_outlined),
-                                isDense: true,
-                              ),
-                            ),
-                          ),
-                        ],
+                          );
+                        }).toList(),
+                        onChanged: (val) =>
+                            setState(() => _selectedHospitalId = val),
+                      ),
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: _regNo,
+                        decoration: const InputDecoration(
+                          labelText: 'MRN / CR No.',
+                          prefixIcon: Icon(Icons.badge_outlined),
+                        ),
                       ),
                       const SizedBox(height: 16),
 
@@ -856,12 +865,14 @@ class _PatientEditorState extends ConsumerState<_PatientEditor> {
           : _regNo.text.trim();
 
       if (widget.patient == null) {
-        await dao.insertPatientWithHospitalId(
+        final saved = await dao.insertPatientWithHospitalId(
           patient: patientCompanion,
           hospitalId:
               _selectedHospitalId ?? await dao.ensureDefaultHospitalId(),
           mrn: enteredMrn,
         );
+        if (mounted) Navigator.pop(context, saved);
+        return;
       } else {
         await dao.updatePatient(
           widget.patient!.copyWith(
@@ -886,7 +897,7 @@ class _PatientEditorState extends ConsumerState<_PatientEditor> {
         }
       }
 
-      if (mounted) Navigator.pop(context, true);
+      if (mounted) Navigator.pop(context, widget.patient);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
