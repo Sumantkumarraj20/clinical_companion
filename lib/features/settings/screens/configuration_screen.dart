@@ -9,7 +9,6 @@ import 'package:path/path.dart' as path;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/config/app_configuration.dart';
-import '../../../core/config/secure_config_service.dart';
 import '../../../core/database/database_sideload_service.dart';
 import '../../../core/providers/app_providers.dart';
 import '../../../core/utils/portable_directory.dart';
@@ -28,6 +27,9 @@ class _ConfigurationScreenState extends ConsumerState<ConfigurationScreen> {
   late final TextEditingController _geminiKey;
   late final TextEditingController _databasePassword;
   bool _saving = false;
+  bool _showSupabaseKey = false;
+  bool _showGeminiKey = false;
+  bool _showDatabasePassword = false;
 
   @override
   void initState() {
@@ -82,15 +84,14 @@ class _ConfigurationScreenState extends ConsumerState<ConfigurationScreen> {
     }
     setState(() => _saving = true);
     try {
-      // Secure storage uses Platform/file paths on Android/Linux; bypass on Web
-      if (!kIsWeb) {
-        await SecureConfigService().saveKeys(
-          normalizedSupabaseUrl,
-          _supabaseKey.text,
-          _geminiKey.text,
-          _databasePassword.text,
-        );
-      }
+      await ref
+          .read(secureConfigServiceProvider)
+          .saveKeys(
+            normalizedSupabaseUrl,
+            _supabaseKey.text,
+            _geminiKey.text,
+            _databasePassword.text,
+          );
 
       final configuration = AppConfiguration(
         supabaseUrl: normalizedSupabaseUrl,
@@ -191,25 +192,58 @@ class _ConfigurationScreenState extends ConsumerState<ConfigurationScreen> {
                 const SizedBox(height: 12),
                 TextField(
                   controller: _supabaseKey,
-                  obscureText: true,
-                  decoration: const InputDecoration(
+                  obscureText: !_showSupabaseKey,
+                  decoration: InputDecoration(
                     labelText: 'Supabase publishable key',
+                    suffixIcon: IconButton(
+                      tooltip: _showSupabaseKey ? 'Hide key' : 'Show key',
+                      onPressed: () =>
+                          setState(() => _showSupabaseKey = !_showSupabaseKey),
+                      icon: Icon(
+                        _showSupabaseKey
+                            ? Icons.visibility_off_outlined
+                            : Icons.visibility_outlined,
+                      ),
+                    ),
                   ),
                 ),
                 const SizedBox(height: 12),
                 TextField(
                   controller: _geminiKey,
-                  obscureText: true,
-                  decoration: const InputDecoration(
+                  obscureText: !_showGeminiKey,
+                  decoration: InputDecoration(
                     labelText: 'Gemini API key',
+                    suffixIcon: IconButton(
+                      tooltip: _showGeminiKey ? 'Hide key' : 'Show key',
+                      onPressed: () =>
+                          setState(() => _showGeminiKey = !_showGeminiKey),
+                      icon: Icon(
+                        _showGeminiKey
+                            ? Icons.visibility_off_outlined
+                            : Icons.visibility_outlined,
+                      ),
+                    ),
                   ),
                 ),
                 const SizedBox(height: 12),
                 TextField(
                   controller: _databasePassword,
-                  obscureText: true,
-                  decoration: const InputDecoration(
-                    labelText: 'Database password',
+                  obscureText: !_showDatabasePassword,
+                  decoration: InputDecoration(
+                    labelText: 'Supabase password',
+                    suffixIcon: IconButton(
+                      tooltip: _showDatabasePassword
+                          ? 'Hide password'
+                          : 'Show password',
+                      onPressed: () => setState(
+                        () => _showDatabasePassword = !_showDatabasePassword,
+                      ),
+                      icon: Icon(
+                        _showDatabasePassword
+                            ? Icons.visibility_off_outlined
+                            : Icons.visibility_outlined,
+                      ),
+                    ),
                   ),
                 ),
                 const SizedBox(height: 20),

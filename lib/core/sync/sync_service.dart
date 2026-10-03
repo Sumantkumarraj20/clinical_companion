@@ -69,6 +69,10 @@ class SyncService {
   Future<void> pushLocalChanges() async {
     final entries = await _dao.pendingQueue();
     for (final entry in entries) {
+      // AI extraction is retained for the review flow to retry after a network
+      // return; it is not a database table payload and must never block the
+      // rest of the outbox.
+      if (entry.entityType == 'ai_extraction') continue;
       try {
         await _retry(() => _send(entry));
         await _dao.removeQueueEntry(entry.id);
@@ -249,8 +253,7 @@ class SyncService {
                 frequency: Value(json['frequency'] as String?),
                 route: Value(json['route'] as String?),
                 orderedAt: Value(
-                  DateTimeUtils.parseToUtc(json['ordered_at']) ??
-                      syncStartedAt,
+                  DateTimeUtils.parseToUtc(json['ordered_at']) ?? syncStartedAt,
                 ),
               ),
             );

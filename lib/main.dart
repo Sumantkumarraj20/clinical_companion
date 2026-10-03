@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'dart:ui';
 
 import 'core/config/app_configuration.dart';
 import 'core/config/secure_config_service.dart';
@@ -10,10 +11,12 @@ import 'core/router/app_router.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  final storedKeys = await SecureConfigService().loadKeys();
-  final configuration = storedKeys.isComplete
-      ? AppConfiguration.fromStoredKeys(storedKeys)
-      : AppConfiguration.fromEnvironment();
+  PlatformDispatcher.instance.onError = (error, stackTrace) {
+    debugPrint('Unhandled clinical app error: $error\n$stackTrace');
+    return true;
+  };
+  final storedKeys = await SecureConfigService().initialize();
+  final configuration = AppConfiguration.fromStoredKeys(storedKeys);
   if (configuration.hasSupabase) {
     try {
       await Supabase.initialize(
@@ -25,6 +28,7 @@ Future<void> main() async {
     }
   }
   GoogleFonts.config.allowRuntimeFetching = false;
+  ErrorWidget.builder = (details) => _ClinicalErrorFallback(details: details);
 
   runApp(
     ProviderScope(
@@ -34,6 +38,34 @@ Future<void> main() async {
         ),
       ],
       child: const ClinicalCompanionApp(),
+    ),
+  );
+}
+
+class _ClinicalErrorFallback extends StatelessWidget {
+  const _ClinicalErrorFallback({required this.details});
+
+  final FlutterErrorDetails details;
+
+  @override
+  Widget build(BuildContext context) => Material(
+    child: Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.health_and_safety_outlined, size: 56),
+            const SizedBox(height: 16),
+            const Text('This clinical view needs to reload.'),
+            const SizedBox(height: 8),
+            const Text(
+              'Your locally saved work is safe. Return to the dashboard and try again.',
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
     ),
   );
 }
@@ -50,9 +82,7 @@ class ClinicalCompanionApp extends ConsumerWidget {
   static final _cardTheme = CardThemeData(
     clipBehavior: Clip.antiAlias,
     elevation: 0,
-    shape: RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(12),
-    ),
+    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
   );
 
   @override

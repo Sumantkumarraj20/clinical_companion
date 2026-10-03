@@ -2,14 +2,18 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 
-import '../../../core/ai/document_ai_service.dart';
-import '../../../core/models/document_task.dart';
 import '../../../core/providers/app_providers.dart';
-import '../../../core/services/extraction_pipeline_service.dart';
-import 'extraction_review_screen.dart';
 
+/// Entry point of the OCR/AI pipeline.
+///
+/// This screen only *queues* work: the picked file(s) are handed to
+/// [batchExtractionProvider], which runs on-device OCR and — when the local
+/// read is messy — the Gemini clean-up in the background. We navigate to the
+/// review queue immediately so the clinician never waits on a spinner; the
+/// review screen renders live progress per page.
 class SmartCaptureScreen extends ConsumerStatefulWidget {
   const SmartCaptureScreen({super.key});
 
@@ -19,70 +23,49 @@ class SmartCaptureScreen extends ConsumerStatefulWidget {
 
 class _SmartCaptureScreenState extends ConsumerState<SmartCaptureScreen> {
   final _picker = ImagePicker();
-  bool _processing = false;
+  bool _busy = false;
 
-  Future<void> _capture() async {
-    final picked = await _picker.pickImage(
-      source: ImageSource.camera,
-      imageQuality: 90, // Compresses image to save memory and API payload
-    );
-    if (picked == null) return;
-    await _processImage(File(picked.path));
-  }
+  Future<void> _capture() => _pick(source: ImageSource.camera, multiple: false);
 
-  Future<void> _pickFromGallery() async {
-    final picked = await _picker.pickImage(
-      source: ImageSource.gallery,
-      imageQuality: 90,
-    );
-    if (picked == null) return;
-    await _processImage(File(picked.path));
-  }
+  Future<void> _pickFromGallery() =>
+      _pick(source: ImageSource.gallery, multiple: true);
 
-  Future<void> _processImage(File image) async {
-    setState(() => _processing = true);
-
+  Future<void> _pick({
+    required ImageSource source,
+    required bool multiple,
+  }) async {
+    if (_busy) return;
+    setState(() => _busy = true);
     try {
-      final pipeline = ref.read(extractionPipelineProvider);
-      PipelineExtraction extraction;
+      final List<File> files;
+      if (multiple) {
+        final picked = await _picker.pickMultiImage(imageQuality: 90);
+        files = [for (final item in picked) File(item.path)];
+      } else {
+        final picked = await _picker.pickImage(
+          source: source,
+          imageQuality: 90, // Compresses image to save memory and API payload
+        );
+        files = picked == null ? const [] : [File(picked.path)];
+      }
+      if (files.isEmpty || !mounted) return;
 
-      // Free path first: tryLocalOnly inside the pipeline handles API-less
-      // documents; processDocumentWithProvenance escalates to Gemini only
-      // when local regex is inadequate.
-      extraction = await pipeline.processDocumentWithProvenance(image);
-
+      ref.read(batchExtractionProvider.notifier).addFiles(files);
       if (!mounted) return;
 
-      final source = extraction.taskSource;
-      final result = extraction.result;
-
-      // Auto-navigate to Review Screen, preserving extraction provenance so
-      // the banner can show "Locally Extracted (Free)" vs "AI Extracted".
-      await Navigator.of(context).pushReplacement(
-        MaterialPageRoute<void>(
-          builder: (_) => ExtractionReviewScreen(
-            extraction: result,
-            imagePath: image.path,
-            source: source == ExtractionSource.local
-                ? ExtractionSource.local
-                : ExtractionSource.ai,
-          ),
-        ),
-      );
+      // STEP 1 — straight into the review queue; extraction continues there.
+      context.push('/adaptive-review');
     } catch (error) {
       if (mounted) {
-        final message = error is DocumentAiException && error.cause != null
-            ? '${error.message}\nDetails: ${error.cause}'
-            : error.toString();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(message),
+            content: Text('Could not open the image picker: $error'),
             backgroundColor: Colors.red,
           ),
         );
       }
     } finally {
-      if (mounted) setState(() => _processing = false);
+      if (mounted) setState(() => _busy = false);
     }
   }
 
@@ -91,15 +74,15 @@ class _SmartCaptureScreenState extends ConsumerState<SmartCaptureScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('AI Smart Capture')),
       body: Center(
-        child: _processing
+        child: _busy
             ? const Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   CircularProgressIndicator(),
                   SizedBox(height: 24),
-                  Text('Gemini is analyzing the document...'),
+                  Text('Opening camera…'),
                   Text(
-                    'Extracting vitals, labs, and medications',
+                    'Adding pages to the extraction queue',
                     style: TextStyle(color: Colors.grey, fontSize: 12),
                   ),
                 ],
@@ -129,13 +112,15 @@ class _SmartCaptureScreenState extends ConsumerState<SmartCaptureScreen> {
                   ),
                   const SizedBox(height: 12),
                   OutlinedButton.icon(
-                    onPressed: _processing ? null : _pickFromGallery,
+                    onPressed: _pickFromGallery,
                     icon: const Icon(Icons.photo_library_outlined),
-                    label: const Text('Choose image from phone'),
+                    label: const Text('Choose images from phone'),
                   ),
                   const SizedBox(height: 16),
                   const Text(
-                    'Works with lab reports, ECGs, and handwritten notes.',
+                    'Works with lab reports, ECGs, and handwritten notes.\n'
+                    'Pages are read on-device first, then polished with AI '
+                    'only when needed.',
                     textAlign: TextAlign.center,
                     style: TextStyle(color: Colors.grey),
                   ),

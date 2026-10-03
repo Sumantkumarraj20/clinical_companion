@@ -7,6 +7,7 @@ import '../../../core/database/local_database.dart';
 import '../../../core/models/department_templates.dart';
 import '../../../core/providers/app_providers.dart';
 import '../../../core/utils/datetime_utils.dart';
+import '../providers/encounter_provider.dart';
 import 'encounter_ipd_extra.dart';
 import 'encounter_ipd_sections.dart';
 import 'encounter_opd_sections.dart';
@@ -99,10 +100,55 @@ class _DynamicEncounterScreenState
     super.initState();
     _sbp.addListener(_calculateMap);
     _dbp.addListener(_calculateMap);
+    // The narrative becomes an EncounterDraft as it is typed. EncounterNotifier
+    // debounces internally, so one listener per field costs nothing and the
+    // finalize path never has to re-derive text from controllers.
+    for (final controller in [
+      _complaint,
+      _hpi,
+      _pastMedical,
+      _pastSurgical,
+      _examination,
+      _assessment,
+      _advice,
+      _plan,
+    ]) {
+      controller.addListener(_pushNarrativeToDraft);
+    }
+  }
+
+  /// Mirrors the narrative fields into [EncounterNotifier].
+  void _pushNarrativeToDraft() {
+    final notifier = ref.read(encounterNotifierProvider.notifier);
+    notifier.updateChiefComplaints(_complaint.text);
+    notifier.updateHPI(_hpi.text);
+    notifier.updatePastHistory(
+      [
+        _clean(_pastMedical.text),
+        _clean(_pastSurgical.text),
+      ].whereType<String>().join(' | '),
+    );
+    notifier.updateExamination(_examination.text);
+    notifier.updateAssessment(_assessment.text);
+    notifier.updateAdvice(_advice.text);
+    notifier.updatePlan(_plan.text);
+    notifier.setCareSetting(_isOpdMode ? CareSetting.opd : CareSetting.ipd);
   }
 
   @override
   void dispose() {
+    for (final controller in [
+      _complaint,
+      _hpi,
+      _pastMedical,
+      _pastSurgical,
+      _examination,
+      _assessment,
+      _advice,
+      _plan,
+    ]) {
+      controller.removeListener(_pushNarrativeToDraft);
+    }
     for (final controller in [
       _sbp,
       _dbp,
@@ -222,59 +268,73 @@ class _DynamicEncounterScreenState
       }
 
       // Build Encounter Entity — OPD vs IPD shapes the stored type.
-      final encounter = ClinicalEncountersCompanion.insert(
-        ownerId: ownerId,
+      // The narrative comes from the EncounterDraft; this screen layers the
+      // bedside columns (vitals, ward, diagnosis, template blob) on top.
+      final draftNotifier = ref.read(encounterNotifierProvider.notifier);
+      _pushNarrativeToDraft();
+      draftNotifier.flush();
+      final draft = ref.read(encounterNotifierProvider);
+
+      final encounter = draft
+          .toCompanion(
+            ownerId: ownerId,
+            patientId: widget.patient.id,
+            encounterType: _isOpdMode ? 'OPD Consult' : 'IPD Bedside Note',
+            occurredAt: now,
+          )
+          .copyWith(
+            department: Value(_clean(_departmentText.text)),
+            wardName: Value(_clean(_wardName.text)),
+            bedNumber: Value(_clean(_bedNumber.text)),
+            clinicalDiagnosis: Value(_clean(_diagnosis.text)),
+            disposition: Value(_isOpdMode ? 'OPD' : _disposition),
+            sbp: Value(sbpVal),
+            dbp: Value(dbpVal),
+            pulse: Value(pulseVal),
+            spo2: Value(spo2Val),
+            temperatureC: Value(tempVal),
+            meanArterialPressure: Value(_map),
+            personalAndSocialHistory: Value(
+              [
+                _clean(_personalHistory.text),
+                _clean(_socialHistory.text),
+              ].whereType<String>().join(' | '),
+            ),
+            dynamicData: Value({
+              ...dynamicData,
+              'encounter_mode': _isOpdMode ? 'OPD' : 'IPD',
+              if ((draft.plan ?? '').trim().isNotEmpty) 'plan': draft.plan,
+            }),
+          );
+
+      // Staged orders (catalog prescriptions + CDSS/banner investigations)
+      // are converted to Drift companions and written in the SAME transaction
+      // as the encounter, so a partially saved consult is impossible.
+      final stagedNotifier = ref.read(stagedOrdersProvider.notifier);
+      final staged = ref.read(stagedOrdersProvider);
+      final prescriptions = stagedNotifier.toPrescriptionCompanions(
         patientId: widget.patient.id,
-        encounterType: Value(_isOpdMode ? 'OPD Consult' : 'IPD Bedside Note'),
-        occurredAt: Value(now),
-        department: Value(_clean(_departmentText.text)),
-        wardName: Value(_clean(_wardName.text)),
-        bedNumber: Value(_clean(_bedNumber.text)),
-        clinicalDiagnosis: Value(_clean(_diagnosis.text)),
-        disposition: Value(_isOpdMode ? 'OPD' : _disposition),
-        sbp: Value(sbpVal),
-        dbp: Value(dbpVal),
-        pulse: Value(pulseVal),
-        spo2: Value(spo2Val),
-        temperatureC: Value(tempVal),
-        meanArterialPressure: Value(_map),
-        chiefComplaints: Value(_clean(_complaint.text)),
-        historyOfPresentIllness: Value(_clean(_hpi.text)),
-        pastHistory: Value(
-          [_clean(_pastMedical.text), _clean(_pastSurgical.text)]
-              .whereType<String>()
-              .join(' | '),
-        ),
-        personalAndSocialHistory: Value(
-          [_clean(_personalHistory.text), _clean(_socialHistory.text)]
-              .whereType<String>()
-              .join(' | '),
-        ),
-        examinationFindings: Value(
-          _isOpdMode ? _clean(_examination.text) : null,
-        ),
-        clinicalAssessment: Value(_clean(_assessment.text)),
-        consultantAdvice: Value(_clean(_advice.text)),
-        dynamicData: Value({
-          ...dynamicData,
-          'encounter_mode': _isOpdMode ? 'OPD' : 'IPD',
-        }),
+      );
+      final investigations = stagedNotifier.toInvestigationCompanions(
+        patientId: widget.patient.id,
       );
 
-      // Save via atomic POMR helper
       await dao.savePOMREncounter(
         encounter: encounter,
         newProblems: newProblems,
         progressSnapshots: snapshots,
         interventions: interventions,
+        prescriptions: prescriptions,
+        investigations: investigations,
       );
 
-      // Self-learning: persist staged terms, then clear the tray.
-      final staged = ref.read(stagedOrdersProvider);
+      // Self-learning: persist staged terms, then clear both trays so the next
+      // patient starts from a clean slate.
       if (staged.isNotEmpty) {
-        await ref.read(stagedOrdersProvider.notifier).finalizeOrders();
-        ref.read(stagedOrdersProvider.notifier).clear();
+        await stagedNotifier.finalizeOrders(dao);
       }
+      stagedNotifier.clear();
+      draftNotifier.reset();
 
       if (mounted) {
         _toast(

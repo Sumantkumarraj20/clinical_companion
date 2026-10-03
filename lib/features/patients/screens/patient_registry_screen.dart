@@ -3,9 +3,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/database/daos/clinical_dao.dart';
 import '../../../core/database/local_database.dart';
 import '../../../core/providers/app_providers.dart';
 import '../../../core/utils/datetime_utils.dart';
+import '../widgets/cohort_tagger.dart';
 
 class PatientRegistryScreen extends ConsumerStatefulWidget {
   const PatientRegistryScreen({super.key});
@@ -19,10 +21,60 @@ class _PatientRegistryScreenState extends ConsumerState<PatientRegistryScreen> {
   final _searchController = TextEditingController();
   String _searchQuery = '';
 
+  /// Cohort tags the clinician tapped to narrow the whole registry.
+  final Set<String> _selectedCohorts = {};
+
+  /// Cohort tags per patient id, loaded asynchronously because deriving them
+  /// needs the patient's problems and procedures.
+  Map<String, List<CohortTag>> _tagsByPatient = const {};
+
   @override
   void dispose() {
     _searchController.dispose();
     super.dispose();
+  }
+
+  /// Loads cohort tags for every patient and returns a cohort → count index
+  /// alongside the per-patient map.
+  Future<({Map<String, List<CohortTag>> byPatient, Map<CohortTag, int> counts})>
+  _loadCohorts(ClinicalDao dao, List<Patient> patients) async {
+    final byPatient = <String, List<CohortTag>>{};
+    final counts = <CohortTag, int>{};
+    final inputs = await dao.getCohortInputsForPatients();
+    for (final patient in patients) {
+      final patientInputs = inputs[patient.id];
+      final tags = CohortTagger.tagsFor(
+        problems: patientInputs?.problems ?? const [],
+        interventions: patientInputs?.interventions ?? const [],
+        patient: patient,
+      );
+      byPatient[patient.id] = tags;
+      for (final tag in tags) {
+        counts[tag] = (counts[tag] ?? 0) + 1;
+      }
+    }
+    return (byPatient: byPatient, counts: counts);
+  }
+
+  bool _matchesFilters(
+    Patient patient,
+    Map<String, List<CohortTag>> byPatient,
+  ) {
+    if (_searchQuery.isNotEmpty) {
+      final name = patient.fullName.toLowerCase();
+      final residence = patient.residence?.toLowerCase() ?? '';
+      final occupation = patient.occupation?.toLowerCase() ?? '';
+      if (!(name.contains(_searchQuery) ||
+          residence.contains(_searchQuery) ||
+          occupation.contains(_searchQuery))) {
+        return false;
+      }
+    }
+    if (_selectedCohorts.isEmpty) return true;
+    // Intersection, not union: tapping two chips narrows the cohort, which is
+    // what someone assembling a research set expects.
+    final tags = byPatient[patient.id] ?? const <CohortTag>[];
+    return _selectedCohorts.every(tags.contains);
   }
 
   @override
@@ -85,15 +137,6 @@ class _PatientRegistryScreenState extends ConsumerState<PatientRegistryScreen> {
           }
 
           final allPatients = snapshot.data ?? const <Patient>[];
-          final patients = allPatients.where((p) {
-            if (_searchQuery.isEmpty) return true;
-            final name = p.fullName.toLowerCase();
-            final residence = p.residence?.toLowerCase() ?? '';
-            final occupation = p.occupation?.toLowerCase() ?? '';
-            return name.contains(_searchQuery) ||
-                residence.contains(_searchQuery) ||
-                occupation.contains(_searchQuery);
-          }).toList();
 
           if (allPatients.isEmpty) {
             return Center(
@@ -120,31 +163,124 @@ class _PatientRegistryScreenState extends ConsumerState<PatientRegistryScreen> {
             );
           }
 
-          if (patients.isEmpty) {
-            return Center(
-              child: Text(
-                'No patients matching "$_searchQuery"',
-                style: const TextStyle(color: Colors.grey),
-              ),
-            );
-          }
+          // Cohort tags need per-patient POMR reads, so the filter row waits on
+          // a second pass. The list itself renders immediately — a clinician
+          // searching by name never waits on cohort derivation.
+          return FutureBuilder<
+            ({
+              Map<String, List<CohortTag>> byPatient,
+              Map<CohortTag, int> counts,
+            })
+          >(
+            future: _loadCohorts(dao, allPatients),
+            builder: (context, cohortSnapshot) {
+              final byPatient =
+                  cohortSnapshot.data?.byPatient ?? _tagsByPatient;
+              final counts = cohortSnapshot.data?.counts ?? const {};
+              _tagsByPatient = byPatient;
 
-          return ListView.separated(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 92),
-            itemCount: patients.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 8),
-            itemBuilder: (context, index) {
-              final patient = patients[index];
-              return _PatientCard(
-                patient: patient,
-                onEdit: () =>
-                    _showPatientEditor(context, ref, patient: patient),
+              final patients = allPatients
+                  .where((patient) => _matchesFilters(patient, byPatient))
+                  .toList();
+
+              return Column(
+                children: [
+                  if (counts.isNotEmpty) ...[
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        const Padding(
+                          padding: EdgeInsets.only(left: 14),
+                          child: Icon(
+                            Icons.filter_alt_outlined,
+                            size: 15,
+                            color: Colors.grey,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: CohortFilterBar(
+                            available: counts,
+                            selected: _selectedCohorts,
+                            onToggle: (tag) => setState(() {
+                              if (!_selectedCohorts.remove(tag)) {
+                                _selectedCohorts.add(tag);
+                              }
+                            }),
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (_selectedCohorts.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+                        child: Row(
+                          children: [
+                            Text(
+                              'Showing ${patients.length} of '
+                              '${allPatients.length}',
+                              style: const TextStyle(
+                                fontSize: 11,
+                                color: Colors.grey,
+                              ),
+                            ),
+                            const Spacer(),
+                            TextButton(
+                              onPressed: () => setState(_selectedCohorts.clear),
+                              child: const Text('Clear filters'),
+                            ),
+                          ],
+                        ),
+                      ),
+                  ],
+                  Expanded(
+                    child: patients.isEmpty
+                        ? Center(
+                            child: Text(
+                              _emptyMessage(),
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(color: Colors.grey),
+                            ),
+                          )
+                        : ListView.separated(
+                            padding: const EdgeInsets.fromLTRB(16, 12, 16, 92),
+                            itemCount: patients.length,
+                            separatorBuilder: (_, __) =>
+                                const SizedBox(height: 8),
+                            itemBuilder: (context, index) {
+                              final patient = patients[index];
+                              return _PatientCard(
+                                patient: patient,
+                                cohortTags:
+                                    byPatient[patient.id] ??
+                                    const <CohortTag>[],
+                                onEdit: () => _showPatientEditor(
+                                  context,
+                                  ref,
+                                  patient: patient,
+                                ),
+                              );
+                            },
+                          ),
+                  ),
+                ],
               );
             },
           );
         },
       ),
     );
+  }
+
+  String _emptyMessage() {
+    final hasSearch = _searchQuery.isNotEmpty;
+    final hasCohort = _selectedCohorts.isNotEmpty;
+    if (hasSearch && hasCohort) {
+      return 'No patients match this search and cohort.';
+    }
+    if (hasCohort) return 'No patients in this cohort.';
+    if (hasSearch) return 'No patients matching "$_searchQuery"';
+    return 'No patients to show.';
   }
 
   Future<void> _showPatientEditor(
@@ -171,10 +307,17 @@ class _PatientRegistryScreenState extends ConsumerState<PatientRegistryScreen> {
 }
 
 class _PatientCard extends ConsumerWidget {
-  const _PatientCard({required this.patient, required this.onEdit});
+  const _PatientCard({
+    required this.patient,
+    required this.onEdit,
+    this.cohortTags = const [],
+  });
 
   final Patient patient;
   final VoidCallback onEdit;
+
+  /// Derived research cohorts shown on the card (Sprint 11).
+  final List<CohortTag> cohortTags;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -280,6 +423,47 @@ class _PatientCard extends ConsumerWidget {
                         overflow: TextOverflow.ellipsis,
                       ),
                     ],
+                    if (cohortTags.isNotEmpty) ...[
+                      const SizedBox(height: 6),
+                      // Research cohorts, derived from the POMR — the same
+                      // tags the filter bar above is built from.
+                      Wrap(
+                        spacing: 4,
+                        runSpacing: 4,
+                        children: [
+                          for (final tag in cohortTags.take(4))
+                            Tooltip(
+                              message: tag.source,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                  vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: tag.chipColor.withValues(alpha: 0.10),
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: Text(
+                                  tag.display,
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w700,
+                                    color: tag.chipColor,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          if (cohortTags.length > 4)
+                            Text(
+                              '+${cohortTags.length - 4}',
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: Theme.of(context).colorScheme.outline,
+                              ),
+                            ),
+                        ],
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -316,7 +500,8 @@ class _PatientEditorState extends ConsumerState<_PatientEditor> {
     text: widget.patient?.fullName ?? '',
   );
   late final _age = TextEditingController(
-    text: DateTimeUtils.ageOn(
+    text:
+        DateTimeUtils.ageOn(
           widget.patient?.dateOfBirth,
           DateTime.now(),
         )?.toString() ??
@@ -329,9 +514,7 @@ class _PatientEditorState extends ConsumerState<_PatientEditor> {
   late final _occupation = TextEditingController(
     text: widget.patient?.occupation ?? '',
   );
-  late final _phone = TextEditingController(
-    text: widget.patient?.phone ?? '',
-  );
+  late final _phone = TextEditingController(text: widget.patient?.phone ?? '');
   late final _heightCm = TextEditingController(
     text: widget.patient?.heightCm?.toString() ?? '',
   );

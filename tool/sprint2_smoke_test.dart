@@ -32,9 +32,9 @@ void main() {
 
     final byMolecule = await dao.searchClinicalDrugs('amoxicillin');
     expect(byMolecule, isNotEmpty);
-    expect(byMolecule.first.genericMolecule, 'Amoxicillin + Clavulanic Acid');
+    expect(byMolecule.first.molecule, 'Amoxicillin + Clavulanic Acid');
     expect(
-      PharmacopeiaDao.decodeStringList(byMolecule.first.problemIndications),
+      PharmacopeiaDao.decodeStringList(byMolecule.first.master?.problemIndications),
       contains('Otitis Media'),
     );
 

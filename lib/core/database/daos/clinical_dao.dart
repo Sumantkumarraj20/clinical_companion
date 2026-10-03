@@ -31,6 +31,18 @@ class PendingInvestigation {
   final String mrn;
 }
 
+/// All data needed to derive registry cohort tags. Loaded in one joined query
+/// so a ward-sized patient list never turns into an N+1 read storm.
+class PatientCohortInputs {
+  const PatientCohortInputs({
+    required this.problems,
+    required this.interventions,
+  });
+
+  final List<PatientProblem> problems;
+  final List<ClinicalIntervention> interventions;
+}
+
 @DriftAccessor(
   tables: [
     Patients,
@@ -69,6 +81,16 @@ class ClinicalDao extends DatabaseAccessor<AppDatabase>
   // =========================================================================
   // 1. AI DOCUMENT EXTRACTION TRANSACTION
   // =========================================================================
+
+  /// Persists an AI/OCR extraction as a single atomic encounter + vitals +
+  /// labs + problems + prescriptions write.
+  ///
+  /// **Idempotency:** a captured page is identified by
+  /// (`patientId`, `imagePath`). Committing the same page twice — a double tap
+  /// on "Save & Next", a retry after a flaky write, or re-opening a document
+  /// that is already filed — returns the encounter that already exists instead
+  /// of minting a duplicate. The queue itself also guarantees one task per
+  /// unique file path.
   Future<ClinicalEncounter> processAiExtraction(
     AiExtractionResult result,
     String imagePath, {
@@ -81,6 +103,20 @@ class ClinicalDao extends DatabaseAccessor<AppDatabase>
             database: attachedDatabase,
             ownerId: defaultOwnerId,
           ).resolvePatient(result.patientIdentity);
+
+      final dedupeKey = imagePath.trim();
+      if (dedupeKey.isNotEmpty) {
+        final existing =
+            await (select(clinicalEncounters)
+                  ..where(
+                    (row) =>
+                        row.imagePath.equals(dedupeKey) &
+                        row.patientId.equals(patientId),
+                  )
+                  ..limit(1))
+                .getSingleOrNull();
+        if (existing != null) return existing;
+      }
 
       final occurredAt =
           _date(result.encounterContext.date) ?? DateTime.now().toUtc();
@@ -212,9 +248,45 @@ class ClinicalDao extends DatabaseAccessor<AppDatabase>
   // 2. PATIENTS & MULTI-HOSPITAL IDENTIFIERS
   // =========================================================================
   Stream<List<Patient>> watchAllPatients() {
-    return (select(patients)
-          ..orderBy([(row) => OrderingTerm(expression: row.fullName)]))
-        .watch();
+    return (select(
+      patients,
+    )..orderBy([(row) => OrderingTerm(expression: row.fullName)])).watch();
+  }
+
+  Future<Map<String, PatientCohortInputs>> getCohortInputsForPatients() async {
+    final query = select(patients).join([
+      leftOuterJoin(
+        patientProblems,
+        patientProblems.patientId.equalsExp(patients.id) &
+            patientProblems.currentStatus.equals('Active'),
+      ),
+      leftOuterJoin(
+        clinicalInterventions,
+        clinicalInterventions.patientId.equalsExp(patients.id),
+      ),
+    ]);
+    final rows = await query.get();
+    final problems = <String, Map<String, PatientProblem>>{};
+    final interventions = <String, Map<String, ClinicalIntervention>>{};
+    for (final row in rows) {
+      final patient = row.readTable(patients);
+      final problem = row.readTableOrNull(patientProblems);
+      final intervention = row.readTableOrNull(clinicalInterventions);
+      if (problem != null) {
+        (problems[patient.id] ??= {})[problem.id] = problem;
+      }
+      if (intervention != null) {
+        (interventions[patient.id] ??= {})[intervention.id] = intervention;
+      }
+    }
+    return {
+      for (final patient in rows.map((row) => row.readTable(patients)))
+        patient.id: PatientCohortInputs(
+          problems: (problems[patient.id] ?? const {}).values.toList(),
+          interventions: (interventions[patient.id] ?? const {}).values
+              .toList(),
+        ),
+    };
   }
 
   Future<Patient?> findPatient(String id) {
@@ -286,10 +358,7 @@ class ClinicalDao extends DatabaseAccessor<AppDatabase>
     if (existing != null) return existing.id;
     final id = _ids.v4();
     await into(hospitals).insert(
-      HospitalsCompanion.insert(
-        id: Value(id),
-        name: 'Primary Facility',
-      ),
+      HospitalsCompanion.insert(id: Value(id), name: 'Primary Facility'),
     );
     return id;
   }
@@ -346,12 +415,9 @@ class ClinicalDao extends DatabaseAccessor<AppDatabase>
     return (select(admissions)
           ..where(
             (row) =>
-                row.hospitalId.equals(hospitalId) &
-                row.status.equals('active'),
+                row.hospitalId.equals(hospitalId) & row.status.equals('active'),
           )
-          ..orderBy([
-            (row) => OrderingTerm(expression: row.admissionTime),
-          ]))
+          ..orderBy([(row) => OrderingTerm(expression: row.admissionTime)]))
         .watch();
   }
 
@@ -598,6 +664,67 @@ class ClinicalDao extends DatabaseAccessor<AppDatabase>
     });
   }
 
+  /// Documents scanned for this patient (the paper-chart side of the hybrid
+  /// record), newest first. Feeds the timeline feed's document cards.
+  Future<List<DocumentRegistry>> getDocumentsForPatient(String patientId) {
+    return (select(documentRegistries)
+          ..where((row) => row.patientId.equals(patientId))
+          ..orderBy([
+            (row) => OrderingTerm(
+              expression: row.documentedAt,
+              mode: OrderingMode.desc,
+            ),
+          ]))
+        .get();
+  }
+
+  /// Lab results for a patient, newest first.
+  ///
+  /// Results are joined to their order (when one exists) so the feed can show
+  /// the order's status alongside the numeric value; results captured directly
+  /// by the AI pipeline have a null `orderId` and still appear.
+  Future<List<InvestigationResult>> getResultsForPatient(String patientId) {
+    return (select(investigationResults)
+          ..where((row) => row.patientId.equals(patientId))
+          ..orderBy([
+            (row) => OrderingTerm(
+              expression: row.resultDate,
+              mode: OrderingMode.desc,
+            ),
+          ]))
+        .get();
+  }
+
+  /// Prescriptions written for one patient, newest first. Used to summarise
+  /// "prescribed drugs" on an encounter card in the unified feed.
+  Future<List<PrescriptionOrder>> getPrescriptionsForPatient(String patientId) {
+    return (select(prescriptionOrders)
+          ..where((row) => row.patientId.equals(patientId))
+          ..orderBy([
+            (row) => OrderingTerm(
+              expression: row.orderedAt,
+              mode: OrderingMode.desc,
+            ),
+          ]))
+        .get();
+  }
+
+  /// Interventions (procedures/operations) performed for a patient, newest
+  /// first. These also drive the automatic `#PostOp*` cohort tags.
+  Future<List<ClinicalIntervention>> getInterventionsForPatient(
+    String patientId,
+  ) {
+    return (select(clinicalInterventions)
+          ..where((row) => row.patientId.equals(patientId))
+          ..orderBy([
+            (row) => OrderingTerm(
+              expression: row.performedAt,
+              mode: OrderingMode.desc,
+            ),
+          ]))
+        .get();
+  }
+
   // =========================================================================
   // 4. PROBLEM TRAJECTORIES & INTERVENTIONS
   // =========================================================================
@@ -639,15 +766,15 @@ class ClinicalDao extends DatabaseAccessor<AppDatabase>
     final existing = await getPatientProblem(problemId);
     if (existing == null) return;
     final now = DateTime.now().toUtc();
-    await (update(patientProblems)
-          ..where((row) => row.id.equals(problemId)))
-        .write(
-          PatientProblemsCompanion(
-            currentStatus: Value(resolved ? 'Resolved' : 'Active'),
-            resolvedDate: Value(resolved ? now : null),
-            updatedAt: Value(now),
-          ),
-        );
+    await (update(
+      patientProblems,
+    )..where((row) => row.id.equals(problemId))).write(
+      PatientProblemsCompanion(
+        currentStatus: Value(resolved ? 'Resolved' : 'Active'),
+        resolvedDate: Value(resolved ? now : null),
+        updatedAt: Value(now),
+      ),
+    );
     await _enqueue(
       ownerId: defaultOwnerId,
       entityType: 'patient_problems',
@@ -713,11 +840,8 @@ class ClinicalDao extends DatabaseAccessor<AppDatabase>
     )..where((row) => row.id.equals(orderId))).getSingleOrNull();
     if (existing == null) return;
     final now = DateTime.now().toUtc();
-    await (update(prescriptionOrders)
-          ..where((row) => row.id.equals(orderId)))
-        .write(
-          const PrescriptionOrdersCompanion(isActive: Value(false)),
-        );
+    await (update(prescriptionOrders)..where((row) => row.id.equals(orderId)))
+        .write(const PrescriptionOrdersCompanion(isActive: Value(false)));
     await _enqueue(
       ownerId: defaultOwnerId,
       entityType: 'prescription_orders',
@@ -1122,6 +1246,22 @@ class ClinicalDao extends DatabaseAccessor<AppDatabase>
     await (delete(offlineSyncQueue)..where((row) => row.id.equals(id))).go();
   }
 
+  /// Retains a cloud extraction request locally when connectivity disappears.
+  /// It is intentionally not sent as a normal table upsert: the image remains
+  /// in the clinician's review queue and needs explicit retry/upload handling.
+  Future<void> enqueuePendingAiExtraction({
+    required String taskId,
+    required String imagePath,
+    required String rawOcrText,
+  }) => _enqueue(
+    ownerId: defaultOwnerId,
+    entityType: 'ai_extraction',
+    entityId: taskId,
+    operation: 'deferred',
+    payload: {'image_path': imagePath, 'raw_ocr_text': rawOcrText},
+    clientUpdatedAt: DateTime.now().toUtc(),
+  );
+
   Future<void> upsertRemoteWiki(
     Map<String, dynamic> json,
     DateTime syncedAt,
@@ -1187,8 +1327,8 @@ class ClinicalDao extends DatabaseAccessor<AppDatabase>
         return;
       }
     }
-    final residence = json['residence'] as String? ??
-        json['address_or_location'] as String?;
+    final residence =
+        json['residence'] as String? ?? json['address_or_location'] as String?;
     await into(patients).insertOnConflictUpdate(
       PatientsCompanion(
         id: Value(id),
@@ -1625,8 +1765,7 @@ class ClinicalDao extends DatabaseAccessor<AppDatabase>
       if (asInt != null) return _fromEpochValue(asInt.toDouble());
       // Floating timestamp.
       final asDouble = double.tryParse(candidate);
-      if (asDouble != null &&
-          RegExp(r'^-?\d+\.\d+$').hasMatch(candidate)) {
+      if (asDouble != null && RegExp(r'^-?\d+\.\d+$').hasMatch(candidate)) {
         return _fromEpochValue(asDouble);
       }
       // Standard ISO8601 (try original first so offsets/zones are preserved).

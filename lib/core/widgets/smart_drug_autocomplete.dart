@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../database/local_database.dart';
+import '../models/clinical_drug_selection.dart';
 import '../providers/app_providers.dart';
 
 /// Token-efficient drug autocomplete backed by the ClinicalDrugs master table.
@@ -24,7 +24,7 @@ class SmartDrugAutocomplete extends ConsumerStatefulWidget {
   });
 
   final TextEditingController controller;
-  final ValueChanged<ClinicalDrug> onSelected;
+  final ValueChanged<ClinicalDrugSelection> onSelected;
   final String labelText;
   final String? hintText;
   final IconData? prefixIcon;
@@ -48,11 +48,11 @@ class _SmartDrugAutocompleteState extends ConsumerState<SmartDrugAutocomplete> {
 
   // Queries awaiting their debounce window; keyed by the raw term so that a
   // fast typist only ever pays for the final term.
-  final Map<String, Future<List<ClinicalDrug>>> _pendingQueries = {};
+  final Map<String, Future<List<ClinicalDrugSelection>>> _pendingQueries = {};
 
-  Future<List<ClinicalDrug>> _debouncedSearch(String term) {
+  Future<List<ClinicalDrugSelection>> _debouncedSearch(String term) {
     return _pendingQueries.putIfAbsent(term, () {
-      final future = Future<List<ClinicalDrug>>(() async {
+      final future = Future<List<ClinicalDrugSelection>>(() async {
         await Future<void>.delayed(_debounce);
         _pendingQueries.remove(term);
         try {
@@ -69,14 +69,13 @@ class _SmartDrugAutocompleteState extends ConsumerState<SmartDrugAutocomplete> {
 
   @override
   Widget build(BuildContext context) {
-    return RawAutocomplete<ClinicalDrug>(
+    return RawAutocomplete<ClinicalDrugSelection>(
       textEditingController: widget.controller,
-      displayStringForOption: (result) =>
-          result.genericMolecule.trim(),
+      displayStringForOption: (result) => result.molecule,
       optionsBuilder: (TextEditingValue value) {
         final query = value.text.trim();
         if (query.length < _minQueryLength) {
-          return Future<List<ClinicalDrug>>.value(const []);
+          return Future<List<ClinicalDrugSelection>>.value(const []);
         }
         return _debouncedSearch(query);
       },
@@ -111,12 +110,7 @@ class _SmartDrugAutocompleteState extends ConsumerState<SmartDrugAutocomplete> {
                 separatorBuilder: (_, __) => const Divider(height: 1),
                 itemBuilder: (context, index) {
                   final result = options.elementAt(index);
-                  final subtitle = [
-                    if (result.availableForms?.trim().isNotEmpty == true)
-                      result.availableForms!.trim(),
-                    if (result.topBrands?.trim().isNotEmpty == true)
-                      result.topBrands!.trim(),
-                  ].join(' · ');
+                  final subtitle = result.subtitle;
                   return ListTile(
                     dense: true,
                     leading: const Icon(
@@ -125,7 +119,7 @@ class _SmartDrugAutocompleteState extends ConsumerState<SmartDrugAutocomplete> {
                       color: Colors.teal,
                     ),
                     title: Text(
-                      result.genericMolecule,
+                      result.displayLabel,
                       style: const TextStyle(
                         fontWeight: FontWeight.w600,
                         fontSize: 13,

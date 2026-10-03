@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:isolate';
 import 'package:path/path.dart' as path;
 
 import 'package:google_generative_ai/google_generative_ai.dart';
@@ -7,6 +8,16 @@ import 'package:google_generative_ai/google_generative_ai.dart';
 import '../database/daos/pharmacopeia_dao.dart';
 import '../models/ai_extraction_result.dart';
 import 'clinical_prompts.dart';
+
+/// JSON decoding is CPU work and can be substantial for multi-page results.
+/// Keep it off the UI isolate after the network response has arrived.
+Map<String, dynamic> _decodeStructuredJson(String source) {
+  final decoded = jsonDecode(source);
+  if (decoded is! Map) {
+    throw const FormatException('Expected a JSON object.');
+  }
+  return Map<String, dynamic>.from(decoded);
+}
 
 enum DocumentAiErrorType {
   configuration,
@@ -73,20 +84,49 @@ class DocumentAiService {
   final String apiKey;
 
   static bool shouldEscalateToFallback(Object error) {
+    // Classified exceptions carry the authoritative signal: only a genuine
+    // "this model does not exist" answer means the fallback model may help.
+    // (String matching on the wrapper message would false-positive on any
+    // text that merely mentions a model name.)
     if (error is DocumentAiException) {
-      if (error.type == DocumentAiErrorType.modelNotFound) {
-        return true;
-      }
+      return error.type == DocumentAiErrorType.modelNotFound;
     }
 
     final text = error.toString().toLowerCase();
-    if (text.contains('model not found') ||
+    final mentionsModel =
+        text.contains('model') ||
+        text.contains('gemini') ||
+        text.contains('flash');
+    if (!mentionsModel) return false;
+    return text.contains('model not found') ||
         text.contains('model unavailable') ||
         text.contains('unsupported model') ||
-        text.contains('404')) {
-      return true;
-    }
-    return false;
+        text.contains('404');
+  }
+
+  /// Failures a *different* Gemini model is likely to fix. Account-wide
+  /// problems (missing key, rate limit, network) are deliberately excluded so
+  /// we never burn quota repeating an identical failure on a second model.
+  static bool shouldTryFallbackModel(Object error) {
+    if (shouldEscalateToFallback(error)) return true;
+    if (error is! DocumentAiException) return false;
+    return switch (error.type) {
+      DocumentAiErrorType.schemaViolation ||
+      DocumentAiErrorType.malformedJson ||
+      DocumentAiErrorType.emptyResponse ||
+      DocumentAiErrorType.server ||
+      DocumentAiErrorType.invalidRequest ||
+      DocumentAiErrorType.unknown => true,
+      DocumentAiErrorType.configuration ||
+      DocumentAiErrorType.authentication ||
+      DocumentAiErrorType.permissionDenied ||
+      DocumentAiErrorType.rateLimited ||
+      DocumentAiErrorType.network ||
+      DocumentAiErrorType.timeout ||
+      DocumentAiErrorType.modelNotFound ||
+      DocumentAiErrorType.imageInvalid ||
+      DocumentAiErrorType.imageTooLarge => false,
+    };
   }
 
   static DocumentAiException classifyError(
@@ -187,10 +227,19 @@ class DocumentAiService {
         cause: error,
       );
     }
-    if (text.contains('404') ||
-        text.contains('model not found') ||
-        text.contains('model unavailable') ||
-        text.contains('unsupported model')) {
+    // A 404 only means "model missing" when the payload actually talks about a
+    // model. A stray "404: patient record not found" must stay a plain error,
+    // otherwise we escalate to the fallback model for the wrong reason.
+    final mentionsModel =
+        text.contains('model') ||
+        text.contains('gemini') ||
+        text.contains('flash');
+    if (mentionsModel &&
+        (text.contains('404') ||
+            text.contains('model not found') ||
+            text.contains('model unavailable') ||
+            text.contains('unsupported model') ||
+            text.contains('not_found'))) {
       return DocumentAiException(
         'The configured AI model ($model) is unavailable.',
         type: DocumentAiErrorType.modelNotFound,
@@ -237,35 +286,49 @@ class DocumentAiService {
     );
   }
 
+  /// Runs [request] against [modelName] and, when the failure looks specific
+  /// to that model, retries the whole request against [fallbackModel].
+  ///
+  /// Each model gets its own retry budget so an escalation can never be
+  /// starved by earlier attempts (the previous implementation shared one
+  /// counter and could exhaust it before ever reaching the fallback model).
   Future<T> _executeWithRetry<T>({
     required Future<T> Function(String model) request,
     required String modelName,
   }) async {
-    var currentModel = modelName;
-    for (var attempt = 1; attempt <= maxAttempts; attempt++) {
-      try {
-        return await request(currentModel);
-      } on DocumentAiException catch (error) {
-        final shouldRetrySameModel =
-            error.retryable &&
-            attempt < maxAttempts &&
-            !shouldEscalateToFallback(error);
-        final shouldEscalate =
-            currentModel == modelName && shouldEscalateToFallback(error);
+    final models = fallbackModel == modelName
+        ? <String>[modelName]
+        : <String>[modelName, fallbackModel];
 
-        if (shouldRetrySameModel) {
-          final backoffMs = 500 * (1 << (attempt - 1));
-          await Future<void>.delayed(Duration(milliseconds: backoffMs));
-          continue;
+    Object? lastError;
+    for (var m = 0; m < models.length; m++) {
+      final currentModel = models[m];
+      final isLastModel = m == models.length - 1;
+
+      for (var attempt = 1; attempt <= maxAttempts; attempt++) {
+        try {
+          return await request(currentModel);
+        } on DocumentAiException catch (error) {
+          lastError = error;
+
+          // Hand the request to the next model as soon as this one looks
+          // broken in a model-specific way.
+          if (!isLastModel && shouldTryFallbackModel(error)) {
+            break;
+          }
+
+          final canRetrySameModel = error.retryable && attempt < maxAttempts;
+          if (canRetrySameModel) {
+            final backoffMs = 500 * (1 << (attempt - 1));
+            await Future<void>.delayed(Duration(milliseconds: backoffMs));
+            continue;
+          }
+          rethrow;
         }
-        if (shouldEscalate) {
-          currentModel = fallbackModel;
-          continue;
-        }
-        rethrow;
       }
     }
 
+    if (lastError is DocumentAiException) throw lastError;
     throw const DocumentAiException(
       'AI extraction failed after multiple attempts.',
       type: DocumentAiErrorType.server,
@@ -297,7 +360,8 @@ class DocumentAiService {
   }) async {
     if (apiKey.trim().isEmpty) {
       throw const DocumentAiException(
-        'AI capture is not configured. Add GEMINI_API_KEY at build time.',
+        'No Gemini API key configured. Open Settings → Configuration and save '
+        'your Gemini key, then retry.',
         type: DocumentAiErrorType.configuration,
       );
     }
@@ -336,15 +400,17 @@ class DocumentAiService {
           );
         }
 
-        final decoded = jsonDecode(text);
-        if (decoded is! Map) {
+        Map<String, dynamic> decoded;
+        try {
+          decoded = await Isolate.run(() => _decodeStructuredJson(text));
+        } on FormatException {
           throw const DocumentAiException(
             'AI returned invalid structured JSON.',
             type: DocumentAiErrorType.malformedJson,
           );
         }
 
-        final normalized = validator(Map<String, dynamic>.from(decoded));
+        final normalized = validator(decoded);
         return normalized;
       } on DocumentAiException {
         rethrow;

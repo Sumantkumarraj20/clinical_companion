@@ -10665,6 +10665,15 @@ class $ClinicalDrugsTable extends ClinicalDrugs
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _routesMeta = const VerificationMeta('routes');
+  @override
+  late final GeneratedColumn<String> routes = GeneratedColumn<String>(
+    'routes',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _topBrandsMeta = const VerificationMeta(
     'topBrands',
   );
@@ -10696,6 +10705,7 @@ class $ClinicalDrugsTable extends ClinicalDrugs
     prioritizedSideEffects,
     prescribingPearls,
     availableForms,
+    routes,
     topBrands,
     usageFrequency,
   ];
@@ -10761,6 +10771,12 @@ class $ClinicalDrugsTable extends ClinicalDrugs
         ),
       );
     }
+    if (data.containsKey('routes')) {
+      context.handle(
+        _routesMeta,
+        routes.isAcceptableOrUnknown(data['routes']!, _routesMeta),
+      );
+    }
     if (data.containsKey('top_brands')) {
       context.handle(
         _topBrandsMeta,
@@ -10809,6 +10825,10 @@ class $ClinicalDrugsTable extends ClinicalDrugs
         DriftSqlType.string,
         data['${effectivePrefix}available_forms'],
       ),
+      routes: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}routes'],
+      ),
       topBrands: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}top_brands'],
@@ -10833,6 +10853,7 @@ class ClinicalDrug extends DataClass implements Insertable<ClinicalDrug> {
   final String prioritizedSideEffects;
   final String? prescribingPearls;
   final String? availableForms;
+  final String? routes;
   final String? topBrands;
   final int usageFrequency;
   const ClinicalDrug({
@@ -10842,6 +10863,7 @@ class ClinicalDrug extends DataClass implements Insertable<ClinicalDrug> {
     required this.prioritizedSideEffects,
     this.prescribingPearls,
     this.availableForms,
+    this.routes,
     this.topBrands,
     required this.usageFrequency,
   });
@@ -10857,6 +10879,9 @@ class ClinicalDrug extends DataClass implements Insertable<ClinicalDrug> {
     }
     if (!nullToAbsent || availableForms != null) {
       map['available_forms'] = Variable<String>(availableForms);
+    }
+    if (!nullToAbsent || routes != null) {
+      map['routes'] = Variable<String>(routes);
     }
     if (!nullToAbsent || topBrands != null) {
       map['top_brands'] = Variable<String>(topBrands);
@@ -10877,6 +10902,9 @@ class ClinicalDrug extends DataClass implements Insertable<ClinicalDrug> {
       availableForms: availableForms == null && nullToAbsent
           ? const Value.absent()
           : Value(availableForms),
+      routes: routes == null && nullToAbsent
+          ? const Value.absent()
+          : Value(routes),
       topBrands: topBrands == null && nullToAbsent
           ? const Value.absent()
           : Value(topBrands),
@@ -10902,6 +10930,7 @@ class ClinicalDrug extends DataClass implements Insertable<ClinicalDrug> {
         json['prescribingPearls'],
       ),
       availableForms: serializer.fromJson<String?>(json['availableForms']),
+      routes: serializer.fromJson<String?>(json['routes']),
       topBrands: serializer.fromJson<String?>(json['topBrands']),
       usageFrequency: serializer.fromJson<int>(json['usageFrequency']),
     );
@@ -10918,6 +10947,7 @@ class ClinicalDrug extends DataClass implements Insertable<ClinicalDrug> {
       ),
       'prescribingPearls': serializer.toJson<String?>(prescribingPearls),
       'availableForms': serializer.toJson<String?>(availableForms),
+      'routes': serializer.toJson<String?>(routes),
       'topBrands': serializer.toJson<String?>(topBrands),
       'usageFrequency': serializer.toJson<int>(usageFrequency),
     };
@@ -10930,6 +10960,7 @@ class ClinicalDrug extends DataClass implements Insertable<ClinicalDrug> {
     String? prioritizedSideEffects,
     Value<String?> prescribingPearls = const Value.absent(),
     Value<String?> availableForms = const Value.absent(),
+    Value<String?> routes = const Value.absent(),
     Value<String?> topBrands = const Value.absent(),
     int? usageFrequency,
   }) => ClinicalDrug(
@@ -10944,6 +10975,7 @@ class ClinicalDrug extends DataClass implements Insertable<ClinicalDrug> {
     availableForms: availableForms.present
         ? availableForms.value
         : this.availableForms,
+    routes: routes.present ? routes.value : this.routes,
     topBrands: topBrands.present ? topBrands.value : this.topBrands,
     usageFrequency: usageFrequency ?? this.usageFrequency,
   );
@@ -10965,6 +10997,7 @@ class ClinicalDrug extends DataClass implements Insertable<ClinicalDrug> {
       availableForms: data.availableForms.present
           ? data.availableForms.value
           : this.availableForms,
+      routes: data.routes.present ? data.routes.value : this.routes,
       topBrands: data.topBrands.present ? data.topBrands.value : this.topBrands,
       usageFrequency: data.usageFrequency.present
           ? data.usageFrequency.value
@@ -10981,6 +11014,7 @@ class ClinicalDrug extends DataClass implements Insertable<ClinicalDrug> {
           ..write('prioritizedSideEffects: $prioritizedSideEffects, ')
           ..write('prescribingPearls: $prescribingPearls, ')
           ..write('availableForms: $availableForms, ')
+          ..write('routes: $routes, ')
           ..write('topBrands: $topBrands, ')
           ..write('usageFrequency: $usageFrequency')
           ..write(')'))
@@ -10995,6 +11029,7 @@ class ClinicalDrug extends DataClass implements Insertable<ClinicalDrug> {
     prioritizedSideEffects,
     prescribingPearls,
     availableForms,
+    routes,
     topBrands,
     usageFrequency,
   );
@@ -11008,6 +11043,7 @@ class ClinicalDrug extends DataClass implements Insertable<ClinicalDrug> {
           other.prioritizedSideEffects == this.prioritizedSideEffects &&
           other.prescribingPearls == this.prescribingPearls &&
           other.availableForms == this.availableForms &&
+          other.routes == this.routes &&
           other.topBrands == this.topBrands &&
           other.usageFrequency == this.usageFrequency);
 }
@@ -11019,6 +11055,7 @@ class ClinicalDrugsCompanion extends UpdateCompanion<ClinicalDrug> {
   final Value<String> prioritizedSideEffects;
   final Value<String?> prescribingPearls;
   final Value<String?> availableForms;
+  final Value<String?> routes;
   final Value<String?> topBrands;
   final Value<int> usageFrequency;
   final Value<int> rowid;
@@ -11029,6 +11066,7 @@ class ClinicalDrugsCompanion extends UpdateCompanion<ClinicalDrug> {
     this.prioritizedSideEffects = const Value.absent(),
     this.prescribingPearls = const Value.absent(),
     this.availableForms = const Value.absent(),
+    this.routes = const Value.absent(),
     this.topBrands = const Value.absent(),
     this.usageFrequency = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -11040,6 +11078,7 @@ class ClinicalDrugsCompanion extends UpdateCompanion<ClinicalDrug> {
     this.prioritizedSideEffects = const Value.absent(),
     this.prescribingPearls = const Value.absent(),
     this.availableForms = const Value.absent(),
+    this.routes = const Value.absent(),
     this.topBrands = const Value.absent(),
     this.usageFrequency = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -11051,6 +11090,7 @@ class ClinicalDrugsCompanion extends UpdateCompanion<ClinicalDrug> {
     Expression<String>? prioritizedSideEffects,
     Expression<String>? prescribingPearls,
     Expression<String>? availableForms,
+    Expression<String>? routes,
     Expression<String>? topBrands,
     Expression<int>? usageFrequency,
     Expression<int>? rowid,
@@ -11063,6 +11103,7 @@ class ClinicalDrugsCompanion extends UpdateCompanion<ClinicalDrug> {
         'prioritized_side_effects': prioritizedSideEffects,
       if (prescribingPearls != null) 'prescribing_pearls': prescribingPearls,
       if (availableForms != null) 'available_forms': availableForms,
+      if (routes != null) 'routes': routes,
       if (topBrands != null) 'top_brands': topBrands,
       if (usageFrequency != null) 'usage_frequency': usageFrequency,
       if (rowid != null) 'rowid': rowid,
@@ -11076,6 +11117,7 @@ class ClinicalDrugsCompanion extends UpdateCompanion<ClinicalDrug> {
     Value<String>? prioritizedSideEffects,
     Value<String?>? prescribingPearls,
     Value<String?>? availableForms,
+    Value<String?>? routes,
     Value<String?>? topBrands,
     Value<int>? usageFrequency,
     Value<int>? rowid,
@@ -11088,6 +11130,7 @@ class ClinicalDrugsCompanion extends UpdateCompanion<ClinicalDrug> {
           prioritizedSideEffects ?? this.prioritizedSideEffects,
       prescribingPearls: prescribingPearls ?? this.prescribingPearls,
       availableForms: availableForms ?? this.availableForms,
+      routes: routes ?? this.routes,
       topBrands: topBrands ?? this.topBrands,
       usageFrequency: usageFrequency ?? this.usageFrequency,
       rowid: rowid ?? this.rowid,
@@ -11117,6 +11160,9 @@ class ClinicalDrugsCompanion extends UpdateCompanion<ClinicalDrug> {
     if (availableForms.present) {
       map['available_forms'] = Variable<String>(availableForms.value);
     }
+    if (routes.present) {
+      map['routes'] = Variable<String>(routes.value);
+    }
     if (topBrands.present) {
       map['top_brands'] = Variable<String>(topBrands.value);
     }
@@ -11138,6 +11184,7 @@ class ClinicalDrugsCompanion extends UpdateCompanion<ClinicalDrug> {
           ..write('prioritizedSideEffects: $prioritizedSideEffects, ')
           ..write('prescribingPearls: $prescribingPearls, ')
           ..write('availableForms: $availableForms, ')
+          ..write('routes: $routes, ')
           ..write('topBrands: $topBrands, ')
           ..write('usageFrequency: $usageFrequency, ')
           ..write('rowid: $rowid')
@@ -31009,6 +31056,7 @@ typedef $$ClinicalDrugsTableCreateCompanionBuilder =
       Value<String> prioritizedSideEffects,
       Value<String?> prescribingPearls,
       Value<String?> availableForms,
+      Value<String?> routes,
       Value<String?> topBrands,
       Value<int> usageFrequency,
       Value<int> rowid,
@@ -31021,6 +31069,7 @@ typedef $$ClinicalDrugsTableUpdateCompanionBuilder =
       Value<String> prioritizedSideEffects,
       Value<String?> prescribingPearls,
       Value<String?> availableForms,
+      Value<String?> routes,
       Value<String?> topBrands,
       Value<int> usageFrequency,
       Value<int> rowid,
@@ -31062,6 +31111,11 @@ class $$ClinicalDrugsTableFilterComposer
 
   ColumnFilters<String> get availableForms => $composableBuilder(
     column: $table.availableForms,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get routes => $composableBuilder(
+    column: $table.routes,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -31115,6 +31169,11 @@ class $$ClinicalDrugsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get routes => $composableBuilder(
+    column: $table.routes,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get topBrands => $composableBuilder(
     column: $table.topBrands,
     builder: (column) => ColumnOrderings(column),
@@ -31163,6 +31222,9 @@ class $$ClinicalDrugsTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<String> get routes =>
+      $composableBuilder(column: $table.routes, builder: (column) => column);
+
   GeneratedColumn<String> get topBrands =>
       $composableBuilder(column: $table.topBrands, builder: (column) => column);
 
@@ -31209,6 +31271,7 @@ class $$ClinicalDrugsTableTableManager
                 Value<String> prioritizedSideEffects = const Value.absent(),
                 Value<String?> prescribingPearls = const Value.absent(),
                 Value<String?> availableForms = const Value.absent(),
+                Value<String?> routes = const Value.absent(),
                 Value<String?> topBrands = const Value.absent(),
                 Value<int> usageFrequency = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
@@ -31219,6 +31282,7 @@ class $$ClinicalDrugsTableTableManager
                 prioritizedSideEffects: prioritizedSideEffects,
                 prescribingPearls: prescribingPearls,
                 availableForms: availableForms,
+                routes: routes,
                 topBrands: topBrands,
                 usageFrequency: usageFrequency,
                 rowid: rowid,
@@ -31231,6 +31295,7 @@ class $$ClinicalDrugsTableTableManager
                 Value<String> prioritizedSideEffects = const Value.absent(),
                 Value<String?> prescribingPearls = const Value.absent(),
                 Value<String?> availableForms = const Value.absent(),
+                Value<String?> routes = const Value.absent(),
                 Value<String?> topBrands = const Value.absent(),
                 Value<int> usageFrequency = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
@@ -31241,6 +31306,7 @@ class $$ClinicalDrugsTableTableManager
                 prioritizedSideEffects: prioritizedSideEffects,
                 prescribingPearls: prescribingPearls,
                 availableForms: availableForms,
+                routes: routes,
                 topBrands: topBrands,
                 usageFrequency: usageFrequency,
                 rowid: rowid,

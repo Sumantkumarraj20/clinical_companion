@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../database/local_database.dart';
 import '../providers/app_providers.dart';
+import '../widgets/main_navigation_scaffold.dart';
 import '../../features/bedside/screens/vitals_entry_screen.dart';
 import '../../features/dashboard/screens/dashboard_screen.dart';
 import '../../features/drugs/screens/drug_reference_screen.dart';
@@ -37,7 +38,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const ConfigurationScreen(),
       ),
       ShellRoute(
-        builder: (context, state, child) => AdaptiveScaffold(child: child),
+        builder: (context, state, child) =>
+            MainNavigationScaffold(child: child),
         routes: [
           GoRoute(
             path: '/dashboard',
@@ -89,11 +91,15 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           ),
           GoRoute(
             path: '/adaptive-review',
+            // Queue-driven review: works with no pre-selected patient because
+            // identity is resolved from the document (or linked in the form).
+            // Launching from a patient timeline passes `extra: Patient` so
+            // every page is filed under that patient automatically.
             builder: (context, state) {
-              final patient = state.extra;
-              return patient is Patient
-                  ? AdaptiveReviewScreen(patient: patient)
-                  : const _RouteMessage(message: 'Select a patient before reviewing a document.');
+              final extra = state.extra;
+              return AdaptiveReviewScreen(
+                patient: extra is Patient ? extra : null,
+              );
             },
           ),
           GoRoute(
@@ -119,7 +125,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               final selectedPatient = data?['patient'] ?? patient;
               final heroTag = data?['heroTag'] as String?;
               return selectedPatient is Patient
-                  ? PatientTimelineScreen(patient: selectedPatient, heroTag: heroTag)
+                  ? PatientTimelineScreen(
+                      patient: selectedPatient,
+                      heroTag: heroTag,
+                    )
                   : const _RouteMessage(
                       message:
                           'Patient timeline is unavailable without a patient.',
@@ -144,129 +153,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
   );
 });
 
-class AdaptiveScaffold extends ConsumerWidget {
-  const AdaptiveScaffold({required this.child, super.key});
-
-  final Widget child;
-  static const _destinations = <({String path, IconData icon, String label})>[
-    (path: '/dashboard', icon: Icons.dashboard_outlined, label: 'Dashboard'),
-    (path: '/vitals', icon: Icons.monitor_heart_outlined, label: 'Vitals'),
-    (path: '/labs', icon: Icons.science_outlined, label: 'Labs'),
-    (path: '/drugs', icon: Icons.medication_outlined, label: 'Drugs'),
-    (path: '/research', icon: Icons.table_view_outlined, label: 'Research'),
-    (path: '/wiki', icon: Icons.menu_book_outlined, label: 'Wiki'),
-    (path: '/ward-dashboard', icon: Icons.local_hotel_outlined, label: 'Ward'),
-    (path: '/data-management', icon: Icons.manage_accounts_outlined, label: 'Data'),
-  ];
-
-  int _selectedIndex(BuildContext context) {
-    final location = GoRouterState.of(context).uri.path;
-    final index = _destinations.indexWhere(
-      (destination) => location.startsWith(destination.path),
-    );
-    return index < 0 ? 0 : index;
-  }
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final selected = _selectedIndex(context);
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final isWide = constraints.maxWidth >= 800;
-        final navigation = NavigationRail(
-          selectedIndex: selected,
-          onDestinationSelected: (index) =>
-              context.go(_destinations[index].path),
-          labelType: NavigationRailLabelType.all,
-          destinations: [
-            for (final destination in _destinations)
-              NavigationRailDestination(
-                icon: Icon(destination.icon),
-                selectedIcon: Icon(destination.icon),
-                label: Text(destination.label),
-              ),
-          ],
-        );
-        return Scaffold(
-          floatingActionButton: FloatingActionButton(
-            tooltip: 'Capture clinical data',
-            onPressed: () => _showCaptureActions(context),
-            child: const Icon(Icons.add),
-          ),
-          body: Stack(
-            children: [
-              if (isWide)
-                Row(
-                  children: [
-                    navigation,
-                    const VerticalDivider(width: 1),
-                    Expanded(child: child),
-                  ],
-                )
-              else
-                child,
-              Positioned(
-                top: MediaQuery.paddingOf(context).top + 4,
-                right: 8,
-                child: Material(
-                  color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.9),
-                  shape: const CircleBorder(),
-                  child: IconButton(
-                    tooltip: 'Settings',
-                    icon: const Icon(Icons.settings_outlined),
-                    onPressed: () => context.push('/configuration'),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          bottomNavigationBar: isWide
-              ? null
-              : BottomNavigationBar(
-                  currentIndex: selected,
-                  onTap: (index) => context.go(_destinations[index].path),
-                  items: [
-                    for (final destination in _destinations)
-                      BottomNavigationBarItem(
-                        icon: Icon(destination.icon),
-                        label: destination.label,
-                      ),
-                  ],
-                ),
-        );
-      },
-    );
-  }
-}
-
-void _showCaptureActions(BuildContext context) {
-  showModalBottomSheet<void>(
-    context: context,
-    builder: (sheetContext) => SafeArea(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          ListTile(
-            leading: const Icon(Icons.camera_alt_outlined),
-            title: const Text('Smart Ingestion'),
-            onTap: () {
-              Navigator.pop(sheetContext);
-              context.push('/smart-capture');
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.edit_note_outlined),
-            title: const Text('Quick Bedside Entry'),
-            onTap: () {
-              Navigator.pop(sheetContext);
-              context.push('/manual-entry');
-            },
-          ),
-        ],
-      ),
-    ),
-  );
-}
+/// Backwards-compatible alias: the shell was renamed in Sprint 11 to
+/// `MainNavigationScaffold` when the nav became a Material 3 NavigationBar.
+/// Existing `ShellRoute` builders keep compiling.
+typedef AdaptiveScaffold = MainNavigationScaffold;
 
 class _RouteMessage extends StatelessWidget {
   const _RouteMessage({required this.message});

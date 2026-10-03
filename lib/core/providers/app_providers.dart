@@ -6,10 +6,11 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:uuid/uuid.dart';
 
 import '../ai/document_ai_service.dart';
-import '../cds/decision_support_engine.dart';
 import '../config/app_configuration.dart';
+import '../config/secure_config_service.dart';
 import '../database/daos/clinical_dao.dart';
 import '../database/daos/pharmacopeia_dao.dart';
 import '../database/daos/cdss_dao.dart';
@@ -22,10 +23,20 @@ import '../sync/catalog_sync_service.dart';
 import '../sync/sync_service.dart';
 import '../../features/billing/services/clinical_coding_service.dart';
 
+// The staged-order tray moved to the bedside feature in Sprint 10 (it owns the
+// Drift mapping for prescription/investigation orders). Re-exported so the
+// many existing `app_providers.dart` importers keep resolving the symbols.
+export '../../features/bedside/providers/staged_orders_provider.dart'
+    show PendingOrder, StagedOrdersNotifier, stagedOrdersProvider;
+
 final appConfigurationProvider =
     NotifierProvider<AppConfigurationNotifier, AppConfiguration>(
       AppConfigurationNotifier.new,
     );
+
+final secureConfigServiceProvider = Provider<SecureConfigService>(
+  (_) => SecureConfigService(),
+);
 
 class AppConfigurationNotifier extends Notifier<AppConfiguration> {
   AppConfigurationNotifier([this.initialConfiguration]);
@@ -34,7 +45,12 @@ class AppConfigurationNotifier extends Notifier<AppConfiguration> {
 
   @override
   AppConfiguration build() =>
-      initialConfiguration ?? AppConfiguration.fromEnvironment();
+      initialConfiguration ??
+      const AppConfiguration(
+        supabaseUrl: '',
+        supabasePublishableKey: '',
+        ownerId: 'local-practitioner',
+      );
 
   void setConfiguration(AppConfiguration configuration) =>
       state = configuration;
@@ -46,16 +62,21 @@ final appDatabaseProvider = Provider<AppDatabase>((ref) {
   return database;
 });
 
-final supabaseClientProvider = Provider<SupabaseClient?>(
-  (ref) => ref.watch(appConfigurationProvider).hasSupabase
-      ? Supabase.instance.client
-      : null,
-);
+final supabaseClientProvider = Provider<SupabaseClient?>((ref) {
+  final hasSupabase = ref.watch(
+    appConfigurationProvider.select(
+      (configuration) => configuration.hasSupabase,
+    ),
+  );
+  return hasSupabase ? Supabase.instance.client : null;
+});
 
 final clinicalDaoProvider = Provider<ClinicalDao>(
   (ref) => ClinicalDao(
     ref.watch(appDatabaseProvider),
-    defaultOwnerId: ref.watch(appConfigurationProvider).ownerId,
+    defaultOwnerId: ref.watch(
+      appConfigurationProvider.select((configuration) => configuration.ownerId),
+    ),
   ),
 );
 final pharmacopeiaDaoProvider = Provider<PharmacopeiaDao>(
@@ -117,13 +138,29 @@ final appUpdaterServiceProvider = Provider<AppUpdaterService>((ref) {
 // ==========================================
 
 final documentAiServiceProvider = Provider<DocumentAiService>((ref) {
-  // Pulls API key from build environment variables or remote config
-  const apiKey = String.fromEnvironment('GEMINI_API_KEY', defaultValue: '');
+  // The key saved in Settings → Configuration (secure storage) is the runtime
+  // source of truth; the build-time GEMINI_API_KEY define is only a fallback
+  // for CI/preview builds. Reading *only* the env var meant every user who
+  // configured their key in-app still hit "AI capture is not configured",
+  // which is exactly the messy-document path that needs Gemini the most.
+  final runtimeKey = ref
+      .watch(
+        appConfigurationProvider.select(
+          (configuration) => configuration.geminiApiKey,
+        ),
+      )
+      .trim();
+  const envKey = String.fromEnvironment('GEMINI_API_KEY', defaultValue: '');
+  final apiKey = runtimeKey.isNotEmpty ? runtimeKey : envKey;
   return DocumentAiService(apiKey: apiKey);
 });
 
 final extractionPipelineProvider = Provider<ExtractionPipelineService>((ref) {
-  return ExtractionPipelineService(ref.watch(documentAiServiceProvider));
+  final service = ExtractionPipelineService(
+    ref.watch(documentAiServiceProvider),
+  );
+  ref.onDispose(service.close);
+  return service;
 });
 
 final batchExtractionProvider =
@@ -131,86 +168,209 @@ final batchExtractionProvider =
       BatchExtractionNotifier.new,
     );
 
-class BatchExtractionNotifier extends Notifier<List<DocumentTask>> {
+/// A one-shot UI event set only when a cloud extraction has been safely
+/// retained locally after a network failure.
+final offlineNoticeProvider = NotifierProvider<OfflineNoticeNotifier, String?>(
+  OfflineNoticeNotifier.new,
+);
+
+class OfflineNoticeNotifier extends Notifier<String?> {
   @override
-  List<DocumentTask> build() => [];
+  String? build() => null;
 
-  void addFiles(List<File> files) {
-    final newTasks = files
-        .map(
-          (f) => DocumentTask(
-            id: DateTime.now().microsecondsSinceEpoch.toString(),
-            originalFile: f,
-          ),
-        )
-        .toList();
+  void show(String message) => state = message;
+  void clear() => state = null;
+}
 
-    state = [...state, ...newTasks];
-    _processQueue();
+/// FIFO extraction queue shared by the capture and review screens.
+///
+/// Adding files flips each task through `processingOcr` → (optionally)
+/// `processingAiFallback` → `readyForReview`/`error`. The review screen simply
+/// watches this list and renders whatever stage each document is at, so OCR
+/// and cloud refinement continue in the background while the clinician
+/// reviews the pages that are already done.
+class BatchExtractionNotifier extends Notifier<List<DocumentTask>> {
+  final _ids = const Uuid();
+
+  /// Guards against two drains racing over the same pending task.
+  bool _draining = false;
+  bool _disposed = false;
+
+  @override
+  List<DocumentTask> build() {
+    _disposed = false;
+    ref.onDispose(() => _disposed = true);
+    return const [];
   }
 
-  Future<void> _processQueue() async {
-    final pipeline = ref.read(extractionPipelineProvider);
+  /// Queue up one or more images. Re-adding an identical file path is a no-op
+  /// so a double tap on the capture button cannot create duplicate tasks.
+  void addFiles(List<File> files) {
+    final seen = <String>{for (final task in state) task.originalFile.path};
+    final newTasks = <DocumentTask>[];
+    for (final file in files) {
+      if (!seen.add(file.path)) continue;
+      newTasks.add(DocumentTask(id: _ids.v4(), originalFile: file));
+    }
+    if (newTasks.isEmpty) return;
+    state = [...state, ...newTasks];
+    _kick();
+  }
 
-    for (int i = 0; i < state.length; i++) {
-      final task = state[i];
-      if (task.status != ExtractionStatus.pending) continue;
+  /// Re-runs a task that finished in [ExtractionStatus.error].
+  Future<void> retryTask(String id) async {
+    final task = state.cast<DocumentTask?>().firstWhere(
+      (candidate) => candidate?.id == id,
+      orElse: () => null,
+    );
+    if (task == null || task.status != ExtractionStatus.error) return;
+    _update(
+      id,
+      status: ExtractionStatus.pending,
+      clearError: true,
+      clearExtractedData: true,
+    );
+    await _drain();
+  }
 
-      _updateTask(task.id, status: ExtractionStatus.processingOcr);
+  void removeTask(String id) {
+    state = state.where((task) => task.id != id).toList();
+  }
 
-      try {
-        // Peek raw OCR text first so we can record whether AI fallback
-        // was even needed.
-        final rawText = await pipeline.recognizeRawText(task.originalFile);
-        final needsAi = rawText.trim().length < 50;
-        if (needsAi) {
-          _updateTask(
-            task.id,
-            status: ExtractionStatus.processingAiFallback,
-            rawOcrText: rawText,
-          );
-        } else {
-          _updateTask(task.id, rawOcrText: rawText);
-        }
+  /// Discards every queued document (used by "start over" affordances).
+  void clear() {
+    state = const [];
+  }
 
-        final extraction =
-            await pipeline.processDocumentWithProvenance(task.originalFile);
-        _updateTask(
-          task.id,
-          status: ExtractionStatus.readyForReview,
-          data: extraction.result,
-          source: extraction.taskSource,
-          rawOcrText: rawText,
+  void _kick() {
+    // Fire and forget: the queue reports progress through `state`, so callers
+    // never need to await it.
+    _drain();
+  }
+
+  Future<void> _drain() async {
+    if (_draining || _disposed) return;
+    _draining = true;
+    try {
+      while (true) {
+        if (_disposed) return;
+        final DocumentTask? next = state.cast<DocumentTask?>().firstWhere(
+          (task) => task?.status == ExtractionStatus.pending,
+          orElse: () => null,
         );
-      } catch (e) {
-        _updateTask(task.id, status: ExtractionStatus.error);
+        if (next == null) break;
+        await _runTask(next);
       }
+    } finally {
+      _draining = false;
     }
   }
 
-  void _updateTask(
+  Future<void> _runTask(DocumentTask task) async {
+    final pipeline = ref.read(extractionPipelineProvider);
+
+    // ---- Stage 1: free on-device OCR -------------------------------------
+    _update(task.id, status: ExtractionStatus.processingOcr, clearError: true);
+    var rawText = '';
+    try {
+      rawText = await pipeline.recognizeRawText(task.originalFile);
+    } catch (error) {
+      _update(
+        task.id,
+        status: ExtractionStatus.error,
+        errorMessage:
+            'Local OCR could not read this image (${_short(error)}). '
+            'Try re-capturing with better lighting.',
+      );
+      return;
+    }
+    _update(task.id, rawOcrText: rawText);
+
+    // ---- Stage 2a: free regex parse --------------------------------------
+    final normalizedText = await pipeline.normalizeOcrTextOffMain(rawText);
+    final local = pipeline.parseLocalText(normalizedText);
+    if (local != null) {
+      _update(
+        task.id,
+        status: ExtractionStatus.readyForReview,
+        data: local,
+        source: ExtractionSource.local,
+      );
+      return;
+    }
+
+    // ---- Stage 2b: cloud refinement of a messy read ----------------------
+    _update(task.id, status: ExtractionStatus.processingAiFallback);
+    try {
+      final extraction = await pipeline.refineWithAi(
+        task.originalFile,
+        rawText,
+      );
+      _update(
+        task.id,
+        status: ExtractionStatus.readyForReview,
+        data: extraction.result,
+        source: extraction.taskSource,
+        rawOcrText: rawText,
+      );
+    } catch (error) {
+      if (error is DocumentAiException &&
+          error.type == DocumentAiErrorType.network) {
+        await ref
+            .read(clinicalDaoProvider)
+            .enqueuePendingAiExtraction(
+              taskId: task.id,
+              imagePath: task.originalFile.path,
+              rawOcrText: rawText,
+            );
+        ref
+            .read(offlineNoticeProvider.notifier)
+            .show('Offline: Saved locally. Will sync when connected.');
+      }
+      _update(
+        task.id,
+        status: ExtractionStatus.error,
+        errorMessage: _describe(error),
+      );
+    }
+  }
+
+  static String _short(Object error) {
+    final text = error.toString();
+    return text.length > 140 ? '${text.substring(0, 140)}…' : text;
+  }
+
+  static String _describe(Object error) {
+    if (error is DocumentAiException) return error.message;
+    return _short(error);
+  }
+
+  void _update(
     String id, {
     ExtractionStatus? status,
     AiExtractionResult? data,
     ExtractionSource? source,
     String? rawOcrText,
+    String? errorMessage,
+    bool clearError = false,
+    bool clearExtractedData = false,
   }) {
+    if (_disposed) return;
     state = [
       for (final task in state)
         if (task.id == id)
           task.copyWith(
-            status: status ?? task.status,
-            extractedData: data ?? task.extractedData,
-            source: source ?? task.source,
-            rawOcrText: rawOcrText ?? task.rawOcrText,
+            status: status,
+            extractedData: data,
+            source: source,
+            rawOcrText: rawOcrText,
+            errorMessage: errorMessage,
+            clearError: clearError,
+            clearExtractedData: clearExtractedData,
           )
         else
           task,
     ];
-  }
-
-  void removeTask(String id) {
-    state = state.where((task) => task.id != id).toList();
   }
 }
 
@@ -218,106 +378,8 @@ class BatchExtractionNotifier extends Notifier<List<DocumentTask>> {
 // STAGED ORDERS (CDSS one-tap order bundles)
 // ==========================================
 
-/// A staged order waiting to be committed to the encounter plan.
-/// Deduplicated by [label] (case-insensitive) inside the notifier.
-class PendingOrder {
-  const PendingOrder({
-    required this.label,
-    this.kind = OrderProposalKind.lab,
-    this.details,
-    this.source = 'cdss',
-  });
-
-  final String label;
-  final OrderProposalKind kind;
-  final String? details;
-  final String source;
-
-  PendingOrder copyWith({
-    String? label,
-    OrderProposalKind? kind,
-    String? details,
-    String? source,
-  }) => PendingOrder(
-    label: label ?? this.label,
-    kind: kind ?? this.kind,
-    details: details ?? this.details,
-    source: source ?? this.source,
-  );
-}
-
-final stagedOrdersProvider =
-    NotifierProvider<StagedOrdersNotifier, List<PendingOrder>>(
-      StagedOrdersNotifier.new,
-    );
-
-class StagedOrdersNotifier extends Notifier<List<PendingOrder>> {
-  @override
-  List<PendingOrder> build() => const [];
-
-  bool _same(String a, String b) =>
-      a.trim().toLowerCase() == b.trim().toLowerCase();
-
-  void addProposal(OrderProposal proposal, {String source = 'cdss'}) {
-    if (state.any((o) => _same(o.label, proposal.label))) return;
-    state = [
-      ...state,
-      PendingOrder(
-        label: proposal.label,
-        kind: proposal.kind,
-        details: proposal.details,
-        source: source,
-      ),
-    ];
-  }
-
-  void addAllProposals(
-    List<OrderProposal> proposals, {
-    String source = 'cdss',
-  }) {
-    final existing = state.map((o) => o.label.trim().toLowerCase()).toSet();
-    final fresh = <PendingOrder>[];
-    for (final p in proposals) {
-      if (existing.add(p.label.trim().toLowerCase())) {
-        fresh.add(
-          PendingOrder(
-            label: p.label,
-            kind: p.kind,
-            details: p.details,
-            source: source,
-          ),
-        );
-      }
-    }
-    if (fresh.isNotEmpty) state = [...state, ...fresh];
-  }
-
-  void addManual(String label, {String source = 'manual'}) {
-    final term = label.trim();
-    if (term.isEmpty || state.any((o) => _same(o.label, term))) return;
-    state = [...state, PendingOrder(label: term, source: source)];
-  }
-
-  void removeAt(int index) {
-    if (index < 0 || index >= state.length) return;
-    state = [...state..removeAt(index)];
-  }
-
-  void removeByLabel(String label) {
-    state = state.where((o) => !_same(o.label, label)).toList();
-  }
-
-  void clear() => state = const [];
-
-  /// Persist staged terms into the self-learning catalog so the next
-  /// 2-letter search surfaces frequent items instantly.
-  Future<void> finalizeOrders({String category = 'medication'}) async {
-    final dao = ref.read(clinicalDaoProvider);
-    for (final order in state) {
-      await dao.recordCatalogUsage(category: category, term: order.label);
-    }
-  }
-}
+// Definitions live in the bedside feature (Sprint 10) so the order tray owns
+// its Drift mapping without `core` depending on feature code.
 
 // ==========================================
 // NETWORK & STATUS PROVIDERS
@@ -450,7 +512,6 @@ final wikiEntriesProvider = StreamProvider<List<PersonalWikiEntry>>(
 final patientListProvider = StreamProvider(
   (ref) => ref.watch(clinicalDaoProvider).watchAllPatients(),
 );
-
 
 final clinicalCodingServiceProvider = Provider<ClinicalCodingService>((ref) {
   final service = ClinicalCodingService(ref.watch(clinicalDaoProvider));

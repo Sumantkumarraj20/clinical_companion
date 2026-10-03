@@ -1,10 +1,4 @@
-import 'dart:convert';
-import 'dart:io';
-
-import 'package:encrypt/encrypt.dart' as encrypt;
-import 'package:path/path.dart' as path;
-
-import '../utils/portable_directory.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class StoredKeys {
   const StoredKeys({
@@ -26,17 +20,49 @@ class StoredKeys {
       databasePassword.trim().isNotEmpty;
 }
 
+/// The single source of runtime credentials. Android uses Keystore-backed
+/// encrypted storage and iOS uses Keychain; no credential is written to a
+/// portable file or application preference.
 class SecureConfigService {
-  // This obscures the portable file; it is not a substitute for a user PIN or
-  // an operator-managed secret because the application must decrypt it itself.
-  static final _key = encrypt.Key.fromUtf8('12345678901234567890123456789012');
-  static final _iv = encrypt.IV.fromUtf8('1234567890123456');
-  static final _cipher = encrypt.Encrypter(encrypt.AES(_key));
+  SecureConfigService({FlutterSecureStorage? storage})
+    : _storage = storage ?? const FlutterSecureStorage();
 
-  Future<File> _file() async {
-    final directory = await getPortableStorageDirectory();
-    return File(path.join(directory.path, 'config.aes'));
+  static const supabaseUrlKey = 'SUPABASE_URL';
+  static const supabaseAnonKey = 'SUPABASE_ANON_KEY';
+  static const supabasePasswordKey = 'SUPABASE_PASSWORD';
+  static const geminiApiKey = 'GEMINI_API_KEY';
+
+  // Never commit credentials to a client repository. Development/CI supplies
+  // these once at build time with --dart-define; after first launch they live
+  // in platform secure storage and remain editable in Settings.
+  static const _defaults = <String, String>{
+    supabaseUrlKey: String.fromEnvironment(supabaseUrlKey),
+    supabaseAnonKey: String.fromEnvironment(supabaseAnonKey),
+    supabasePasswordKey: String.fromEnvironment(supabasePasswordKey),
+    geminiApiKey: String.fromEnvironment(geminiApiKey),
+  };
+
+  final FlutterSecureStorage _storage;
+
+  /// Seeds only a completely empty store, preserving clinicians' edits.
+  /// Empty build defines intentionally produce an unconfigured app rather
+  /// than persisting placeholders or secrets in the repository.
+  Future<StoredKeys> initialize() async {
+    final existing = await _storage.readAll();
+    if (_defaults.values.any((value) => value.trim().isNotEmpty) &&
+        _defaults.keys.every((key) => (existing[key] ?? '').trim().isEmpty)) {
+      for (final entry in _defaults.entries) {
+        await _storage.write(key: entry.key, value: entry.value);
+      }
+    }
+    return loadKeys();
   }
+
+  Future<String> read(String key) async =>
+      (await _storage.read(key: key)) ?? '';
+
+  Future<void> write(String key, String value) =>
+      _storage.write(key: key, value: value.trim());
 
   Future<void> saveKeys(
     String supabaseUrl,
@@ -44,40 +70,21 @@ class SecureConfigService {
     String geminiKey,
     String databasePassword,
   ) async {
-    final payload = jsonEncode({
-      'supabase_url': supabaseUrl.trim(),
-      'supabase_publishable_key': supabaseAnon.trim(),
-      'gemini_api_key': geminiKey.trim(),
-      'database_password': databasePassword.trim(),
-    });
-    final file = await _file();
-    await file.writeAsString(_cipher.encrypt(payload, iv: _iv).base64);
+    await Future.wait([
+      write(supabaseUrlKey, supabaseUrl),
+      write(supabaseAnonKey, supabaseAnon),
+      write(geminiApiKey, geminiKey),
+      write(supabasePasswordKey, databasePassword),
+    ]);
   }
 
   Future<StoredKeys> loadKeys() async {
-    try {
-      final file = await _file();
-      if (!await file.exists()) return _empty();
-      final payload = jsonDecode(
-        _cipher.decrypt64(await file.readAsString(), iv: _iv),
-      );
-      if (payload is! Map) return _empty();
-      return StoredKeys(
-        supabaseUrl: payload['supabase_url']?.toString() ?? '',
-        supabasePublishableKey:
-            payload['supabase_publishable_key']?.toString() ?? '',
-        geminiKey: payload['gemini_api_key']?.toString() ?? '',
-        databasePassword: payload['database_password']?.toString() ?? '',
-      );
-    } on Object catch (_) {
-      return _empty();
-    }
+    final values = await _storage.readAll();
+    return StoredKeys(
+      supabaseUrl: values[supabaseUrlKey] ?? '',
+      supabasePublishableKey: values[supabaseAnonKey] ?? '',
+      geminiKey: values[geminiApiKey] ?? '',
+      databasePassword: values[supabasePasswordKey] ?? '',
+    );
   }
-
-  StoredKeys _empty() => const StoredKeys(
-    supabaseUrl: '',
-    supabasePublishableKey: '',
-    geminiKey: '',
-    databasePassword: '',
-  );
 }

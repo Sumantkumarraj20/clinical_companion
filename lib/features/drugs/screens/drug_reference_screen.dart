@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/database/daos/pharmacopeia_dao.dart';
 import '../../../core/database/local_database.dart';
+import '../../../core/models/clinical_drug_selection.dart';
 import '../../../core/providers/app_providers.dart';
 
 class DrugReferenceScreen extends ConsumerStatefulWidget {
@@ -132,7 +133,7 @@ class _DrugReferenceScreenState extends ConsumerState<DrugReferenceScreen>
   // =========================================================================
   // TAB 1 — CLINICAL REFERENCE (POMR-integrated master table)
   // =========================================================================
-  Widget _buildClinicalTab(Future<List<ClinicalDrug>> future) {
+  Widget _buildClinicalTab(Future<List<ClinicalDrugSelection>> future) {
     return Column(
       children: [
         Padding(
@@ -142,14 +143,13 @@ class _DrugReferenceScreenState extends ConsumerState<DrugReferenceScreen>
             onChanged: _onSearchChanged,
             decoration: const InputDecoration(
               prefixIcon: Icon(Icons.search),
-              labelText:
-                  'Search molecule, brand, form, or clinical problem',
+              labelText: 'Search molecule, brand, form, or clinical problem',
               border: OutlineInputBorder(),
             ),
           ),
         ),
         Expanded(
-          child: FutureBuilder<List<ClinicalDrug>>(
+          child: FutureBuilder<List<ClinicalDrugSelection>>(
             future: future,
             builder: (context, snapshot) {
               if (snapshot.hasError) {
@@ -168,7 +168,8 @@ class _DrugReferenceScreenState extends ConsumerState<DrugReferenceScreen>
                 return const Center(
                   child: Text(
                     'No clinical drugs found.\n'
-                    'Run scripts/build_clinical_drugs.py to populate.',
+                    'Sync the drug catalog from the toolbar, or search the '
+                    'offline master list.',
                     textAlign: TextAlign.center,
                   ),
                 );
@@ -502,7 +503,6 @@ class _DrugReferenceScreenState extends ConsumerState<DrugReferenceScreen>
                       String? safeNull(String text) =>
                           text.trim().isEmpty ? null : text.trim();
 
-
                       if (isNew) {
                         await dao.insertDrug(
                           DrugsCompanion.insert(
@@ -638,6 +638,7 @@ class _DrugReferenceScreenState extends ConsumerState<DrugReferenceScreen>
       ],
     );
   }
+
   /// One synced molecule in full: pharmacology + safety fields from
   /// `clinical_core`, then the dose matrix / formulation / brand rows joined
   /// through the derived molecule code.
@@ -678,8 +679,7 @@ class _DrugReferenceScreenState extends ConsumerState<DrugReferenceScreen>
                   icon: Icons.playlist_add_check_circle_outlined,
                   color: Colors.indigo,
                   label: 'Indications & dosing',
-                  titleOf: (row) =>
-                      row.clinicalIndication ?? row.indicationId,
+                  titleOf: (row) => row.clinicalIndication ?? row.indicationId,
                   subtitleOf: (row) => [
                     if (row.patientCohort != null) row.patientCohort!,
                     if (row.standardRegimen != null) row.standardRegimen!,
@@ -695,8 +695,7 @@ class _DrugReferenceScreenState extends ConsumerState<DrugReferenceScreen>
                   icon: Icons.science_outlined,
                   color: Colors.deepPurple,
                   label: 'Formulations',
-                  titleOf: (row) =>
-                      row.dosageFormStrength ?? row.formulationId,
+                  titleOf: (row) => row.dosageFormStrength ?? row.formulationId,
                   subtitleOf: (row) => [
                     if (row.administrationRoute != null)
                       row.administrationRoute!,
@@ -712,8 +711,7 @@ class _DrugReferenceScreenState extends ConsumerState<DrugReferenceScreen>
                   subtitleOf: (row) => [
                     if (row.manufacturer != null) row.manufacturer!,
                     if (row.trustTier != null) 'Tier: ${row.trustTier}',
-                    if (row.mrp != null)
-                      'MRP ₹${row.mrp!.toStringAsFixed(2)}',
+                    if (row.mrp != null) 'MRP ₹${row.mrp!.toStringAsFixed(2)}',
                   ].join(' · '),
                 ),
               ],
@@ -729,6 +727,7 @@ class _DrugReferenceScreenState extends ConsumerState<DrugReferenceScreen>
       ),
     );
   }
+
   /// Label + value row that disappears when the sheet cell was empty/NA.
   Widget _cloudField(String label, String? value) {
     if (value == null || value.trim().isEmpty) return const SizedBox.shrink();
@@ -796,19 +795,26 @@ class _DrugReferenceScreenState extends ConsumerState<DrugReferenceScreen>
       },
     );
   }
+
   /// Section heading used by the cloud-catalog detail dialogs (copy of
   /// the card's helper — the two widgets are separate classes).
   Widget _sectionHeader(
-      BuildContext context, IconData icon, String label, Color color) {
+    BuildContext context,
+    IconData icon,
+    String label,
+    Color color,
+  ) {
     return Row(
       children: [
         Icon(icon, size: 16, color: color),
         const SizedBox(width: 4),
-        Text(label,
-            style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                  color: color,
-                  fontWeight: FontWeight.w600,
-                )),
+        Text(
+          label,
+          style: Theme.of(context).textTheme.labelLarge?.copyWith(
+            color: color,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
       ],
     );
   }
@@ -822,27 +828,29 @@ class _DrugReferenceScreenState extends ConsumerState<DrugReferenceScreen>
 class _ClinicalDrugCard extends StatelessWidget {
   const _ClinicalDrugCard({required this.drug});
 
-  final ClinicalDrug drug;
+  final ClinicalDrugSelection drug;
 
   static const _problemColor = Color(0xFF1565C0);
   static const _sideEffectColor = Color(0xFFC62828);
 
   @override
   Widget build(BuildContext context) {
-    final problems = PharmacopeiaDao.decodeStringList(drug.problemIndications);
-    final sideEffects =
-        PharmacopeiaDao.decodeStringList(drug.prioritizedSideEffects);
-    final forms = (drug.availableForms ?? '')
-        .split(',')
-        .map((f) => f.trim())
-        .where((f) => f.isNotEmpty)
-        .toList();
-    final brands = (drug.topBrands ?? '')
-        .split(',')
-        .map((b) => b.trim())
-        .where((b) => b.isNotEmpty)
-        .toList();
+    final master = drug.master;
+    final problems = PharmacopeiaDao.decodeStringList(
+      master?.problemIndications,
+    );
+    final sideEffects = PharmacopeiaDao.decodeStringList(
+      master?.prioritizedSideEffects,
+    );
+    // available_forms / top_brands are JSON arrays in the bundled catalog, so
+    // they go through the model's tolerant decoder instead of a naive split.
+    final forms = drug.availableForms;
+    final brands = drug.brandNames;
     final theme = Theme.of(context);
+    final dose = drug.standardDosage;
+    final route = drug.route;
+    final guidelines = drug.administrationGuidelines;
+    final pearls = master?.prescribingPearls;
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -857,57 +865,143 @@ class _ClinicalDrugCard extends StatelessWidget {
               children: [
                 Expanded(
                   child: Text(
-                    drug.genericMolecule,
-                    style: theme.textTheme.titleLarge
-                        ?.copyWith(fontWeight: FontWeight.bold),
+                    drug.displayLabel,
+                    style: theme.textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
-                if (drug.usageFrequency > 0)
+                if (drug.hasClinicalDetail)
+                  const Padding(
+                    padding: EdgeInsets.only(right: 6),
+                    child: Icon(
+                      Icons.verified_outlined,
+                      size: 18,
+                      color: Colors.teal,
+                    ),
+                  ),
+                if ((master?.usageFrequency ?? 0) > 0)
                   Chip(
                     avatar: const Icon(Icons.trending_up, size: 16),
-                    label: Text('${drug.usageFrequency}'),
+                    label: Text('${master!.usageFrequency}'),
                     visualDensity: VisualDensity.compact,
                   ),
               ],
             ),
             if (problems.isNotEmpty) ...[
               const SizedBox(height: 12),
-              _sectionHeader(context, Icons.coronavirus_outlined,
-                  'Indicated For', _problemColor),
+              _sectionHeader(
+                context,
+                Icons.coronavirus_outlined,
+                'Indicated For',
+                _problemColor,
+              ),
               const SizedBox(height: 6),
               Wrap(
                 spacing: 6,
                 runSpacing: 6,
                 children: problems
-                    .map((p) => ActionChip(
-                          label: Text(p, style: const TextStyle(fontSize: 12)),
-                          backgroundColor: _problemColor.withValues(alpha: 0.08),
-                          side: const BorderSide(color: _problemColor),
-                          onPressed: () => _showProblemDrugs(context, p),
-                        ))
+                    .map(
+                      (p) => ActionChip(
+                        label: Text(p, style: const TextStyle(fontSize: 12)),
+                        backgroundColor: _problemColor.withValues(alpha: 0.08),
+                        side: const BorderSide(color: _problemColor),
+                        onPressed: () => _showProblemDrugs(context, p),
+                      ),
+                    )
                     .toList(),
               ),
             ],
 
             if (sideEffects.isNotEmpty) ...[
               const SizedBox(height: 12),
-              _sectionHeader(context, Icons.warning_amber_outlined,
-                  'Watch For (prioritized)', _sideEffectColor),
+              _sectionHeader(
+                context,
+                Icons.warning_amber_outlined,
+                'Watch For (prioritized)',
+                _sideEffectColor,
+              ),
               const SizedBox(height: 6),
               Wrap(
                 spacing: 6,
                 runSpacing: 6,
                 children: sideEffects
-                    .map((s) => ActionChip(
-                          label: Text(s, style: const TextStyle(fontSize: 12)),
-                          backgroundColor: _sideEffectColor.withValues(alpha: 0.08),
-                          side: const BorderSide(color: _sideEffectColor),
-                          onPressed: () => _showProblemDrugs(context, s),
-                        ))
+                    .map(
+                      (s) => ActionChip(
+                        label: Text(s, style: const TextStyle(fontSize: 12)),
+                        backgroundColor: _sideEffectColor.withValues(
+                          alpha: 0.08,
+                        ),
+                        side: const BorderSide(color: _sideEffectColor),
+                        onPressed: () => _showProblemDrugs(context, s),
+                      ),
+                    )
                     .toList(),
               ),
             ],
-            if (drug.prescribingPearls?.isNotEmpty == true) ...[
+            if (dose != null || route != null) ...[
+              const SizedBox(height: 12),
+              _sectionHeader(
+                context,
+                Icons.receipt_long_outlined,
+                'Standard Dosing',
+                Colors.teal,
+              ),
+              const SizedBox(height: 6),
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  if (dose != null)
+                    Chip(
+                      label: Text(dose, style: const TextStyle(fontSize: 12)),
+                      avatar: const Icon(Icons.science_outlined, size: 16),
+                      visualDensity: VisualDensity.compact,
+                    ),
+                  if (route != null)
+                    Chip(
+                      label: Text(route, style: const TextStyle(fontSize: 12)),
+                      avatar: const Icon(Icons.route_outlined, size: 16),
+                      visualDensity: VisualDensity.compact,
+                    ),
+                  if (drug.duration != null)
+                    Chip(
+                      label: Text(
+                        drug.duration!,
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                      avatar: const Icon(Icons.schedule, size: 16),
+                      visualDensity: VisualDensity.compact,
+                    ),
+                ],
+              ),
+            ],
+            if (guidelines != null) ...[
+              const SizedBox(height: 12),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.teal.withValues(alpha: 0.10),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(
+                      Icons.rule_outlined,
+                      size: 18,
+                      color: Colors.teal,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(guidelines, style: theme.textTheme.bodySmall),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+            if (pearls?.isNotEmpty == true) ...[
               const SizedBox(height: 12),
               Container(
                 width: double.infinity,
@@ -919,14 +1013,14 @@ class _ClinicalDrugCard extends StatelessWidget {
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Icon(Icons.tips_and_updates_outlined,
-                        size: 18, color: Colors.amber),
+                    const Icon(
+                      Icons.tips_and_updates_outlined,
+                      size: 18,
+                      color: Colors.amber,
+                    ),
                     const SizedBox(width: 8),
                     Expanded(
-                      child: Text(
-                        drug.prescribingPearls!,
-                        style: theme.textTheme.bodySmall,
-                      ),
+                      child: Text(pearls!, style: theme.textTheme.bodySmall),
                     ),
                   ],
                 ),
@@ -938,16 +1032,20 @@ class _ClinicalDrugCard extends StatelessWidget {
                 spacing: 6,
                 runSpacing: 6,
                 children: [
-                  ...forms.map((f) => Chip(
-                        label: Text(f, style: const TextStyle(fontSize: 12)),
-                        avatar: const Icon(Icons.medication, size: 16),
-                        visualDensity: VisualDensity.compact,
-                      )),
-                  ...brands.map((b) => Chip(
-                        label: Text(b, style: const TextStyle(fontSize: 12)),
-                        avatar: const Icon(Icons.sell_outlined, size: 16),
-                        visualDensity: VisualDensity.compact,
-                      )),
+                  ...forms.map(
+                    (f) => Chip(
+                      label: Text(f, style: const TextStyle(fontSize: 12)),
+                      avatar: const Icon(Icons.medication, size: 16),
+                      visualDensity: VisualDensity.compact,
+                    ),
+                  ),
+                  ...brands.map(
+                    (b) => Chip(
+                      label: Text(b, style: const TextStyle(fontSize: 12)),
+                      avatar: const Icon(Icons.sell_outlined, size: 16),
+                      visualDensity: VisualDensity.compact,
+                    ),
+                  ),
                 ],
               ),
             ],
@@ -958,16 +1056,22 @@ class _ClinicalDrugCard extends StatelessWidget {
   }
 
   Widget _sectionHeader(
-      BuildContext context, IconData icon, String label, Color color) {
+    BuildContext context,
+    IconData icon,
+    String label,
+    Color color,
+  ) {
     return Row(
       children: [
         Icon(icon, size: 16, color: color),
         const SizedBox(width: 4),
-        Text(label,
-            style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                  color: color,
-                  fontWeight: FontWeight.w600,
-                )),
+        Text(
+          label,
+          style: Theme.of(context).textTheme.labelLarge?.copyWith(
+            color: color,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
       ],
     );
   }
@@ -975,7 +1079,9 @@ class _ClinicalDrugCard extends StatelessWidget {
   /// Tapping a problem chip performs a reverse POMR lookup: which other
   /// molecules also treat this problem.
   void _showProblemDrugs(BuildContext context, String problem) {
-    final dao = ProviderScope.containerOf(context).read(pharmacopeiaDaoProvider);
+    final dao = ProviderScope.containerOf(
+      context,
+    ).read(pharmacopeiaDaoProvider);
     showDialog<void>(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -1016,5 +1122,4 @@ class _ClinicalDrugCard extends StatelessWidget {
       ),
     );
   }
-
 }

@@ -2,6 +2,7 @@ import 'package:drift/drift.dart';
 import 'dart:convert';
 
 import '../local_database.dart';
+import '../../models/clinical_drug_selection.dart';
 
 part 'pharmacopeia_dao.g.dart';
 
@@ -54,44 +55,176 @@ class PharmacopeiaDao extends DatabaseAccessor<AppDatabase>
           ..where((row) => row.problemIndications.like(pattern))
           ..orderBy([
             (row) => OrderingTerm(
-                  expression: row.usageFrequency,
-                  mode: OrderingMode.desc,
-                ),
+              expression: row.usageFrequency,
+              mode: OrderingMode.desc,
+            ),
           ]))
         .get();
   }
 
-  /// Searches the master clinical table by molecule, brand string, forms, or
-  /// free-text problems (indications/side effects are JSON but LIKE-friendly).
-  Future<List<ClinicalDrug>> searchClinicalDrugs(String query,
-      {int limit = 50}) {
+  /// Searches the drug catalog for the prescriber's autocomplete.
+  ///
+  /// Queries **both** catalogs and merges them into [ClinicalDrugSelection]:
+  ///
+  /// * `clinical_drugs` — the offline master bundled with the app asset
+  ///   (always present, so search works with no network);
+  /// * `active_ingredients` → `indications` / `formulations` / `brands` — the
+  ///   OTA clinical matrix, which only exists after a catalog sync.
+  ///
+  /// The two sets are different datasets (the offline master is
+  /// local-curated product names, the matrix is real molecules), so rows are
+  /// matched on a normalised molecule key and unmatched rows are surfaced on
+  /// their own rather than being dropped. A hit from either side is a valid
+  /// result; [ClinicalDrugSelection.hasClinicalDetail] tells the UI which kind
+  /// of result it is.
+  Future<List<ClinicalDrugSelection>> searchClinicalDrugs(
+    String query, {
+    int limit = 50,
+  }) {
     final term = query.trim();
     if (term.isEmpty) return Future.value(const []);
-    final pattern = '%${term.replaceAll('%', r'\%')}%';
-    return (select(clinicalDrugs)
-          ..where((row) =>
-              row.genericMolecule.like(pattern) |
-              row.topBrands.like(pattern) |
-              row.availableForms.like(pattern) |
-              row.problemIndications.like(pattern) |
-              row.prioritizedSideEffects.like(pattern))
-          ..orderBy([
-            (row) => OrderingTerm(
-                  expression: row.usageFrequency,
-                  mode: OrderingMode.desc,
-                ),
-          ])
-          ..limit(limit))
-        .get();
+    final pattern = '%${_escapeLike(term)}%';
+
+    return transaction(() async {
+      final masters =
+          await (select(clinicalDrugs)
+                ..where(
+                  (row) =>
+                      row.genericMolecule.like(pattern) |
+                      row.topBrands.like(pattern) |
+                      row.availableForms.like(pattern) |
+                      row.routes.like(pattern) |
+                      row.problemIndications.like(pattern) |
+                      row.prioritizedSideEffects.like(pattern),
+                )
+                ..orderBy([
+                  (row) => OrderingTerm(
+                    expression: row.usageFrequency,
+                    mode: OrderingMode.desc,
+                  ),
+                ])
+                ..limit(limit))
+              .get();
+
+      final ingredients =
+          await (select(activeIngredients)
+                ..where(
+                  (row) =>
+                      row.genericName.like(pattern) |
+                      row.ingredientId.like(pattern) |
+                      coalesce<String>([
+                        row.pharmacologicalClass,
+                        const Constant(''),
+                      ]).like(pattern),
+                )
+                ..orderBy([(row) => OrderingTerm.asc(row.genericName)])
+                ..limit(limit))
+              .get();
+
+      if (ingredients.isEmpty) {
+        return [
+          for (final master in masters)
+            ClinicalDrugSelection(
+              molecule: master.genericMolecule,
+              master: master,
+            ),
+        ];
+      }
+
+      // Batch the three child lookups into one query each instead of N+1.
+      final codes = <String>{
+        for (final ingredient in ingredients)
+          if (ingredient.moleculeCode != null) ingredient.moleculeCode!,
+      };
+
+      final indicationRows = codes.isEmpty
+          ? <Indication>[]
+          : await (select(
+              indications,
+            )..where((row) => row.moleculeCode.isIn(codes))).get();
+      final formulationRows = codes.isEmpty
+          ? <Formulation>[]
+          : await (select(
+              formulations,
+            )..where((row) => row.moleculeCode.isIn(codes))).get();
+      final brandRows = codes.isEmpty
+          ? <Brand>[]
+          : await (select(
+              brands,
+            )..where((row) => row.moleculeCode.isIn(codes))).get();
+
+      final indicationsByCode = <String, List<Indication>>{};
+      for (final row in indicationRows) {
+        (indicationsByCode[row.moleculeCode ?? ''] ??= []).add(row);
+      }
+      final formulationsByCode = <String, List<Formulation>>{};
+      for (final row in formulationRows) {
+        (formulationsByCode[row.moleculeCode ?? ''] ??= []).add(row);
+      }
+      final brandsByCode = <String, List<Brand>>{};
+      for (final row in brandRows) {
+        (brandsByCode[row.moleculeCode ?? ''] ??= []).add(row);
+      }
+
+      ClinicalDrugSelection bundleFor(ActiveIngredient ingredient) {
+        final code = ingredient.moleculeCode ?? '';
+        return ClinicalDrugSelection(
+          molecule: ingredient.genericName,
+          ingredient: ingredient,
+          indication: indicationsByCode[code]?.firstOrNull,
+          formulation: formulationsByCode[code]?.firstOrNull,
+          brands: brandsByCode[code] ?? const [],
+        );
+      }
+
+      final otaByKey = <String, ClinicalDrugSelection>{};
+      for (final ingredient in ingredients) {
+        otaByKey.putIfAbsent(
+          _moleculeKey(ingredient.genericName),
+          () => bundleFor(ingredient),
+        );
+      }
+
+      final results = <ClinicalDrugSelection>[];
+      final consumed = <String>{};
+      for (final master in masters) {
+        final key = _moleculeKey(master.genericMolecule);
+        final ota = otaByKey[key];
+        if (ota != null) consumed.add(key);
+        results.add(
+          ClinicalDrugSelection(
+            molecule: master.genericMolecule,
+            master: master,
+            ingredient: ota?.ingredient,
+            indication: ota?.indication,
+            formulation: ota?.formulation,
+            brands: ota?.brands ?? const [],
+          ),
+        );
+      }
+
+      // Molecules that only exist in the OTA matrix still deserve a hit.
+      for (final entry in otaByKey.entries) {
+        if (consumed.contains(entry.key)) continue;
+        results.add(entry.value);
+      }
+
+      return results;
+    });
   }
+
+  /// Normalised join key between the two catalogs: lowercase, letters and
+  /// digits only, so "Amoxicillin 500 mg" and "amoxicillin-500mg" collapse.
+  static String _moleculeKey(String value) =>
+      value.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
 
   Stream<List<ClinicalDrug>> watchClinicalDrugs({int limit = 300}) {
     return (select(clinicalDrugs)
           ..orderBy([
             (row) => OrderingTerm(
-                  expression: row.genericMolecule,
-                  mode: OrderingMode.asc,
-                ),
+              expression: row.genericMolecule,
+              mode: OrderingMode.asc,
+            ),
           ])
           ..limit(limit))
         .watch();
@@ -264,234 +397,190 @@ class PharmacopeiaDao extends DatabaseAccessor<AppDatabase>
     });
   }
 
-  void _upsertIngredientRows(
-    Batch bulk,
-    List<Map<String, dynamic>> rows,
-  ) {
-    bulk.insertAll(
-      activeIngredients,
-      [
-        for (final row in rows)
-          if (_readString(row, const ['Drug ID', 'drug_id', 'Ingredient_ID'])
-              case final id?)
-            ActiveIngredientsCompanion(
-              ingredientId: Value(id),
-              moleculeCode: Value(_moleculeCode(id)),
-              genericName: Value(
-                _readString(row, const ['Generic Name', 'generic_name']) ?? id,
-              ),
-              pharmacologicalClass: Value(
-                _readString(row, const [
-                  'Pharmacological Class',
-                  'pharmacological_class',
-                  'Drug_Class',
-                ]),
-              ),
-              mechanismOfAction: Value(
-                _readString(row, const [
-                  'Mechanism of Action',
-                  'mechanism_of_action',
-                ]),
-              ),
-              primaryRoutes: Value(
-                _readString(row, const ['Primary Routes', 'primary_routes']),
-              ),
-              renalAdjustment: Value(
-                _readString(row, const [
-                  'Renal Clearance & Adjustment',
-                  'renal_adjustment',
-                ]),
-              ),
-              hepaticRisk: Value(
-                _readString(row, const [
-                  'Hepatic Risk & Monitoring',
-                  'hepatic_risk',
-                ]),
-              ),
-              criticalAlerts: Value(
-                _readString(row, const [
-                  'Critical Alerts & Contraindications',
-                  'critical_alerts',
-                  'Warnings',
-                ]),
-              ),
-              pregnancyCategory: Value(
-                _readString(row, const [
-                  'Pregnancy & Teratogenicity',
-                  'pregnancy_category',
-                ]),
-              ),
-              syncedAt: Value(DateTime.now().toUtc()),
+  void _upsertIngredientRows(Batch bulk, List<Map<String, dynamic>> rows) {
+    bulk.insertAll(activeIngredients, [
+      for (final row in rows)
+        if (_readString(row, const ['Drug ID', 'drug_id', 'Ingredient_ID'])
+            case final id?)
+          ActiveIngredientsCompanion(
+            ingredientId: Value(id),
+            moleculeCode: Value(_moleculeCode(id)),
+            genericName: Value(
+              _readString(row, const ['Generic Name', 'generic_name']) ?? id,
             ),
-      ],
-      mode: InsertMode.insertOrReplace,
-    );
+            pharmacologicalClass: Value(
+              _readString(row, const [
+                'Pharmacological Class',
+                'pharmacological_class',
+                'Drug_Class',
+              ]),
+            ),
+            mechanismOfAction: Value(
+              _readString(row, const [
+                'Mechanism of Action',
+                'mechanism_of_action',
+              ]),
+            ),
+            primaryRoutes: Value(
+              _readString(row, const ['Primary Routes', 'primary_routes']),
+            ),
+            renalAdjustment: Value(
+              _readString(row, const [
+                'Renal Clearance & Adjustment',
+                'renal_adjustment',
+              ]),
+            ),
+            hepaticRisk: Value(
+              _readString(row, const [
+                'Hepatic Risk & Monitoring',
+                'hepatic_risk',
+              ]),
+            ),
+            criticalAlerts: Value(
+              _readString(row, const [
+                'Critical Alerts & Contraindications',
+                'critical_alerts',
+                'Warnings',
+              ]),
+            ),
+            pregnancyCategory: Value(
+              _readString(row, const [
+                'Pregnancy & Teratogenicity',
+                'pregnancy_category',
+              ]),
+            ),
+            syncedAt: Value(DateTime.now().toUtc()),
+          ),
+    ], mode: InsertMode.insertOrReplace);
   }
 
-  void _upsertIndicationRows(
-    Batch bulk,
-    List<Map<String, dynamic>> rows,
-  ) {
-    bulk.insertAll(
-      indications,
-      [
-        for (final row in rows)
-          if (_readString(row, const ['Indication ID', 'indication_id'])
-              case final id?)
-            IndicationsCompanion(
-              indicationId: Value(id),
-              moleculeCode: Value(_moleculeCode(id)),
-              clinicalIndication: Value(
-                _readString(
-                  row,
-                  const ['Clinical Indication', 'clinical_indication'],
-                ),
-              ),
-              patientCohort: Value(
-                _readString(row, const ['Patient Cohort', 'patient_cohort']),
-              ),
-              standardRegimen: Value(
-                _readString(
-                  row,
-                  const ['Standard Regimen / Dose', 'standard_regimen'],
-                ),
-              ),
-              routeFrequency: Value(
-                _readString(row, const ['Route & Frequency', 'route_frequency']),
-              ),
-              typicalDuration: Value(
-                _readString(row, const ['Typical Duration', 'typical_duration']),
-              ),
-              maxDailyCeiling: Value(
-                _readString(
-                  row,
-                  const ['Max Daily Ceiling', 'max_daily_ceiling'],
-                ),
-              ),
-              evidenceLevel: Value(
-                _readString(row, const ['Evidence Level', 'evidence_level']),
-              ),
-              clinicalProtocol: Value(
-                _readString(
-                  row,
-                  const [
-                    'Clinical Protocol & Monitoring',
-                    'clinical_protocol',
-                  ],
-                ),
-              ),
-              syncedAt: Value(DateTime.now().toUtc()),
+  void _upsertIndicationRows(Batch bulk, List<Map<String, dynamic>> rows) {
+    bulk.insertAll(indications, [
+      for (final row in rows)
+        if (_readString(row, const ['Indication ID', 'indication_id'])
+            case final id?)
+          IndicationsCompanion(
+            indicationId: Value(id),
+            moleculeCode: Value(_moleculeCode(id)),
+            clinicalIndication: Value(
+              _readString(row, const [
+                'Clinical Indication',
+                'clinical_indication',
+              ]),
             ),
-      ],
-      mode: InsertMode.insertOrReplace,
-    );
+            patientCohort: Value(
+              _readString(row, const ['Patient Cohort', 'patient_cohort']),
+            ),
+            standardRegimen: Value(
+              _readString(row, const [
+                'Standard Regimen / Dose',
+                'standard_regimen',
+              ]),
+            ),
+            routeFrequency: Value(
+              _readString(row, const ['Route & Frequency', 'route_frequency']),
+            ),
+            typicalDuration: Value(
+              _readString(row, const ['Typical Duration', 'typical_duration']),
+            ),
+            maxDailyCeiling: Value(
+              _readString(row, const [
+                'Max Daily Ceiling',
+                'max_daily_ceiling',
+              ]),
+            ),
+            evidenceLevel: Value(
+              _readString(row, const ['Evidence Level', 'evidence_level']),
+            ),
+            clinicalProtocol: Value(
+              _readString(row, const [
+                'Clinical Protocol & Monitoring',
+                'clinical_protocol',
+              ]),
+            ),
+            syncedAt: Value(DateTime.now().toUtc()),
+          ),
+    ], mode: InsertMode.insertOrReplace);
   }
 
-  void _upsertFormulationRows(
-    Batch bulk,
-    List<Map<String, dynamic>> rows,
-  ) {
-    bulk.insertAll(
-      formulations,
-      [
-        for (final row in rows)
-          if (_readString(row, const ['Formulation ID', 'formulation_id'])
-              case final id?)
-            FormulationsCompanion(
-              formulationId: Value(id),
-              moleculeCode: Value(_moleculeCode(id)),
-              dosageFormStrength: Value(
-                _readString(
-                  row,
-                  const ['Dosage Form & Strength', 'dosage_form_strength'],
-                ),
-              ),
-              reconstitution: Value(
-                _readString(
-                  row,
-                  const [
-                    'Reconstitution Diluent & Volume',
-                    'reconstitution',
-                  ],
-                ),
-              ),
-              administrationRoute: Value(
-                _readString(
-                  row,
-                  const [
-                    'Administration Route & Infusion Rate',
-                    'administration_route',
-                  ],
-                ),
-              ),
-              storageStability: Value(
-                _readString(
-                  row,
-                  const [
-                    'Storage & Reconstituted Stability',
-                    'storage_stability',
-                  ],
-                ),
-              ),
-              compatibilityAlerts: Value(
-                _readString(
-                  row,
-                  const [
-                    'Critical Compatibility Alerts',
-                    'compatibility_alerts',
-                  ],
-                ),
-              ),
-              syncedAt: Value(DateTime.now().toUtc()),
+  void _upsertFormulationRows(Batch bulk, List<Map<String, dynamic>> rows) {
+    bulk.insertAll(formulations, [
+      for (final row in rows)
+        if (_readString(row, const ['Formulation ID', 'formulation_id'])
+            case final id?)
+          FormulationsCompanion(
+            formulationId: Value(id),
+            moleculeCode: Value(_moleculeCode(id)),
+            dosageFormStrength: Value(
+              _readString(row, const [
+                'Dosage Form & Strength',
+                'dosage_form_strength',
+              ]),
             ),
-      ],
-      mode: InsertMode.insertOrReplace,
-    );
+            reconstitution: Value(
+              _readString(row, const [
+                'Reconstitution Diluent & Volume',
+                'reconstitution',
+              ]),
+            ),
+            administrationRoute: Value(
+              _readString(row, const [
+                'Administration Route & Infusion Rate',
+                'administration_route',
+              ]),
+            ),
+            storageStability: Value(
+              _readString(row, const [
+                'Storage & Reconstituted Stability',
+                'storage_stability',
+              ]),
+            ),
+            compatibilityAlerts: Value(
+              _readString(row, const [
+                'Critical Compatibility Alerts',
+                'compatibility_alerts',
+              ]),
+            ),
+            syncedAt: Value(DateTime.now().toUtc()),
+          ),
+    ], mode: InsertMode.insertOrReplace);
   }
 
   void _upsertBrandRows(Batch bulk, List<Map<String, dynamic>> rows) {
-    bulk.insertAll(
-      brands,
-      [
-        for (final row in rows)
-          if (_readString(row, const ['Brand ID', 'brand_id']) case final id?)
-            BrandsCompanion(
-              brandId: Value(id),
-              moleculeCode: Value(_moleculeCode(id)),
-              brandName: Value(
-                _readString(row, const ['Brand Trade Name', 'brand_name']) ??
-                    id,
-              ),
-              manufacturer: Value(
-                _readString(
-                  row,
-                  const ['Manufacturer / Marketer', 'manufacturer'],
-                ),
-              ),
-              packagingUnitStrength: Value(
-                _readString(
-                  row,
-                  const [
-                    'Packaging & Unit Strength',
-                    'packaging_unit_strength',
-                  ],
-                ),
-              ),
-              trustTier: Value(
-                _readString(row, const ['Trust Tier', 'trust_tier']),
-              ),
-              mrp: Value(_readDouble(row, const ['Approx. MRP (INR)', 'mrp'])),
-              trustNotes: Value(
-                _readString(row, const [
-                  'Quality Certifications & Clinical Trust Notes',
-                  'trust_notes',
-                ]),
-              ),
-              syncedAt: Value(DateTime.now().toUtc()),
+    bulk.insertAll(brands, [
+      for (final row in rows)
+        if (_readString(row, const ['Brand ID', 'brand_id']) case final id?)
+          BrandsCompanion(
+            brandId: Value(id),
+            moleculeCode: Value(_moleculeCode(id)),
+            brandName: Value(
+              _readString(row, const ['Brand Trade Name', 'brand_name']) ?? id,
             ),
-      ],
-      mode: InsertMode.insertOrReplace,
-    );
+            manufacturer: Value(
+              _readString(row, const [
+                'Manufacturer / Marketer',
+                'manufacturer',
+              ]),
+            ),
+            packagingUnitStrength: Value(
+              _readString(row, const [
+                'Packaging & Unit Strength',
+                'packaging_unit_strength',
+              ]),
+            ),
+            trustTier: Value(
+              _readString(row, const ['Trust Tier', 'trust_tier']),
+            ),
+            mrp: Value(_readDouble(row, const ['Approx. MRP (INR)', 'mrp'])),
+            trustNotes: Value(
+              _readString(row, const [
+                'Quality Certifications & Clinical Trust Notes',
+                'trust_notes',
+              ]),
+            ),
+            syncedAt: Value(DateTime.now().toUtc()),
+          ),
+    ], mode: InsertMode.insertOrReplace);
   }
 
   /// Pulls the row list for the first matching sheet tab key. Tolerates a
@@ -504,7 +593,9 @@ class PharmacopeiaDao extends DatabaseAccessor<AppDatabase>
     for (final key in tabKeys) {
       final section = payload[key];
       if (section == null) continue;
-      final raw = section is Map ? (section['rows'] ?? section['data']) : section;
+      final raw = section is Map
+          ? (section['rows'] ?? section['data'])
+          : section;
       if (raw is! List) continue;
       return raw
           .whereType<Map<dynamic, dynamic>>()
@@ -561,14 +652,16 @@ class PharmacopeiaDao extends DatabaseAccessor<AppDatabase>
     final q = query.trim();
     final pattern = q.isEmpty ? null : '%${_escapeLike(q)}%';
     return (select(activeIngredients)
-          ..where((row) => pattern == null
-              ? const Constant<bool>(true)
-              : row.ingredientId.like(pattern) |
-                  row.genericName.like(pattern) |
-                  coalesce<String>([
-                    row.pharmacologicalClass,
-                    const Constant(''),
-                  ]).like(pattern))
+          ..where(
+            (row) => pattern == null
+                ? const Constant<bool>(true)
+                : row.ingredientId.like(pattern) |
+                      row.genericName.like(pattern) |
+                      coalesce<String>([
+                        row.pharmacologicalClass,
+                        const Constant(''),
+                      ]).like(pattern),
+          )
           ..orderBy([(row) => OrderingTerm.asc(row.genericName)])
           ..limit(limit))
         .watch();
@@ -579,9 +672,7 @@ class PharmacopeiaDao extends DatabaseAccessor<AppDatabase>
   Future<List<Indication>> indicationsForMolecule(String moleculeCode) {
     return (select(indications)
           ..where((row) => row.moleculeCode.equals(moleculeCode))
-          ..orderBy([
-            (row) => OrderingTerm.asc(row.clinicalIndication),
-          ]))
+          ..orderBy([(row) => OrderingTerm.asc(row.clinicalIndication)]))
         .get();
   }
 
@@ -589,9 +680,7 @@ class PharmacopeiaDao extends DatabaseAccessor<AppDatabase>
   Future<List<Formulation>> formulationsForMolecule(String moleculeCode) {
     return (select(formulations)
           ..where((row) => row.moleculeCode.equals(moleculeCode))
-          ..orderBy([
-            (row) => OrderingTerm.asc(row.dosageFormStrength),
-          ]))
+          ..orderBy([(row) => OrderingTerm.asc(row.dosageFormStrength)]))
         .get();
   }
 

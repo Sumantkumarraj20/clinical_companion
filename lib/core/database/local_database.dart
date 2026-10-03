@@ -138,10 +138,7 @@ class Wards extends Table {
 }
 
 @DataClassName('PatientHospitalIdentifier')
-@TableIndex(
-  name: 'patient_hosp_mrn_idx',
-  columns: {#hospitalId, #mrn},
-)
+@TableIndex(name: 'patient_hosp_mrn_idx', columns: {#hospitalId, #mrn})
 class PatientHospitalIdentifiers extends Table {
   @override
   String get tableName => 'patient_hospital_identifiers';
@@ -154,8 +151,7 @@ class PatientHospitalIdentifiers extends Table {
   // Medical Record Number assigned by the hospital for this patient.
   TextColumn get mrn => text().nullable()();
   // What kind of identifier is stored (defaults to 'MRN'; e.g. UHID, CR No).
-  TextColumn get identifierType =>
-      text().withDefault(const Constant('MRN'))();
+  TextColumn get identifierType => text().withDefault(const Constant('MRN'))();
   // Kept so a patient may hold multiple historical MRNs per hospital while a
   // single one stays canonical for identity resolution.
   BoolColumn get isPrimary => boolean().withDefault(const Constant(false))();
@@ -460,13 +456,21 @@ class ClinicalDrugs extends Table {
   TextColumn get id => text().clientDefault(() => _uuid.v4())();
   TextColumn get genericMolecule => text()();
   // JSON-encoded List<String> of standard problem names.
-  TextColumn get problemIndications => text().withDefault(const Constant('[]'))();
+  TextColumn get problemIndications =>
+      text().withDefault(const Constant('[]'))();
   // JSON-encoded List<String> of prioritised side-effect problem names.
   TextColumn get prioritizedSideEffects =>
       text().withDefault(const Constant('[]'))();
   TextColumn get prescribingPearls => text().nullable()();
   // Comma-separated, e.g. 'Tablet, Syrup, Injection'.
   TextColumn get availableForms => text().nullable()();
+  // JSON-encoded List<String> of administration routes, e.g.
+  // '["Intravenous","Intramuscular"]'. The shipped catalog asset always has
+  // this column but it was previously unmapped, so route-aware prescribing had
+  // no offline source at all and the only route data came from the networked
+  // OTA catalog. Additive only — the column already exists on disk, so no
+  // schema version bump is required.
+  TextColumn get routes => text().nullable()();
   // Comma-separated, e.g. 'Augmentin (₹120), Clavam (₹110)'.
   TextColumn get topBrands => text().nullable()();
   IntColumn get usageFrequency => integer().withDefault(const Constant(0))();
@@ -829,75 +833,181 @@ class AppDatabase extends _$AppDatabase {
   MigrationStrategy get migration => MigrationStrategy(
     onCreate: (Migrator m) => m.createAll(),
     onUpgrade: (Migrator m, int from, int to) async {
-      
       if (from == 1) {
         // ==========================================================
         // V1 TO LATEST: UPGRADING FROM PYTHON SEEDED DRUG DATABASE
         // ==========================================================
-        // The asset database ONLY has the drugs tables. 
+        // The asset database ONLY has the drugs tables.
         // We must generate all clinical app tables dynamically using their latest schemas.
-        
-        try { await m.createTable(patients); } catch (_) {}
-        try { await m.createTable(hospitals); } catch (_) {}
-        try { await m.createTable(wards); } catch (_) {}
-        try { await m.createTable(patientHospitalIdentifiers); } catch (_) {}
-        try { await m.createTable(clinicalEncounters); } catch (_) {}
-        try { await m.createTable(patientProblems); } catch (_) {}
-        try { await m.createTable(problemProgressSnapshots); } catch (_) {}
-        try { await m.createTable(clinicalInterventions); } catch (_) {}
-        try { await m.createTable(clinicalOutcomeMetrics); } catch (_) {}
-        try { await m.createTable(prescriptionOrders); } catch (_) {}
-        try { await m.createTable(investigationOrders); } catch (_) {}
-        try { await m.createTable(investigationResults); } catch (_) {}
-        try { await m.createTable(learnedCatalog); } catch (_) {}
-        try { await m.createTable(personalWiki); } catch (_) {}
-        try { await m.createTable(offlineSyncQueue); } catch (_) {}
-        try { await m.createTable(cdssRules); } catch (_) {}
-        try { await m.createTable(ayushmanPackages); } catch (_) {}
-        try { await m.createTable(hbpProcedures); } catch (_) {}
-        try { await m.createTable(hbpImplants); } catch (_) {}
-        try { await m.createTable(hbpStratifications); } catch (_) {}
-        try { await m.createTable(documentRegistries); } catch (_) {}
-        try { await m.createTable(clinicalObservations); } catch (_) {}
-        try { await m.createTable(microbiologyCultures); } catch (_) {}
-        try { await m.createTable(imagingStudies); } catch (_) {}
-        try { await m.createTable(admissions); } catch (_) {}
+
+        try {
+          await m.createTable(patients);
+        } catch (_) {}
+        try {
+          await m.createTable(hospitals);
+        } catch (_) {}
+        try {
+          await m.createTable(wards);
+        } catch (_) {}
+        try {
+          await m.createTable(patientHospitalIdentifiers);
+        } catch (_) {}
+        try {
+          await m.createTable(clinicalEncounters);
+        } catch (_) {}
+        try {
+          await m.createTable(patientProblems);
+        } catch (_) {}
+        try {
+          await m.createTable(problemProgressSnapshots);
+        } catch (_) {}
+        try {
+          await m.createTable(clinicalInterventions);
+        } catch (_) {}
+        try {
+          await m.createTable(clinicalOutcomeMetrics);
+        } catch (_) {}
+        try {
+          await m.createTable(prescriptionOrders);
+        } catch (_) {}
+        try {
+          await m.createTable(investigationOrders);
+        } catch (_) {}
+        try {
+          await m.createTable(investigationResults);
+        } catch (_) {}
+        try {
+          await m.createTable(learnedCatalog);
+        } catch (_) {}
+        try {
+          await m.createTable(personalWiki);
+        } catch (_) {}
+        try {
+          await m.createTable(offlineSyncQueue);
+        } catch (_) {}
+        try {
+          await m.createTable(cdssRules);
+        } catch (_) {}
+        try {
+          await m.createTable(ayushmanPackages);
+        } catch (_) {}
+        try {
+          await m.createTable(hbpProcedures);
+        } catch (_) {}
+        try {
+          await m.createTable(hbpImplants);
+        } catch (_) {}
+        try {
+          await m.createTable(hbpStratifications);
+        } catch (_) {}
+        try {
+          await m.createTable(documentRegistries);
+        } catch (_) {}
+        try {
+          await m.createTable(clinicalObservations);
+        } catch (_) {}
+        try {
+          await m.createTable(microbiologyCultures);
+        } catch (_) {}
+        try {
+          await m.createTable(imagingStudies);
+        } catch (_) {}
+        try {
+          await m.createTable(admissions);
+        } catch (_) {}
 
         // Apply fallback columns to drug_master in case Python script was old
-        try { await m.addColumn(drugs, drugs.usageFrequency); } catch (_) {}
-        try { await m.addColumn(drugs, drugs.associatedProblems); } catch (_) {}
-        try { await m.addColumn(drugs, drugs.ownerId); } catch (_) {}
-
+        try {
+          await m.addColumn(drugs, drugs.usageFrequency);
+        } catch (_) {}
+        try {
+          await m.addColumn(drugs, drugs.associatedProblems);
+        } catch (_) {}
+        try {
+          await m.addColumn(drugs, drugs.ownerId);
+        } catch (_) {}
       } else {
         // ==========================================================
         // NORMAL INCREMENTAL UPGRADES FOR EXISTING USERS
         // ==========================================================
         if (from < 14) {
-          try { await m.createTable(hospitals); } catch (_) {}
-          try { await m.createTable(wards); } catch (_) {}
-          try { await m.createTable(patientHospitalIdentifiers); } catch (_) {}
-          try { await m.createTable(investigationOrders); } catch (_) {}
-          try { await m.createTable(investigationResults); } catch (_) {}
-          try { await m.createTable(learnedCatalog); } catch (_) {}
+          try {
+            await m.createTable(hospitals);
+          } catch (_) {}
+          try {
+            await m.createTable(wards);
+          } catch (_) {}
+          try {
+            await m.createTable(patientHospitalIdentifiers);
+          } catch (_) {}
+          try {
+            await m.createTable(investigationOrders);
+          } catch (_) {}
+          try {
+            await m.createTable(investigationResults);
+          } catch (_) {}
+          try {
+            await m.createTable(learnedCatalog);
+          } catch (_) {}
         }
         if (from < 15) {
-          try { await m.addColumn(clinicalEncounters, clinicalEncounters.department); } catch (_) {}
-          try { await m.addColumn(clinicalEncounters, clinicalEncounters.wardName); } catch (_) {}
-          try { await m.addColumn(clinicalEncounters, clinicalEncounters.bedNumber); } catch (_) {}
+          try {
+            await m.addColumn(
+              clinicalEncounters,
+              clinicalEncounters.department,
+            );
+          } catch (_) {}
+          try {
+            await m.addColumn(clinicalEncounters, clinicalEncounters.wardName);
+          } catch (_) {}
+          try {
+            await m.addColumn(clinicalEncounters, clinicalEncounters.bedNumber);
+          } catch (_) {}
         }
         if (from < 16) {
-          try { await m.createTable(problemProgressSnapshots); } catch (_) {}
-          try { await m.createTable(clinicalInterventions); } catch (_) {}
-          try { await m.createTable(clinicalOutcomeMetrics); } catch (_) {}
-          try { await m.createTable(prescriptionOrders); } catch (_) {}
+          try {
+            await m.createTable(problemProgressSnapshots);
+          } catch (_) {}
+          try {
+            await m.createTable(clinicalInterventions);
+          } catch (_) {}
+          try {
+            await m.createTable(clinicalOutcomeMetrics);
+          } catch (_) {}
+          try {
+            await m.createTable(prescriptionOrders);
+          } catch (_) {}
 
-          try { await m.addColumn(clinicalEncounters, clinicalEncounters.clinicalDiagnosis); } catch (_) {}
-          try { await m.addColumn(clinicalEncounters, clinicalEncounters.icd11Code); } catch (_) {}
-          try { await m.addColumn(clinicalEncounters, clinicalEncounters.clinicalAssessment); } catch (_) {}
-          try { await m.addColumn(patientProblems, patientProblems.icd11Code); } catch (_) {}
-          try { await m.addColumn(patientProblems, patientProblems.currentStatus); } catch (_) {}
-          try { await m.addColumn(patientProblems, patientProblems.resolvedDate); } catch (_) {}
-          try { await m.addColumn(investigationOrders, investigationOrders.problemId); } catch (_) {}
+          try {
+            await m.addColumn(
+              clinicalEncounters,
+              clinicalEncounters.clinicalDiagnosis,
+            );
+          } catch (_) {}
+          try {
+            await m.addColumn(clinicalEncounters, clinicalEncounters.icd11Code);
+          } catch (_) {}
+          try {
+            await m.addColumn(
+              clinicalEncounters,
+              clinicalEncounters.clinicalAssessment,
+            );
+          } catch (_) {}
+          try {
+            await m.addColumn(patientProblems, patientProblems.icd11Code);
+          } catch (_) {}
+          try {
+            await m.addColumn(patientProblems, patientProblems.currentStatus);
+          } catch (_) {}
+          try {
+            await m.addColumn(patientProblems, patientProblems.resolvedDate);
+          } catch (_) {}
+          try {
+            await m.addColumn(
+              investigationOrders,
+              investigationOrders.problemId,
+            );
+          } catch (_) {}
         }
         if (from < 17) {
           // Sprint 1 — Core Identity & Schema Integrity:
@@ -906,10 +1016,24 @@ class AppDatabase extends _$AppDatabase {
           // * Patients gains `residence` (replaces the old addressOrLocation field).
           // Legacy columns are NOT dropped (no data loss); they simply fall out of
           // the schema, and existing values are backfilled into the new columns.
-          try { await m.createTable(admissions); } catch (_) {}
-          try { await m.addColumn(patients, patients.residence); } catch (_) {}
-          try { await m.addColumn(patientHospitalIdentifiers, patientHospitalIdentifiers.mrn); } catch (_) {}
-          try { await m.addColumn(patientHospitalIdentifiers, patientHospitalIdentifiers.identifierType); } catch (_) {}
+          try {
+            await m.createTable(admissions);
+          } catch (_) {}
+          try {
+            await m.addColumn(patients, patients.residence);
+          } catch (_) {}
+          try {
+            await m.addColumn(
+              patientHospitalIdentifiers,
+              patientHospitalIdentifiers.mrn,
+            );
+          } catch (_) {}
+          try {
+            await m.addColumn(
+              patientHospitalIdentifiers,
+              patientHospitalIdentifiers.identifierType,
+            );
+          } catch (_) {}
 
           // Backfill canonical columns from the legacy ones so existing records
           // stay fully readable after the upgrade. Raw SQL is required because
@@ -917,14 +1041,14 @@ class AppDatabase extends _$AppDatabase {
           try {
             await customStatement(
               'UPDATE patient_hospital_identifiers SET mrn = hospitalRegNo '
-                  "WHERE (mrn IS NULL OR mrn = '') AND hospitalRegNo IS NOT NULL",
+              "WHERE (mrn IS NULL OR mrn = '') AND hospitalRegNo IS NOT NULL",
             );
           } catch (_) {}
           try {
             await customStatement(
               'UPDATE patients SET residence = addressOrLocation '
-                  "WHERE (residence IS NULL OR residence = '') "
-                  'AND addressOrLocation IS NOT NULL',
+              "WHERE (residence IS NULL OR residence = '') "
+              'AND addressOrLocation IS NOT NULL',
             );
           } catch (_) {}
         }
@@ -933,15 +1057,38 @@ class AppDatabase extends _$AppDatabase {
           // (ActiveIngredients / Formulations / Brands — 222k+ duplicate rows)
           // into the single hyper-optimized `clinical_drugs` master table.
           // Old tables are dropped; the legacy `drug_master` fallback is kept.
-          try { await customStatement('DROP TABLE IF EXISTS brands'); } catch (_) {}
-          try { await customStatement('DROP TABLE IF EXISTS formulations'); } catch (_) {}
-          try { await customStatement('DROP TABLE IF EXISTS active_ingredients'); } catch (_) {}
-          try { await m.createTable(clinicalDrugs); } catch (_) {}
+          try {
+            await customStatement('DROP TABLE IF EXISTS brands');
+          } catch (_) {}
+          try {
+            await customStatement('DROP TABLE IF EXISTS formulations');
+          } catch (_) {}
+          try {
+            await customStatement('DROP TABLE IF EXISTS active_ingredients');
+          } catch (_) {}
+          try {
+            await m.createTable(clinicalDrugs);
+          } catch (_) {}
         }
         if (from < 20) {
-          try { await m.addColumn(clinicalEncounters, clinicalEncounters.careSetting); } catch (_) {}
-          try { await m.addColumn(clinicalEncounters, clinicalEncounters.pediatricHistory); } catch (_) {}
-          try { await m.addColumn(clinicalEncounters, clinicalEncounters.obGynHistory); } catch (_) {}
+          try {
+            await m.addColumn(
+              clinicalEncounters,
+              clinicalEncounters.careSetting,
+            );
+          } catch (_) {}
+          try {
+            await m.addColumn(
+              clinicalEncounters,
+              clinicalEncounters.pediatricHistory,
+            );
+          } catch (_) {}
+          try {
+            await m.addColumn(
+              clinicalEncounters,
+              clinicalEncounters.obGynHistory,
+            );
+          } catch (_) {}
 
           // Backfill careSetting from the legacy free-text encounterType so
           // existing rows remain correctly classified in the bedside UI.
@@ -963,9 +1110,15 @@ class AppDatabase extends _$AppDatabase {
           // Google Apps Script catalog target. v19 had dropped the legacy
           // copies; these are freshly created with the OTA schema and filled
           // by PharmacopeiaDao.upsertOtaCatalog(). Patient data is untouched.
-          try { await m.createTable(activeIngredients); } catch (_) {}
-          try { await m.createTable(formulations); } catch (_) {}
-          try { await m.createTable(brands); } catch (_) {}
+          try {
+            await m.createTable(activeIngredients);
+          } catch (_) {}
+          try {
+            await m.createTable(formulations);
+          } catch (_) {}
+          try {
+            await m.createTable(brands);
+          } catch (_) {}
         }
         if (from < 22) {
           // Sprint 7.1 — align the OTA catalog with the LIVE Apps Script
@@ -980,12 +1133,22 @@ class AppDatabase extends _$AppDatabase {
             'formulations',
             'brands',
           ]) {
-            try { await customStatement('DROP TABLE IF EXISTS $table'); } catch (_) {}
+            try {
+              await customStatement('DROP TABLE IF EXISTS $table');
+            } catch (_) {}
           }
-          try { await m.createTable(indications); } catch (_) {}
-          try { await m.createTable(activeIngredients); } catch (_) {}
-          try { await m.createTable(formulations); } catch (_) {}
-          try { await m.createTable(brands); } catch (_) {}
+          try {
+            await m.createTable(indications);
+          } catch (_) {}
+          try {
+            await m.createTable(activeIngredients);
+          } catch (_) {}
+          try {
+            await m.createTable(formulations);
+          } catch (_) {}
+          try {
+            await m.createTable(brands);
+          } catch (_) {}
         }
       }
     },
