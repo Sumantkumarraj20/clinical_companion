@@ -51,7 +51,7 @@ jobs:
 
       - name: Decode and Setup Keystore
         run: |
-          echo "${{ secrets.RELEASE_KEYSTORE }}" | base64 --decode > release.keystore
+          echo "${{ secrets.RELEASE_KEYSTORE }}" | base64 --decode --ignore-garbage > release.keystore
 
       - name: Build Release APK
         run: flutter build apk --release
