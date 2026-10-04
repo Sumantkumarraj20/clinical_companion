@@ -180,7 +180,9 @@ class QuickActionSheet extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
               // Wider, shorter tiles: these are shortcuts, not primary actions.
-              child: _ActionGrid(actions: secondary, aspectRatio: 2.1),
+              // The ratio is kept tall enough that the icon and label still fit
+              // at 2 lines on a 320dp phone; the card drops the caption itself.
+              child: _ActionGrid(actions: secondary, aspectRatio: 1.6),
             ),
           ],
         ),
@@ -223,66 +225,81 @@ class _ActionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Card(
-      elevation: 0,
-      clipBehavior: Clip.antiAlias,
-      color: action.tint.withValues(alpha: 0.08),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: action.tint.withValues(alpha: 0.35)),
-      ),
-      child: InkWell(
-        onTap: action.onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(9),
-                decoration: BoxDecoration(
-                  color: action.tint.withValues(alpha: 0.16),
-                  borderRadius: BorderRadius.circular(11),
-                ),
-                child: Icon(action.icon, color: action.tint, size: 24),
-              ),
-              const SizedBox(height: 10),
-              // Flexible + shrinkWrap: the grid cell has a FIXED height (from
-              // childAspectRatio), so a long caption without a bounded child
-              // would overflow. Text is capped at 2 lines with ellipsis and the
-              // whole block scrolls internally rather than clipping silently.
-              Flexible(
-                child: SingleChildScrollView(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        action.label,
-                        style: theme.textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.w700,
-                        ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        action.caption,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          fontSize: 11,
-                          color: theme.colorScheme.onSurfaceVariant,
-                        ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
+    // The two grids use very different cell heights (primary ~1.08, secondary
+    // wider/shorter), and a ward phone in landscape makes them shorter still.
+    // A single fixed layout overflows one of them, so the card measures itself
+    // and drops the caption when there is genuinely no room for it.
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxHeight < 130;
+
+        return Card(
+          elevation: 0,
+          clipBehavior: Clip.antiAlias,
+          color: action.tint.withValues(alpha: 0.08),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: BorderSide(color: action.tint.withValues(alpha: 0.35)),
           ),
-        ),
-      ),
+          child: InkWell(
+            onTap: action.onTap,
+            child: Padding(
+              padding: EdgeInsets.all(compact ? 10 : 14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    padding: EdgeInsets.all(compact ? 7 : 9),
+                    decoration: BoxDecoration(
+                      color: action.tint.withValues(alpha: 0.16),
+                      borderRadius: BorderRadius.circular(11),
+                    ),
+                    child: Icon(
+                      action.icon,
+                      color: action.tint,
+                      size: compact ? 20 : 24,
+                    ),
+                  ),
+                  SizedBox(height: compact ? 6 : 10),
+                  // Expanded (tight fit) guarantees the text block absorbs
+                  // exactly the leftover height and scrolls inside it, so the
+                  // outer Column can never overflow the fixed-height cell.
+                  Expanded(
+                    child: SingleChildScrollView(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            action.label,
+                            style: theme.textTheme.titleSmall?.copyWith(
+                              fontWeight: FontWeight.w700,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          if (!compact) ...[
+                            const SizedBox(height: 2),
+                            Text(
+                              action.caption,
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                fontSize: 11,
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }

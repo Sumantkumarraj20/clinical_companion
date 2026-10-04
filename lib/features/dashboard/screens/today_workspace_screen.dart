@@ -62,7 +62,7 @@ class _TodayWorkspaceScreenState extends ConsumerState<TodayWorkspaceScreen>
       ),
       body: Column(
         children: [
-          const _WorkspaceTabs(),
+          _WorkspaceTabs(controller: _tabController),
           const Divider(height: 1),
           Expanded(
             child: TabBarView(
@@ -118,7 +118,12 @@ class _TodayWorkspaceScreenState extends ConsumerState<TodayWorkspaceScreen>
 /// Each count comes from its own AsyncValue: an error in one stream shows as
 /// "no count" rather than blanking the other three tabs.
 class _WorkspaceTabs extends ConsumerWidget {
-  const _WorkspaceTabs();
+  const _WorkspaceTabs({required this.controller});
+
+  /// Shared with the [TabBarView] so taps and swipes stay in sync. Without it
+  /// the TabBar throws "No TabController" — there is no DefaultTabController
+  /// above it in this layout.
+  final TabController controller;
 
   static int _count(AsyncValue<List<Object>> value) =>
       value.maybeWhen(data: (rows) => rows.length, orElse: () => -1);
@@ -161,6 +166,7 @@ class _WorkspaceTabs extends ConsumerWidget {
     }
 
     return TabBar(
+      controller: controller,
       isScrollable: true,
       tabAlignment: TabAlignment.start,
       tabs: [
