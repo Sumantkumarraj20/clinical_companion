@@ -8,6 +8,7 @@ import '../widgets/main_navigation_scaffold.dart';
 import '../../features/bedside/screens/vitals_entry_screen.dart';
 import '../../features/dashboard/screens/dashboard_screen.dart';
 import '../../features/dashboard/screens/today_workspace_screen.dart';
+import '../../features/learning/screens/knowledge_hub_screen.dart';
 import '../../features/drugs/screens/drug_reference_screen.dart';
 import '../../features/labs/screens/lab_tracker_screen.dart';
 import '../../features/knowledge_base/screens/wiki_screen.dart';
@@ -52,6 +53,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             // OTA banner and quick actions.
             path: '/today',
             builder: (context, state) => const TodayWorkspaceScreen(),
+          ),
+          GoRoute(
+            // Sprint 16 — unified knowledge flywheel (reflections + wiki).
+            path: '/knowledge-hub',
+            builder: (context, state) => const KnowledgeHubScreen(),
           ),
           GoRoute(
             path: '/vitals',

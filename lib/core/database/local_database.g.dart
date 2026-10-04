@@ -14575,6 +14575,16 @@ class $ClinicalLearningLogsTable extends ClinicalLearningLogs
     requiredDuringInsert: false,
     defaultValue: const Constant(''),
   );
+  @override
+  late final GeneratedColumnWithTypeConverter<List<String>, String> tags =
+      GeneratedColumn<String>(
+        'tags',
+        aliasedName,
+        false,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+        defaultValue: const Constant('[]'),
+      ).withConverter<List<String>>($ClinicalLearningLogsTable.$convertertags);
   static const VerificationMeta _createdAtMeta = const VerificationMeta(
     'createdAt',
   );
@@ -14597,6 +14607,7 @@ class $ClinicalLearningLogsTable extends ClinicalLearningLogs
     differentialDiagnoses,
     decisionRationale,
     clinicalTakeaway,
+    tags,
     createdAt,
   ];
   @override
@@ -14724,6 +14735,12 @@ class $ClinicalLearningLogsTable extends ClinicalLearningLogs
         DriftSqlType.string,
         data['${effectivePrefix}clinical_takeaway'],
       )!,
+      tags: $ClinicalLearningLogsTable.$convertertags.fromSql(
+        attachedDatabase.typeMapping.read(
+          DriftSqlType.string,
+          data['${effectivePrefix}tags'],
+        )!,
+      ),
       createdAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}created_at'],
@@ -14735,6 +14752,9 @@ class $ClinicalLearningLogsTable extends ClinicalLearningLogs
   $ClinicalLearningLogsTable createAlias(String alias) {
     return $ClinicalLearningLogsTable(attachedDatabase, alias);
   }
+
+  static JsonTypeConverter2<List<String>, String, List<Object?>>
+  $convertertags = const StringListConverter();
 }
 
 class ClinicalLearningLog extends DataClass
@@ -14764,6 +14784,14 @@ class ClinicalLearningLog extends DataClass
 
   /// What the clinician would do differently, or what they learned.
   final String clinicalTakeaway;
+
+  /// Sprint 16 — free-text `#hashtags` the clinician typed, stored as a JSON
+  /// array.
+  ///
+  /// Kept apart from the prose so tags stay searchable and can cross-link into
+  /// the wiki (`#hyponatremia` -> the hyponatremia guideline) without parsing
+  /// free text on every read.
+  final List<String> tags;
   final DateTime createdAt;
   const ClinicalLearningLog({
     required this.id,
@@ -14774,6 +14802,7 @@ class ClinicalLearningLog extends DataClass
     required this.differentialDiagnoses,
     required this.decisionRationale,
     required this.clinicalTakeaway,
+    required this.tags,
     required this.createdAt,
   });
   @override
@@ -14789,6 +14818,11 @@ class ClinicalLearningLog extends DataClass
     map['differential_diagnoses'] = Variable<String>(differentialDiagnoses);
     map['decision_rationale'] = Variable<String>(decisionRationale);
     map['clinical_takeaway'] = Variable<String>(clinicalTakeaway);
+    {
+      map['tags'] = Variable<String>(
+        $ClinicalLearningLogsTable.$convertertags.toSql(tags),
+      );
+    }
     map['created_at'] = Variable<DateTime>(createdAt);
     return map;
   }
@@ -14805,6 +14839,7 @@ class ClinicalLearningLog extends DataClass
       differentialDiagnoses: Value(differentialDiagnoses),
       decisionRationale: Value(decisionRationale),
       clinicalTakeaway: Value(clinicalTakeaway),
+      tags: Value(tags),
       createdAt: Value(createdAt),
     );
   }
@@ -14827,6 +14862,9 @@ class ClinicalLearningLog extends DataClass
       ),
       decisionRationale: serializer.fromJson<String>(json['decisionRationale']),
       clinicalTakeaway: serializer.fromJson<String>(json['clinicalTakeaway']),
+      tags: $ClinicalLearningLogsTable.$convertertags.fromJson(
+        serializer.fromJson<List<Object?>>(json['tags']),
+      ),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
     );
   }
@@ -14844,6 +14882,9 @@ class ClinicalLearningLog extends DataClass
       'differentialDiagnoses': serializer.toJson<String>(differentialDiagnoses),
       'decisionRationale': serializer.toJson<String>(decisionRationale),
       'clinicalTakeaway': serializer.toJson<String>(clinicalTakeaway),
+      'tags': serializer.toJson<List<Object?>>(
+        $ClinicalLearningLogsTable.$convertertags.toJson(tags),
+      ),
       'createdAt': serializer.toJson<DateTime>(createdAt),
     };
   }
@@ -14857,6 +14898,7 @@ class ClinicalLearningLog extends DataClass
     String? differentialDiagnoses,
     String? decisionRationale,
     String? clinicalTakeaway,
+    List<String>? tags,
     DateTime? createdAt,
   }) => ClinicalLearningLog(
     id: id ?? this.id,
@@ -14868,6 +14910,7 @@ class ClinicalLearningLog extends DataClass
     differentialDiagnoses: differentialDiagnoses ?? this.differentialDiagnoses,
     decisionRationale: decisionRationale ?? this.decisionRationale,
     clinicalTakeaway: clinicalTakeaway ?? this.clinicalTakeaway,
+    tags: tags ?? this.tags,
     createdAt: createdAt ?? this.createdAt,
   );
   ClinicalLearningLog copyWithCompanion(ClinicalLearningLogsCompanion data) {
@@ -14890,6 +14933,7 @@ class ClinicalLearningLog extends DataClass
       clinicalTakeaway: data.clinicalTakeaway.present
           ? data.clinicalTakeaway.value
           : this.clinicalTakeaway,
+      tags: data.tags.present ? data.tags.value : this.tags,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
     );
   }
@@ -14905,6 +14949,7 @@ class ClinicalLearningLog extends DataClass
           ..write('differentialDiagnoses: $differentialDiagnoses, ')
           ..write('decisionRationale: $decisionRationale, ')
           ..write('clinicalTakeaway: $clinicalTakeaway, ')
+          ..write('tags: $tags, ')
           ..write('createdAt: $createdAt')
           ..write(')'))
         .toString();
@@ -14920,6 +14965,7 @@ class ClinicalLearningLog extends DataClass
     differentialDiagnoses,
     decisionRationale,
     clinicalTakeaway,
+    tags,
     createdAt,
   );
   @override
@@ -14934,6 +14980,7 @@ class ClinicalLearningLog extends DataClass
           other.differentialDiagnoses == this.differentialDiagnoses &&
           other.decisionRationale == this.decisionRationale &&
           other.clinicalTakeaway == this.clinicalTakeaway &&
+          other.tags == this.tags &&
           other.createdAt == this.createdAt);
 }
 
@@ -14947,6 +14994,7 @@ class ClinicalLearningLogsCompanion
   final Value<String> differentialDiagnoses;
   final Value<String> decisionRationale;
   final Value<String> clinicalTakeaway;
+  final Value<List<String>> tags;
   final Value<DateTime> createdAt;
   final Value<int> rowid;
   const ClinicalLearningLogsCompanion({
@@ -14958,6 +15006,7 @@ class ClinicalLearningLogsCompanion
     this.differentialDiagnoses = const Value.absent(),
     this.decisionRationale = const Value.absent(),
     this.clinicalTakeaway = const Value.absent(),
+    this.tags = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.rowid = const Value.absent(),
   });
@@ -14970,6 +15019,7 @@ class ClinicalLearningLogsCompanion
     this.differentialDiagnoses = const Value.absent(),
     this.decisionRationale = const Value.absent(),
     this.clinicalTakeaway = const Value.absent(),
+    this.tags = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : patientId = Value(patientId);
@@ -14982,6 +15032,7 @@ class ClinicalLearningLogsCompanion
     Expression<String>? differentialDiagnoses,
     Expression<String>? decisionRationale,
     Expression<String>? clinicalTakeaway,
+    Expression<String>? tags,
     Expression<DateTime>? createdAt,
     Expression<int>? rowid,
   }) {
@@ -14996,6 +15047,7 @@ class ClinicalLearningLogsCompanion
         'differential_diagnoses': differentialDiagnoses,
       if (decisionRationale != null) 'decision_rationale': decisionRationale,
       if (clinicalTakeaway != null) 'clinical_takeaway': clinicalTakeaway,
+      if (tags != null) 'tags': tags,
       if (createdAt != null) 'created_at': createdAt,
       if (rowid != null) 'rowid': rowid,
     });
@@ -15010,6 +15062,7 @@ class ClinicalLearningLogsCompanion
     Value<String>? differentialDiagnoses,
     Value<String>? decisionRationale,
     Value<String>? clinicalTakeaway,
+    Value<List<String>>? tags,
     Value<DateTime>? createdAt,
     Value<int>? rowid,
   }) {
@@ -15024,6 +15077,7 @@ class ClinicalLearningLogsCompanion
           differentialDiagnoses ?? this.differentialDiagnoses,
       decisionRationale: decisionRationale ?? this.decisionRationale,
       clinicalTakeaway: clinicalTakeaway ?? this.clinicalTakeaway,
+      tags: tags ?? this.tags,
       createdAt: createdAt ?? this.createdAt,
       rowid: rowid ?? this.rowid,
     );
@@ -15060,6 +15114,11 @@ class ClinicalLearningLogsCompanion
     if (clinicalTakeaway.present) {
       map['clinical_takeaway'] = Variable<String>(clinicalTakeaway.value);
     }
+    if (tags.present) {
+      map['tags'] = Variable<String>(
+        $ClinicalLearningLogsTable.$convertertags.toSql(tags.value),
+      );
+    }
     if (createdAt.present) {
       map['created_at'] = Variable<DateTime>(createdAt.value);
     }
@@ -15080,6 +15139,7 @@ class ClinicalLearningLogsCompanion
           ..write('differentialDiagnoses: $differentialDiagnoses, ')
           ..write('decisionRationale: $decisionRationale, ')
           ..write('clinicalTakeaway: $clinicalTakeaway, ')
+          ..write('tags: $tags, ')
           ..write('createdAt: $createdAt, ')
           ..write('rowid: $rowid')
           ..write(')'))
@@ -33770,6 +33830,7 @@ typedef $$ClinicalLearningLogsTableCreateCompanionBuilder =
       Value<String> differentialDiagnoses,
       Value<String> decisionRationale,
       Value<String> clinicalTakeaway,
+      Value<List<String>> tags,
       Value<DateTime> createdAt,
       Value<int> rowid,
     });
@@ -33783,6 +33844,7 @@ typedef $$ClinicalLearningLogsTableUpdateCompanionBuilder =
       Value<String> differentialDiagnoses,
       Value<String> decisionRationale,
       Value<String> clinicalTakeaway,
+      Value<List<String>> tags,
       Value<DateTime> createdAt,
       Value<int> rowid,
     });
@@ -33876,6 +33938,12 @@ class $$ClinicalLearningLogsTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnWithTypeConverterFilters<List<String>, List<String>, String> get tags =>
+      $composableBuilder(
+        column: $table.tags,
+        builder: (column) => ColumnWithTypeConverterFilters(column),
+      );
+
   ColumnFilters<DateTime> get createdAt => $composableBuilder(
     column: $table.createdAt,
     builder: (column) => ColumnFilters(column),
@@ -33967,6 +34035,11 @@ class $$ClinicalLearningLogsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get tags => $composableBuilder(
+    column: $table.tags,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get createdAt => $composableBuilder(
     column: $table.createdAt,
     builder: (column) => ColumnOrderings(column),
@@ -34053,6 +34126,9 @@ class $$ClinicalLearningLogsTableAnnotationComposer
     column: $table.clinicalTakeaway,
     builder: (column) => column,
   );
+
+  GeneratedColumnWithTypeConverter<List<String>, String> get tags =>
+      $composableBuilder(column: $table.tags, builder: (column) => column);
 
   GeneratedColumn<DateTime> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
@@ -34149,6 +34225,7 @@ class $$ClinicalLearningLogsTableTableManager
                 Value<String> differentialDiagnoses = const Value.absent(),
                 Value<String> decisionRationale = const Value.absent(),
                 Value<String> clinicalTakeaway = const Value.absent(),
+                Value<List<String>> tags = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => ClinicalLearningLogsCompanion(
@@ -34160,6 +34237,7 @@ class $$ClinicalLearningLogsTableTableManager
                 differentialDiagnoses: differentialDiagnoses,
                 decisionRationale: decisionRationale,
                 clinicalTakeaway: clinicalTakeaway,
+                tags: tags,
                 createdAt: createdAt,
                 rowid: rowid,
               ),
@@ -34173,6 +34251,7 @@ class $$ClinicalLearningLogsTableTableManager
                 Value<String> differentialDiagnoses = const Value.absent(),
                 Value<String> decisionRationale = const Value.absent(),
                 Value<String> clinicalTakeaway = const Value.absent(),
+                Value<List<String>> tags = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => ClinicalLearningLogsCompanion.insert(
@@ -34184,6 +34263,7 @@ class $$ClinicalLearningLogsTableTableManager
                 differentialDiagnoses: differentialDiagnoses,
                 decisionRationale: decisionRationale,
                 clinicalTakeaway: clinicalTakeaway,
+                tags: tags,
                 createdAt: createdAt,
                 rowid: rowid,
               ),

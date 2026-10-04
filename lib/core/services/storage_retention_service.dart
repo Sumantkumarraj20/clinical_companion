@@ -27,9 +27,7 @@ class StorageRetentionService {
 
   /// Documents older than [maxAgeDays] (default 365) whose image is pruned.
   Future<int> pruneOldImages({int maxAgeDays = 365, DateTime? now}) async {
-    final cutoff = (now ?? DateTime.now()).subtract(
-      Duration(days: maxAgeDays),
-    );
+    final cutoff = (now ?? DateTime.now()).subtract(Duration(days: maxAgeDays));
 
     // Only rows that actually still have a real file path: an empty string or
     // an existing sentinel means there is nothing to delete.
@@ -54,9 +52,7 @@ class StorageRetentionService {
         await (db.update(
           db.documentRegistries,
         )..where((r) => r.id.equals(row.id))).write(
-          DocumentRegistriesCompanion(
-            imagePath: Value(prunedSentinel),
-          ),
+          DocumentRegistriesCompanion(imagePath: Value(prunedSentinel)),
         );
         pruned++;
       } on FileSystemException catch (error) {

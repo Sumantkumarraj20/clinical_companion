@@ -49,16 +49,41 @@ class _ReflectionEntrySheetState extends ConsumerState<ReflectionEntrySheet> {
   final _rationale = TextEditingController();
   final _takeaway = TextEditingController();
 
+  /// Sprint 16 — a dedicated tag field. Typing `#hyponatremia` and a space
+  /// commits it; the chip strip gives immediate feedback and prevents a typo
+  /// from silently going unsearchable.
+  final _tagInput = TextEditingController();
+  final List<String> _tags = [];
+
   /// 1–10, defaulting to a neutral 5 rather than 7: an inflated default would
   /// quietly bias every clinician's calibration data.
   int _confidence = 5;
   bool _saving = false;
+
+  /// Commits whatever is in the tag box when the clinician types a space or
+  /// commits the field, and strips the `#` so `#a #b` and `a b` behave alike.
+  void _commitTag() {
+    final raw = _tagInput.text.trim().replaceFirst('#', '').trim();
+    if (raw.isEmpty) return;
+    final tag = raw.toLowerCase();
+    if (tag.length < 2 || tag.length > 32 || _tags.contains(tag)) {
+      _tagInput.clear();
+      return;
+    }
+    setState(() {
+      _tags.add(tag);
+      // Reflect the committed tag back into the text so the clinician sees
+      // exactly what was captured.
+      _tagInput.text = '#$tag ';
+    });
+  }
 
   @override
   void dispose() {
     _differentials.dispose();
     _rationale.dispose();
     _takeaway.dispose();
+    _tagInput.dispose();
     super.dispose();
   }
 
@@ -73,7 +98,10 @@ class _ReflectionEntrySheetState extends ConsumerState<ReflectionEntrySheet> {
             patientId: widget.patientId,
             encounterId: widget.encounterId,
             confidenceScore: _confidence,
-            differentialDiagnoses: _differentials.text,
+            // Tags are merged into the prose the DAO persists, so the stored
+            // text and the searchable tag column can never disagree.
+            differentialDiagnoses:
+                '${_differentials.text}\n${_tags.map((t) => '#$t').join(' ')}',
             decisionRationale: _rationale.text,
             clinicalTakeaway: _takeaway.text,
           );
@@ -179,6 +207,35 @@ class _ReflectionEntrySheetState extends ConsumerState<ReflectionEntrySheet> {
                     ? 'Write at least one of the three fields.'
                     : null,
               ),
+              const SizedBox(height: 14),
+              TextField(
+                controller: _tagInput,
+                decoration: const InputDecoration(
+                  labelText: 'Tags (#hashtags)',
+                  hintText: '#hyponatremia #renal',
+                  prefixIcon: Icon(Icons.tag),
+                  border: OutlineInputBorder(),
+                ),
+                // Typing a space commits the tag; pasting several also works.
+                onChanged: (value) {
+                  if (value.endsWith(' ') || value.endsWith(',')) _commitTag();
+                },
+                onSubmitted: (_) => _commitTag(),
+              ),
+              if (_tags.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: [
+                    for (final tag in _tags)
+                      InputChip(
+                        label: Text('#$tag'),
+                        onDeleted: () => setState(() => _tags.remove(tag)),
+                      ),
+                  ],
+                ),
+              ],
               const SizedBox(height: 20),
               Row(
                 children: [

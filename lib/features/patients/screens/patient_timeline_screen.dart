@@ -1,4 +1,3 @@
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -231,7 +230,6 @@ class _PatientTimelineScreenState extends ConsumerState<PatientTimelineScreen> {
   /// Lab results and scanned documents carry no reliable problem link, so they
   /// survive the filter — otherwise picking "Acute Appendicitis" would hide an
   /// abnormal potassium and the paper report that explains it.
-  
 
   SliverAppBar _headerSliver(PatientTimelineBundle bundle) {
     final theme = Theme.of(context);

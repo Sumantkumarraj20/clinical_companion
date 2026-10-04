@@ -810,6 +810,15 @@ class ClinicalLearningLogs extends Table {
   /// What the clinician would do differently, or what they learned.
   TextColumn get clinicalTakeaway => text().withDefault(const Constant(''))();
 
+  /// Sprint 16 — free-text `#hashtags` the clinician typed, stored as a JSON
+  /// array.
+  ///
+  /// Kept apart from the prose so tags stay searchable and can cross-link into
+  /// the wiki (`#hyponatremia` -> the hyponatremia guideline) without parsing
+  /// free text on every read.
+  TextColumn get tags =>
+      text().map(const StringListConverter()).withDefault(const Constant('[]'))();
+
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
 
   @override
@@ -894,7 +903,7 @@ class AppDatabase extends _$AppDatabase {
     : super(executor ?? openAppDatabaseExecutor());
 
   @override
-  int get schemaVersion => 25;
+  int get schemaVersion => 26;
 
   /// Tables that must exist for the drug catalog and POMR to function.
   ///
@@ -1249,6 +1258,14 @@ class AppDatabase extends _$AppDatabase {
           // already-completed notes.
           try {
             await m.addColumn(clinicalEncounters, clinicalEncounters.isDraft);
+          } catch (_) {}
+        }
+        if (from < 26) {
+          // Sprint 16 — reflection #hashtags. Additive column with an empty
+          // default, so existing reflections stay readable and simply have no
+          // tags until the clinician adds some.
+          try {
+            await m.addColumn(clinicalLearningLogs, clinicalLearningLogs.tags);
           } catch (_) {}
         }
         if (from < 25) {

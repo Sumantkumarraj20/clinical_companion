@@ -894,6 +894,11 @@ class ClinicalDao extends DatabaseAccessor<AppDatabase>
     String? ownerId,
   }) async {
     final id = _ids.v4();
+    // Sprint 16 — pull #hashtags out of the prose into a searchable column so
+    // reflections cross-link into the wiki instead of living as prose.
+    final tags = extractHashtags(
+      '$differentialDiagnoses\n$decisionRationale\n$clinicalTakeaway',
+    );
     await into(clinicalLearningLogs).insert(
       ClinicalLearningLogsCompanion.insert(
         id: Value(id),
@@ -904,6 +909,7 @@ class ClinicalDao extends DatabaseAccessor<AppDatabase>
         differentialDiagnoses: Value(differentialDiagnoses.trim()),
         decisionRationale: Value(decisionRationale.trim()),
         clinicalTakeaway: Value(clinicalTakeaway.trim()),
+        tags: Value(tags),
         createdAt: Value(createdAt ?? DateTime.now().toUtc()),
       ),
     );
@@ -930,6 +936,70 @@ class ClinicalDao extends DatabaseAccessor<AppDatabase>
               mode: OrderingMode.desc,
             ),
           ]))
+        .get();
+  }
+
+  /// Extracts `#hashtags` from free text.
+  ///
+  /// Sprint 16 — a clinician types `#hyponatremia` inside their takeaway and the
+  /// tag is pulled out into a searchable column. Returns lower-cased, de-duped
+  /// tags without the `#`, in first-appearance order.
+  ///
+  /// Bounded to 32 characters per tag and 12 tags per reflection so a pasted
+  /// paragraph of hashes cannot blow up the row or the chip strip.
+  @visibleForTesting
+  static List<String> extractHashtags(String text) {
+    final matches = RegExp(r'#([A-Za-z0-9_]{2,32})').allMatches(text);
+    final seen = <String>{};
+    final tags = <String>[];
+    for (final match in matches) {
+      final tag = match.group(1)!.toLowerCase();
+      if (!seen.add(tag)) continue;
+      tags.add(tag);
+      if (tags.length >= 12) break;
+    }
+    return tags;
+  }
+
+  /// Reflections carrying [tag], newest first. Powers the wiki cross-link:
+  /// tapping `#hyponatremia` in the guidelines shows the clinician's own
+  /// reflections on the same topic.
+  Future<List<ClinicalLearningLog>> getReflectionsByTag(
+    String tag, {
+    String? ownerId,
+  }) {
+    final needle = tag.trim().replaceFirst('#', '').toLowerCase();
+    if (needle.isEmpty) return Future.value(const []);
+    return (select(clinicalLearningLogs)
+          ..where(
+            (row) =>
+                row.ownerId.equals(ownerId ?? defaultOwnerId) &
+                row.tags.like('%"$needle"%'),
+          )
+          ..orderBy([
+            (row) => OrderingTerm(
+              expression: row.createdAt,
+              mode: OrderingMode.desc,
+            ),
+          ]))
+        .get();
+  }
+
+  /// Every reflection for this clinician, newest first — the Case Reflections
+  /// feed of the knowledge hub.
+  Future<List<ClinicalLearningLog>> getAllReflections({
+    String? ownerId,
+    int limit = 200,
+  }) {
+    return (select(clinicalLearningLogs)
+          ..where((row) => row.ownerId.equals(ownerId ?? defaultOwnerId))
+          ..orderBy([
+            (row) => OrderingTerm(
+              expression: row.createdAt,
+              mode: OrderingMode.desc,
+            ),
+          ])
+          ..limit(limit))
         .get();
   }
 
@@ -1715,6 +1785,30 @@ class ClinicalDao extends DatabaseAccessor<AppDatabase>
   // =========================================================================
   // 7. PERSONAL WIKI & CLINICAL KNOWLEDGE BASE
   // =========================================================================
+  /// One-shot wiki search for a `#tag` cross-link.
+  ///
+  /// Sprint 16 — [watchWikiEntries] is a live stream, which is the wrong shape
+  /// for a modal that just needs the matching guidelines once.
+  Future<List<PersonalWikiEntry>> searchWikiEntries({
+    String query = '',
+    String? ownerId,
+    int limit = 10,
+  }) async {
+    final normalized = query.trim().toLowerCase();
+    final statement = select(personalWiki)
+      ..orderBy([(row) => OrderingTerm(expression: row.updatedAt)])
+      ..limit(limit);
+    if (normalized.isNotEmpty) {
+      statement.where(
+        (row) =>
+            row.topic.lower().like('%$normalized%') |
+            row.markdownContent.lower().like('%$normalized%') |
+            row.tags.like('%$normalized%'),
+      );
+    }
+    return statement.get();
+  }
+
   Stream<List<PersonalWikiEntry>> watchWikiEntries({
     String query = '',
     String? ownerId,

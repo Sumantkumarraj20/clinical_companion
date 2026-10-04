@@ -50,6 +50,10 @@ dependencies:
   open_filex: ^4.7.0
   flutter_image_compress: ^2.5.1
   package_info_plus: ^9.0.1
+  # DatabaseBackupService opens a *candidate* backup on its own connection to
+  # verify it really is an app database before the live one is overwritten.
+  # Transitive via drift, but a direct runtime dependency now.
+  sqlite3: ^3.5.2
 
 dev_dependencies:
   flutter_test:
@@ -60,10 +64,6 @@ dev_dependencies:
   freezed: ^4.0.0
   json_serializable: ^6.9.5
   flutter_lints: ^5.0.0
-  # Used by tests to inspect the shipped SQLite asset's real shape (tables,
-  # user_version) before the app's migration layer touches it. Transitive via
-  # drift, but declared explicitly so the test import is not an undeclared use.
-  sqlite3: ^3.5.2
 
 flutter:
   uses-material-design: true
@@ -77,5 +77,5 @@ flutter_launcher_icons:
   image_path: "assets/icon/app_icon.png"
   
   # Optional: Configure Android Adaptive Icons (Required for Android 8.0+)
-  adaptive_icon_background: "#FFFFFF"
+  adaptive_icon_background: "#00695C"
   adaptive_icon_foreground: "assets/icon/app_icon.png"
