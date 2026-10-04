@@ -20,6 +20,7 @@ import '../models/document_task.dart';
 import '../services/app_updater_service.dart';
 import '../services/extraction_pipeline_service.dart';
 import '../sync/catalog_sync_service.dart';
+import '../services/storage_retention_service.dart';
 import '../sync/sync_service.dart';
 import '../../features/billing/services/clinical_coding_service.dart';
 
@@ -464,6 +465,24 @@ class AppStatus extends Notifier<AppStatusState> {
           .catchError((Object error) {
             debugPrint('[AppStatus] OTA catalog sync skipped: $error');
           }),
+    );
+    // Sprint 16 — Smart data retention. Fire-and-forget on startup so a sweep of
+    // years-old scans never delays the clinician reaching the dashboard. Only
+    // image *files* are touched: no database row is deleted and nothing is
+    // enqueued, so this cannot interfere with the offline sync queue.
+    unawaited(
+      () async {
+        try {
+          final pruned = await StorageRetentionService(
+            ref.read(appDatabaseProvider),
+          ).pruneOldImages();
+          if (pruned > 0) {
+            debugPrint('[AppStatus] Pruned $pruned old document image(s).');
+          }
+        } catch (error) {
+          debugPrint('[AppStatus] Image retention sweep skipped: $error');
+        }
+      }(),
     );
     return AppStatusState(
       isOnline: ref.watch(connectivityProvider).asData?.value ?? false,

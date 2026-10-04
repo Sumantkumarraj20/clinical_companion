@@ -1,16 +1,16 @@
-import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/cds/decision_support_engine.dart';
+import '../../../core/database/daos/clinical_dao.dart';
 import '../../../core/database/local_database.dart';
 import '../../../core/providers/app_providers.dart';
 import '../../../core/utils/datetime_utils.dart';
 import '../../ingestion/screens/adaptive_review_screen.dart';
-import '../../ingestion/widgets/full_screen_image_viewer.dart';
 import '../../learning/widgets/reflection_entry_sheet.dart';
+import '../../learning/widgets/timeline_event_card.dart';
 import '../widgets/cohort_tagger.dart';
 import '../widgets/timeline_feed_model.dart';
 
@@ -36,6 +36,10 @@ class PatientTimelineScreen extends ConsumerStatefulWidget {
 
 class _PatientTimelineScreenState extends ConsumerState<PatientTimelineScreen> {
   late Future<PatientTimelineBundle> _bundle;
+
+  /// Last resolved bundle, cached so a timeline card tap can look up the full
+  /// [DocumentRegistry] (Edit Mode needs the row, not just its id).
+  PatientTimelineBundle? _resolvedBundle;
 
   /// Problem ids the clinician selected; empty means "show everything".
   final Set<String> _activeProblems = {};
@@ -120,7 +124,7 @@ class _PatientTimelineScreenState extends ConsumerState<PatientTimelineScreen> {
           }
           if (snapshot.hasError) {
             return _TimelineError(
-              message: '${snapshot.error}',
+              error: snapshot.error!,
               onRetry: () => setState(() => _bundle = _load()),
             );
           }
@@ -138,7 +142,13 @@ class _PatientTimelineScreenState extends ConsumerState<PatientTimelineScreen> {
   }
 
   Widget _buildContent(PatientTimelineBundle bundle) {
-    final entries = _filterEntries(bundle.entries, bundle.problems);
+    // Cached so a card tap can resolve the full DocumentRegistry (Edit Mode
+    // needs the row, not just the id the timeline event carries).
+    _resolvedBundle = bundle;
+    // Sprint 16 — the feed is now the unified five-source timeline (Sprint 15
+    // data layer): admissions, encounters, lab results, prescriptions and
+    // scanned documents merged reverse-chronologically.
+    final events = ref.watch(unifiedTimelineProvider(widget.patient.id));
 
     return RefreshIndicator(
       onRefresh: () async => setState(() => _bundle = _load()),
@@ -153,27 +163,67 @@ class _PatientTimelineScreenState extends ConsumerState<PatientTimelineScreen> {
               onClear: () => setState(_activeProblems.clear),
             ),
           ),
-          if (entries.isEmpty)
-            SliverToBoxAdapter(
-              child: _EmptyFeed(hasFilter: _activeProblems.isNotEmpty),
-            )
-          else
-            SliverList.builder(
-              itemCount: entries.length,
-              itemBuilder: (context, index) {
-                final entry = entries[index];
-                final previous = index == 0 ? null : entries[index - 1];
-                return _FeedItem(
-                  entry: entry,
-                  showDayHeader: previous == null || previous.day != entry.day,
-                  patient: widget.patient,
-                );
-              },
+          events.when(
+            loading: () => const SliverToBoxAdapter(
+              child: Padding(
+                padding: EdgeInsets.symmetric(vertical: 24),
+                child: Center(child: CircularProgressIndicator()),
+              ),
             ),
+            error: (_, _) => SliverToBoxAdapter(
+              child: _EmptyFeed(
+                hasFilter: _activeProblems.isNotEmpty,
+                message: 'Could not load the timeline.',
+              ),
+            ),
+            data: (rows) {
+              if (rows.isEmpty) {
+                return SliverToBoxAdapter(
+                  child: _EmptyFeed(hasFilter: _activeProblems.isNotEmpty),
+                );
+              }
+              return SliverList.builder(
+                itemCount: rows.length,
+                itemBuilder: (context, index) {
+                  final event = rows[index];
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    child: TimelineEventCard(
+                      event: event,
+                      onTap: () => _openEvent(event),
+                    ),
+                  );
+                },
+              );
+            },
+          ),
           const SliverToBoxAdapter(child: SizedBox(height: 96)),
         ],
       ),
     );
+  }
+
+  /// Routes a timeline card to the right destination.
+  ///
+  /// Scanned documents open in Edit Mode so a mistyped timestamp or a lost
+  /// conclusion can be corrected at any time. The other kinds have no dedicated
+  /// detail screen yet, so those cards stay informative rather than navigating
+  /// somewhere unhelpful.
+  void _openEvent(TimelineEvent event) {
+    if (event.kind != TimelineEventKind.document) return;
+    final id = event.id.split(':').last;
+    // Resolve the full row from the bundle so Edit Mode receives the real
+    // DocumentRegistry (timestamp, transcript, image path), not just an id.
+    for (final entry in _resolvedBundle?.entries ?? const <TimelineEntry>[]) {
+      final document = entry.document;
+      if (document == null || document.id != id) continue;
+      AdaptiveReviewScreen.editExisting(
+        context,
+        document: document,
+        patient: widget.patient,
+      );
+      return;
+    }
   }
 
   /// Filters the feed to the selected problems.
@@ -181,31 +231,7 @@ class _PatientTimelineScreenState extends ConsumerState<PatientTimelineScreen> {
   /// Lab results and scanned documents carry no reliable problem link, so they
   /// survive the filter — otherwise picking "Acute Appendicitis" would hide an
   /// abnormal potassium and the paper report that explains it.
-  List<TimelineEntry> _filterEntries(
-    List<TimelineEntry> entries,
-    List<PatientProblem> problems,
-  ) {
-    if (_activeProblems.isEmpty) return entries;
-
-    final problemIds = _activeProblems;
-    final encountersForProblems = <String>{
-      for (final problem in problems)
-        if (problemIds.contains(problem.id))
-          if (problem.initialEncounterId != null) problem.initialEncounterId!,
-    };
-
-    return entries.where((entry) {
-      switch (entry.kind) {
-        case TimelineEntryKind.encounter:
-          return encountersForProblems.contains(entry.encounter?.id);
-        case TimelineEntryKind.procedure:
-          return problemIds.contains(entry.intervention?.problemId);
-        case TimelineEntryKind.labResult:
-        case TimelineEntryKind.document:
-          return true;
-      }
-    }).toList();
-  }
+  
 
   SliverAppBar _headerSliver(PatientTimelineBundle bundle) {
     final theme = Theme.of(context);
@@ -449,624 +475,62 @@ class _ProblemFilterRow extends StatelessWidget {
   }
 }
 
-/// 24-hour clock, e.g. `09:40` — unambiguous across locales, unlike a 12-hour
-/// string that would need an AM/PM suffix.
-String _formatClock(DateTime time) {
-  final local = time.toLocal();
-  final hour = local.hour.toString().padLeft(2, '0');
-  final minute = local.minute.toString().padLeft(2, '0');
-  return '$hour:$minute';
-}
-
-/// One feed row: an optional day separator plus a kind-specific Material 3
-/// card.
-class _FeedItem extends StatelessWidget {
-  const _FeedItem({
-    required this.entry,
-    required this.showDayHeader,
-    required this.patient,
-  });
-
-  final TimelineEntry entry;
-  final bool showDayHeader;
-
-  /// Sprint 14.5 — forwarded to document cards so Edit Mode files corrections
-  /// against the right patient.
-  final Patient patient;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Padding(
-      padding: EdgeInsets.fromLTRB(12, showDayHeader ? 14 : 4, 12, 0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (showDayHeader) _DaySeparator(day: entry.day),
-          const SizedBox(height: 6),
-          switch (entry.kind) {
-            TimelineEntryKind.encounter => _EncounterCard(entry: entry),
-            TimelineEntryKind.labResult => _LabResultCard(entry: entry),
-            TimelineEntryKind.document => _DocumentCard(
-              entry: entry,
-              patient: patient,
-            ),
-            TimelineEntryKind.procedure => _ProcedureCard(entry: entry),
-          },
-          const SizedBox(height: 6),
-          Padding(
-            padding: const EdgeInsets.only(left: 4),
-            child: Text(
-              _formatClock(entry.timestamp),
-              style: theme.textTheme.labelSmall?.copyWith(
-                color: theme.colorScheme.outline,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _DaySeparator extends StatelessWidget {
-  const _DaySeparator({required this.day});
-
-  static const _months = [
-    'Jan',
-    'Feb',
-    'Mar',
-    'Apr',
-    'May',
-    'Jun',
-    'Jul',
-    'Aug',
-    'Sep',
-    'Oct',
-    'Nov',
-    'Dec',
-  ];
-
-  final DateTime day;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final difference = today.difference(day).inDays;
-    final label = switch (difference) {
-      0 => 'Today',
-      1 => 'Yesterday',
-      _ => '${day.day} ${_months[day.month - 1]} ${day.year}',
-    };
-
-    return Row(
-      children: [
-        Text(
-          label,
-          style: theme.textTheme.labelMedium?.copyWith(
-            fontWeight: FontWeight.w700,
-            color: theme.colorScheme.primary,
-          ),
-        ),
-        const SizedBox(width: 8),
-        Expanded(child: Divider(color: theme.colorScheme.outlineVariant)),
-      ],
-    );
-  }
-}
-
-/// Shared shell for every card in the feed.
-class _FeedCard extends StatelessWidget {
-  const _FeedCard({
-    required this.icon,
-    required this.iconColor,
-    required this.title,
-    this.trailing,
-    this.subtitle,
-    this.onTap,
-    this.onLongPress,
-    this.children = const [],
-  });
-
-  final IconData icon;
-  final Color iconColor;
-  final String title;
-  final String? subtitle;
-  final Widget? trailing;
-
-  /// Sprint 14.5 — makes the whole card actionable (e.g. reopening a saved
-  /// document). Null keeps the card inert.
-  final VoidCallback? onTap;
-
-  /// Optional long-press, used here to jump straight to the full-screen scan
-  /// without entering Edit Mode.
-  final VoidCallback? onLongPress;
-
-  final List<Widget> children;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Card(
-      elevation: 0,
-      margin: EdgeInsets.zero,
-      clipBehavior: Clip.antiAlias,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(14),
-        side: BorderSide(color: theme.colorScheme.outlineVariant),
-      ),
-      child: InkWell(
-        onTap: onTap,
-        onLongPress: onLongPress,
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(6),
-                    decoration: BoxDecoration(
-                      color: iconColor.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Icon(icon, size: 16, color: iconColor),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          title,
-                          style: theme.textTheme.titleSmall?.copyWith(
-                            fontWeight: FontWeight.w700,
-                          ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        if (subtitle != null)
-                          Text(
-                            subtitle!,
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.colorScheme.onSurfaceVariant,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                      ],
-                    ),
-                  ),
-                  if (trailing != null) trailing!,
-                ],
-              ),
-              for (final child in children) ...[
-                const SizedBox(height: 8),
-                child,
-              ],
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// Encounter card: diagnosis, HPI snippet and the drugs that were ordered.
-class _EncounterCard extends StatelessWidget {
-  const _EncounterCard({required this.entry});
-
-  final TimelineEntry entry;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final encounter = entry.encounter!;
-    final complaint = (encounter.chiefComplaints ?? '').trim();
-    final hpi = (encounter.historyOfPresentIllness ?? '').trim();
-    final diagnosis = (encounter.clinicalDiagnosis ?? '').trim();
-    final assessment = (encounter.clinicalAssessment ?? '').trim();
-
-    // Prefer a short HPI snippet; fall back to the complaint so the card is
-    // never blank when the note exists.
-    final narrative = hpi.isNotEmpty ? hpi : complaint;
-    final snippet = narrative.length > 180
-        ? '${narrative.substring(0, 180)}…'
-        : narrative;
-
-    return _FeedCard(
-      icon: Icons.assignment_outlined,
-      iconColor: theme.colorScheme.primary,
-      title: diagnosis.isNotEmpty ? diagnosis : encounter.encounterType,
-      subtitle: [
-        encounter.encounterType,
-        if (encounter.wardName?.isNotEmpty == true) encounter.wardName,
-        if (encounter.bedNumber?.isNotEmpty == true)
-          'Bed ${encounter.bedNumber}',
-      ].whereType<String>().join(' · '),
-      children: [
-        if (complaint.isNotEmpty && complaint != snippet)
-          Text(
-            'Presents: $complaint',
-            style: theme.textTheme.bodySmall?.copyWith(
-              fontWeight: FontWeight.w600,
-            ),
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-          ),
-        if (snippet.isNotEmpty) Text(snippet, style: theme.textTheme.bodySmall),
-        if (assessment.isNotEmpty)
-          Text(
-            assessment,
-            style: theme.textTheme.bodySmall?.copyWith(
-              fontStyle: FontStyle.italic,
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-          ),
-        if (entry.prescriptions.isNotEmpty)
-          _DrugChips(prescriptions: entry.prescriptions),
-      ],
-    );
-  }
-}
-
-/// Ordered drugs for an encounter, shown inline on the encounter card.
-class _DrugChips extends StatelessWidget {
-  const _DrugChips({required this.prescriptions});
-
-  final List<PrescriptionOrder> prescriptions;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Wrap(
-      spacing: 6,
-      runSpacing: 6,
-      children: [
-        for (final prescription in prescriptions.take(6))
-          Chip(
-            avatar: const Icon(Icons.medication_outlined, size: 13),
-            label: Text(
-              [
-                prescription.drugName,
-                if (prescription.doseStrength?.isNotEmpty == true)
-                  prescription.doseStrength!,
-                if (prescription.route?.isNotEmpty == true) prescription.route!,
-              ].join(' '),
-              style: const TextStyle(fontSize: 11),
-            ),
-            visualDensity: VisualDensity.compact,
-            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-          ),
-        if (prescriptions.length > 6)
-          Text(
-            '+${prescriptions.length - 6} more',
-            style: theme.textTheme.labelSmall?.copyWith(
-              color: theme.colorScheme.outline,
-            ),
-          ),
-      ],
-    );
-  }
-}
-
-/// Lab card. Abnormal values are the whole point of the card, so they are
-/// coloured, prefixed and given a tinted container.
-class _LabResultCard extends StatelessWidget {
-  const _LabResultCard({required this.entry});
-
-  final TimelineEntry entry;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final result = entry.result!;
-    final abnormal = result.isAbnormal;
-    final accent = abnormal ? const Color(0xFFC62828) : const Color(0xFF2E7D32);
-
-    final value = [
-      result.textValue ?? result.numericValue?.toString() ?? '—',
-      if (result.unit?.isNotEmpty == true) result.unit!,
-    ].join(' ');
-
-    return _FeedCard(
-      icon: abnormal ? Icons.trending_up : Icons.science_outlined,
-      iconColor: accent,
-      title: result.testName,
-      subtitle: result.referenceRange?.isNotEmpty == true
-          ? 'Ref ${result.referenceRange}'
-          : 'Investigation',
-      trailing: abnormal
-          ? Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-              decoration: BoxDecoration(
-                color: accent.withValues(alpha: 0.14),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Text(
-                'ABNORMAL',
-                style: TextStyle(
-                  fontSize: 9,
-                  fontWeight: FontWeight.w800,
-                  color: accent,
-                  letterSpacing: 0.4,
-                ),
-              ),
-            )
-          : null,
-      children: [
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          decoration: BoxDecoration(
-            color: accent.withValues(alpha: abnormal ? 0.10 : 0.05),
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: accent.withValues(alpha: 0.35)),
-          ),
-          child: Text(
-            value,
-            style: theme.textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w800,
-              color: accent,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-/// Document card for a scanned paper report.
-///
-/// This is the bridge between the physical and digital record: the thumbnail
-/// lets a clinician recognise the page they handed over, and the confidence
-/// score warns when the AI read it poorly.
-class _DocumentCard extends StatelessWidget {
-  const _DocumentCard({required this.entry, required this.patient});
-
-  final TimelineEntry entry;
-
-  /// Needed to file corrections against the right patient in Edit Mode.
-  final Patient patient;
-
-  /// Sprint 14.5 — tapping a saved document re-opens it for correction.
-  ///
-  /// The card opens the review screen in **Edit Mode**, pre-seeded with the
-  /// stored timestamp, transcript and image, so a clinician can correct a
-  /// mistyped detail at any time. A long-press opens the raw scan full-screen
-  /// instead, for reading fine print without entering edit mode.
-  void _openDocument(
-    BuildContext context,
-    DocumentRegistry document,
-    Patient patient,
-  ) {
-    if (document.imagePath.trim().isEmpty) return;
-    AdaptiveReviewScreen.editExisting(
-      context,
-      document: document,
-      patient: patient,
-    );
-  }
-
-  /// Opens the stored scan read-only, full-screen.
-  void _viewScan(BuildContext context, DocumentRegistry document) {
-    if (document.imagePath.trim().isEmpty) return;
-    FullScreenImageViewer.open(
-      context,
-      imagePath: document.imagePath,
-      title: _prettyCategory(document.documentCategory),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final document = entry.document!;
-    final transcript = document.rawOcrTranscript.trim();
-    final lowConfidence = document.confidenceScore < 0.6;
-
-    final summary = transcript.isEmpty
-        ? 'No transcript captured.'
-        : transcript.length > 200
-        ? '${transcript.substring(0, 200)}…'
-        : transcript;
-
-    return _FeedCard(
-      icon: Icons.description_outlined,
-      iconColor: const Color(0xFF6A1B9A),
-      title: _prettyCategory(document.documentCategory),
-      subtitle:
-          'Scanned · ${(document.confidenceScore * 100).round()}% read confidence',
-      trailing: lowConfidence
-          ? Tooltip(
-              message:
-                  'Low extraction confidence — verify against the paper copy',
-              child: Icon(
-                Icons.error_outline,
-                size: 18,
-                color: theme.colorScheme.error,
-              ),
-            )
-          : null,
-      onTap: () => _openDocument(context, document, patient),
-      onLongPress: () => _viewScan(context, document),
-      children: [
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _DocumentThumbnail(path: document.imagePath),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                summary,
-                style: theme.textTheme.bodySmall,
-                maxLines: 4,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  static String _prettyCategory(String raw) {
-    final value = raw.replaceAll(RegExp(r'[_-]+'), ' ').trim();
-    if (value.isEmpty) return 'Clinical document';
-    return value[0].toUpperCase() + value.substring(1);
-  }
-}
-
-/// Small preview of the scanned page. Falls back to an icon when the file has
-/// been cleaned up, so a stale path never breaks the card.
-class _DocumentThumbnail extends StatelessWidget {
-  const _DocumentThumbnail({required this.path});
-
-  final String path;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final placeholder = Container(
-      width: 56,
-      height: 70,
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Icon(
-        Icons.image_not_supported_outlined,
-        size: 20,
-        color: theme.colorScheme.outline,
-      ),
-    );
-
-    if (!File(path).existsSync()) return placeholder;
-
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(8),
-      child: Image.file(
-        File(path),
-        width: 56,
-        height: 70,
-        fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) => placeholder,
-      ),
-    );
-  }
-}
-
-/// Procedure card — an operation or bedside intervention.
-class _ProcedureCard extends StatelessWidget {
-  const _ProcedureCard({required this.entry});
-
-  final TimelineEntry entry;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final intervention = entry.intervention!;
-    final findings = (intervention.operativeFindings ?? '').trim();
-
-    return _FeedCard(
-      icon: Icons.medical_services_outlined,
-      iconColor: const Color(0xFF00838F),
-      title: intervention.procedureName,
-      subtitle: [
-        intervention.interventionRole,
-        if (intervention.codingSystem?.isNotEmpty == true)
-          intervention.codingSystem,
-      ].whereType<String>().join(' · '),
-      children: [
-        if (findings.isNotEmpty)
-          Text(
-            findings,
-            style: theme.textTheme.bodySmall,
-            maxLines: 3,
-            overflow: TextOverflow.ellipsis,
-          ),
-      ],
-    );
-  }
-}
-
-/// Placeholder shown while the bundle loads.
+/// Loading placeholder for the timeline while the bundle resolves.
 class _TimelineSkeleton extends StatelessWidget {
   const _TimelineSkeleton();
 
   @override
   Widget build(BuildContext context) {
-    return const SafeArea(
-      child: Padding(
-        padding: EdgeInsets.all(16),
-        child: Column(
-          children: [
-            _ShimmerBar(height: 92, radius: 14),
-            SizedBox(height: 14),
-            _ShimmerBar(height: 30, radius: 15),
-            SizedBox(height: 16),
-            _ShimmerBar(height: 96, radius: 14),
-            SizedBox(height: 12),
-            _ShimmerBar(height: 96, radius: 14),
-          ],
+    final scheme = Theme.of(context).colorScheme;
+    return ListView.builder(
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 24),
+      itemCount: 5,
+      itemBuilder: (_, _) => Padding(
+        padding: const EdgeInsets.only(bottom: 10),
+        child: Container(
+          height: 92,
+          decoration: BoxDecoration(
+            color: scheme.surfaceContainerHighest,
+            borderRadius: BorderRadius.circular(14),
+          ),
         ),
       ),
     );
   }
 }
 
-class _ShimmerBar extends StatelessWidget {
-  const _ShimmerBar({required this.height, required this.radius});
-
-  final double height;
-  final double radius;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: height,
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(radius),
-      ),
-    );
-  }
-}
-
-/// Load-failure state with a retry, so a transient DB error never leaves the
-/// clinician staring at a blank screen.
+/// Error state for the timeline bundle with a retry affordance.
 class _TimelineError extends StatelessWidget {
-  const _TimelineError({required this.message, required this.onRetry});
+  const _TimelineError({required this.error, required this.onRetry});
 
-  final String message;
+  final Object error;
   final VoidCallback onRetry;
 
   @override
   Widget build(BuildContext context) {
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(24),
+        padding: const EdgeInsets.all(32),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.error_outline, size: 48, color: Colors.red),
+            Icon(
+              Icons.error_outline,
+              size: 44,
+              color: Theme.of(context).colorScheme.error,
+            ),
             const SizedBox(height: 12),
             const Text(
-              'Could not load this timeline.',
-              style: TextStyle(fontWeight: FontWeight.w700),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              message,
+              'Could not load this patient\'s timeline.',
               textAlign: TextAlign.center,
-              maxLines: 4,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              '$error',
+              textAlign: TextAlign.center,
+              maxLines: 3,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontSize: 12, color: Colors.grey),
+              style: Theme.of(context).textTheme.bodySmall,
             ),
             const SizedBox(height: 16),
             FilledButton.icon(
@@ -1081,11 +545,13 @@ class _TimelineError extends StatelessWidget {
   }
 }
 
-/// Shown when the feed has no records — or when a filter hid them all.
 class _EmptyFeed extends StatelessWidget {
-  const _EmptyFeed({required this.hasFilter});
+  const _EmptyFeed({required this.hasFilter, this.message});
 
   final bool hasFilter;
+
+  /// Overrides the default copy, e.g. when the timeline stream itself failed.
+  final String? message;
 
   @override
   Widget build(BuildContext context) {
@@ -1100,9 +566,10 @@ class _EmptyFeed extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           Text(
-            hasFilter
-                ? 'No records for the selected problem.'
-                : 'No history recorded yet.',
+            message ??
+                (hasFilter
+                    ? 'No records for the selected problem.'
+                    : 'No history recorded yet.'),
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.bodyMedium,
           ),

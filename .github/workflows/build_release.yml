@@ -49,11 +49,16 @@ jobs:
       - name: Generate Clinical SQLite Database
         run: python scripts/build_drug_db.py
 
-      - name: Build Release APK
-        run: flutter build apk --release
+      - name: Decode and Setup Keystore
+        run: |
+          echo "${{ secrets.RELEASE_KEYSTORE }}" | base64 --decode > release.keystore
 
       - name: Build Release APK
         run: flutter build apk --release
+        env:
+          SIGNING_KEY_PATH: ../release.keystore
+          SIGNING_KEY_ALIAS: release
+          SIGNING_KEY_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
