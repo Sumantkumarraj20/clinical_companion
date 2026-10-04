@@ -551,7 +551,16 @@ as int?,
 /// @nodoc
 mixin _$AiExtractionResult {
 
-@JsonKey(name: 'patient_identity') PatientIdentity get patientIdentity;@JsonKey(name: 'encounter_context') EncounterContext get encounterContext; AiVitals get vitals;@JsonKey(name: 'medications_ordered') List<OrderedMedication> get medicationsOrdered;@JsonKey(name: 'lab_results') List<AiLabResult> get labResults; String get clinicalSummary;
+@JsonKey(name: 'patient_identity') PatientIdentity get patientIdentity;@JsonKey(name: 'encounter_context') EncounterContext get encounterContext; AiVitals get vitals;@JsonKey(name: 'medications_ordered') List<OrderedMedication> get medicationsOrdered;@JsonKey(name: 'lab_results') List<AiLabResult> get labResults; String get clinicalSummary;/// Verbatim narrative conclusion from the document — the "Conclusion",
+/// "Impression", "Final Remarks" or "Advice" block that pathology,
+/// radiology and discharge summaries carry at the foot of the page.
+///
+/// This is kept separate from [clinicalSummary] because it is the part a
+/// pathologist or radiologist *wrote* for the clinician to read, and losing
+/// it is the single most damaging way OCR can truncate a report: every
+/// numeric value survives but the interpretation does not. Storing it apart
+/// also keeps it editable in review instead of being flattened into prose.
+@JsonKey(name: 'conclusion') String get conclusion;
 /// Create a copy of AiExtractionResult
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -564,16 +573,16 @@ $AiExtractionResultCopyWith<AiExtractionResult> get copyWith => _$AiExtractionRe
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is AiExtractionResult&&(identical(other.patientIdentity, patientIdentity) || other.patientIdentity == patientIdentity)&&(identical(other.encounterContext, encounterContext) || other.encounterContext == encounterContext)&&(identical(other.vitals, vitals) || other.vitals == vitals)&&const DeepCollectionEquality().equals(other.medicationsOrdered, medicationsOrdered)&&const DeepCollectionEquality().equals(other.labResults, labResults)&&(identical(other.clinicalSummary, clinicalSummary) || other.clinicalSummary == clinicalSummary));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is AiExtractionResult&&(identical(other.patientIdentity, patientIdentity) || other.patientIdentity == patientIdentity)&&(identical(other.encounterContext, encounterContext) || other.encounterContext == encounterContext)&&(identical(other.vitals, vitals) || other.vitals == vitals)&&const DeepCollectionEquality().equals(other.medicationsOrdered, medicationsOrdered)&&const DeepCollectionEquality().equals(other.labResults, labResults)&&(identical(other.clinicalSummary, clinicalSummary) || other.clinicalSummary == clinicalSummary)&&(identical(other.conclusion, conclusion) || other.conclusion == conclusion));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,patientIdentity,encounterContext,vitals,const DeepCollectionEquality().hash(medicationsOrdered),const DeepCollectionEquality().hash(labResults),clinicalSummary);
+int get hashCode => Object.hash(runtimeType,patientIdentity,encounterContext,vitals,const DeepCollectionEquality().hash(medicationsOrdered),const DeepCollectionEquality().hash(labResults),clinicalSummary,conclusion);
 
 @override
 String toString() {
-  return 'AiExtractionResult(patientIdentity: $patientIdentity, encounterContext: $encounterContext, vitals: $vitals, medicationsOrdered: $medicationsOrdered, labResults: $labResults, clinicalSummary: $clinicalSummary)';
+  return 'AiExtractionResult(patientIdentity: $patientIdentity, encounterContext: $encounterContext, vitals: $vitals, medicationsOrdered: $medicationsOrdered, labResults: $labResults, clinicalSummary: $clinicalSummary, conclusion: $conclusion)';
 }
 
 
@@ -584,7 +593,7 @@ abstract mixin class $AiExtractionResultCopyWith<$Res>  {
   factory $AiExtractionResultCopyWith(AiExtractionResult value, $Res Function(AiExtractionResult) _then) = _$AiExtractionResultCopyWithImpl;
 @useResult
 $Res call({
-@JsonKey(name: 'patient_identity') PatientIdentity patientIdentity,@JsonKey(name: 'encounter_context') EncounterContext encounterContext, AiVitals vitals,@JsonKey(name: 'medications_ordered') List<OrderedMedication> medicationsOrdered,@JsonKey(name: 'lab_results') List<AiLabResult> labResults, String clinicalSummary
+@JsonKey(name: 'patient_identity') PatientIdentity patientIdentity,@JsonKey(name: 'encounter_context') EncounterContext encounterContext, AiVitals vitals,@JsonKey(name: 'medications_ordered') List<OrderedMedication> medicationsOrdered,@JsonKey(name: 'lab_results') List<AiLabResult> labResults, String clinicalSummary,@JsonKey(name: 'conclusion') String conclusion
 });
 
 
@@ -601,7 +610,7 @@ class _$AiExtractionResultCopyWithImpl<$Res>
 
 /// Create a copy of AiExtractionResult
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? patientIdentity = null,Object? encounterContext = null,Object? vitals = null,Object? medicationsOrdered = null,Object? labResults = null,Object? clinicalSummary = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? patientIdentity = null,Object? encounterContext = null,Object? vitals = null,Object? medicationsOrdered = null,Object? labResults = null,Object? clinicalSummary = null,Object? conclusion = null,}) {
   return _then(AiExtractionResult(
 patientIdentity: null == patientIdentity ? _self.patientIdentity : patientIdentity // ignore: cast_nullable_to_non_nullable
 as PatientIdentity,encounterContext: null == encounterContext ? _self.encounterContext : encounterContext // ignore: cast_nullable_to_non_nullable
@@ -609,6 +618,7 @@ as EncounterContext,vitals: null == vitals ? _self.vitals : vitals // ignore: ca
 as AiVitals,medicationsOrdered: null == medicationsOrdered ? _self.medicationsOrdered : medicationsOrdered // ignore: cast_nullable_to_non_nullable
 as List<OrderedMedication>,labResults: null == labResults ? _self.labResults : labResults // ignore: cast_nullable_to_non_nullable
 as List<AiLabResult>,clinicalSummary: null == clinicalSummary ? _self.clinicalSummary : clinicalSummary // ignore: cast_nullable_to_non_nullable
+as String,conclusion: null == conclusion ? _self.conclusion : conclusion // ignore: cast_nullable_to_non_nullable
 as String,
   ));
 }
@@ -718,10 +728,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function(@JsonKey(name: 'patient_identity')  PatientIdentity patientIdentity, @JsonKey(name: 'encounter_context')  EncounterContext encounterContext,  AiVitals vitals, @JsonKey(name: 'medications_ordered')  List<OrderedMedication> medicationsOrdered, @JsonKey(name: 'lab_results')  List<AiLabResult> labResults,  String clinicalSummary)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function(@JsonKey(name: 'patient_identity')  PatientIdentity patientIdentity, @JsonKey(name: 'encounter_context')  EncounterContext encounterContext,  AiVitals vitals, @JsonKey(name: 'medications_ordered')  List<OrderedMedication> medicationsOrdered, @JsonKey(name: 'lab_results')  List<AiLabResult> labResults,  String clinicalSummary, @JsonKey(name: 'conclusion')  String conclusion)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _AiExtractionResult() when $default != null:
-return $default(_that.patientIdentity,_that.encounterContext,_that.vitals,_that.medicationsOrdered,_that.labResults,_that.clinicalSummary);case _:
+return $default(_that.patientIdentity,_that.encounterContext,_that.vitals,_that.medicationsOrdered,_that.labResults,_that.clinicalSummary,_that.conclusion);case _:
   return orElse();
 
 }
@@ -739,10 +749,10 @@ return $default(_that.patientIdentity,_that.encounterContext,_that.vitals,_that.
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function(@JsonKey(name: 'patient_identity')  PatientIdentity patientIdentity, @JsonKey(name: 'encounter_context')  EncounterContext encounterContext,  AiVitals vitals, @JsonKey(name: 'medications_ordered')  List<OrderedMedication> medicationsOrdered, @JsonKey(name: 'lab_results')  List<AiLabResult> labResults,  String clinicalSummary)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function(@JsonKey(name: 'patient_identity')  PatientIdentity patientIdentity, @JsonKey(name: 'encounter_context')  EncounterContext encounterContext,  AiVitals vitals, @JsonKey(name: 'medications_ordered')  List<OrderedMedication> medicationsOrdered, @JsonKey(name: 'lab_results')  List<AiLabResult> labResults,  String clinicalSummary, @JsonKey(name: 'conclusion')  String conclusion)  $default,) {final _that = this;
 switch (_that) {
 case _AiExtractionResult():
-return $default(_that.patientIdentity,_that.encounterContext,_that.vitals,_that.medicationsOrdered,_that.labResults,_that.clinicalSummary);}
+return $default(_that.patientIdentity,_that.encounterContext,_that.vitals,_that.medicationsOrdered,_that.labResults,_that.clinicalSummary,_that.conclusion);}
 }
 /// A variant of `when` that fallback to returning `null`
 ///
@@ -756,10 +766,10 @@ return $default(_that.patientIdentity,_that.encounterContext,_that.vitals,_that.
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function(@JsonKey(name: 'patient_identity')  PatientIdentity patientIdentity, @JsonKey(name: 'encounter_context')  EncounterContext encounterContext,  AiVitals vitals, @JsonKey(name: 'medications_ordered')  List<OrderedMedication> medicationsOrdered, @JsonKey(name: 'lab_results')  List<AiLabResult> labResults,  String clinicalSummary)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function(@JsonKey(name: 'patient_identity')  PatientIdentity patientIdentity, @JsonKey(name: 'encounter_context')  EncounterContext encounterContext,  AiVitals vitals, @JsonKey(name: 'medications_ordered')  List<OrderedMedication> medicationsOrdered, @JsonKey(name: 'lab_results')  List<AiLabResult> labResults,  String clinicalSummary, @JsonKey(name: 'conclusion')  String conclusion)?  $default,) {final _that = this;
 switch (_that) {
 case _AiExtractionResult() when $default != null:
-return $default(_that.patientIdentity,_that.encounterContext,_that.vitals,_that.medicationsOrdered,_that.labResults,_that.clinicalSummary);case _:
+return $default(_that.patientIdentity,_that.encounterContext,_that.vitals,_that.medicationsOrdered,_that.labResults,_that.clinicalSummary,_that.conclusion);case _:
   return null;
 
 }
@@ -771,7 +781,7 @@ return $default(_that.patientIdentity,_that.encounterContext,_that.vitals,_that.
 @JsonSerializable()
 
 class _AiExtractionResult extends AiExtractionResult {
-  const _AiExtractionResult({@JsonKey(name: 'patient_identity') this.patientIdentity = const PatientIdentity(), @JsonKey(name: 'encounter_context') this.encounterContext = const EncounterContext(), this.vitals = const AiVitals(), @JsonKey(name: 'medications_ordered')  List<OrderedMedication> medicationsOrdered = const <OrderedMedication>[], @JsonKey(name: 'lab_results')  List<AiLabResult> labResults = const <AiLabResult>[], this.clinicalSummary = ''}): _medicationsOrdered = medicationsOrdered,_labResults = labResults,super._();
+  const _AiExtractionResult({@JsonKey(name: 'patient_identity') this.patientIdentity = const PatientIdentity(), @JsonKey(name: 'encounter_context') this.encounterContext = const EncounterContext(), this.vitals = const AiVitals(), @JsonKey(name: 'medications_ordered')  List<OrderedMedication> medicationsOrdered = const <OrderedMedication>[], @JsonKey(name: 'lab_results')  List<AiLabResult> labResults = const <AiLabResult>[], this.clinicalSummary = '', @JsonKey(name: 'conclusion') this.conclusion = ''}): _medicationsOrdered = medicationsOrdered,_labResults = labResults,super._();
   factory _AiExtractionResult.fromJson(Map<String, dynamic> json) => _$AiExtractionResultFromJson(json);
 
 @override@JsonKey(name: 'patient_identity') final  PatientIdentity patientIdentity;
@@ -792,6 +802,16 @@ class _AiExtractionResult extends AiExtractionResult {
 }
 
 @override@JsonKey() final  String clinicalSummary;
+/// Verbatim narrative conclusion from the document — the "Conclusion",
+/// "Impression", "Final Remarks" or "Advice" block that pathology,
+/// radiology and discharge summaries carry at the foot of the page.
+///
+/// This is kept separate from [clinicalSummary] because it is the part a
+/// pathologist or radiologist *wrote* for the clinician to read, and losing
+/// it is the single most damaging way OCR can truncate a report: every
+/// numeric value survives but the interpretation does not. Storing it apart
+/// also keeps it editable in review instead of being flattened into prose.
+@override@JsonKey(name: 'conclusion') final  String conclusion;
 
 /// Create a copy of AiExtractionResult
 /// with the given fields replaced by the non-null parameter values.
@@ -806,16 +826,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _AiExtractionResult&&(identical(other.patientIdentity, patientIdentity) || other.patientIdentity == patientIdentity)&&(identical(other.encounterContext, encounterContext) || other.encounterContext == encounterContext)&&(identical(other.vitals, vitals) || other.vitals == vitals)&&const DeepCollectionEquality().equals(other._medicationsOrdered, _medicationsOrdered)&&const DeepCollectionEquality().equals(other._labResults, _labResults)&&(identical(other.clinicalSummary, clinicalSummary) || other.clinicalSummary == clinicalSummary));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _AiExtractionResult&&(identical(other.patientIdentity, patientIdentity) || other.patientIdentity == patientIdentity)&&(identical(other.encounterContext, encounterContext) || other.encounterContext == encounterContext)&&(identical(other.vitals, vitals) || other.vitals == vitals)&&const DeepCollectionEquality().equals(other._medicationsOrdered, _medicationsOrdered)&&const DeepCollectionEquality().equals(other._labResults, _labResults)&&(identical(other.clinicalSummary, clinicalSummary) || other.clinicalSummary == clinicalSummary)&&(identical(other.conclusion, conclusion) || other.conclusion == conclusion));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,patientIdentity,encounterContext,vitals,const DeepCollectionEquality().hash(_medicationsOrdered),const DeepCollectionEquality().hash(_labResults),clinicalSummary);
+int get hashCode => Object.hash(runtimeType,patientIdentity,encounterContext,vitals,const DeepCollectionEquality().hash(_medicationsOrdered),const DeepCollectionEquality().hash(_labResults),clinicalSummary,conclusion);
 
 @override
 String toString() {
-  return 'AiExtractionResult(patientIdentity: $patientIdentity, encounterContext: $encounterContext, vitals: $vitals, medicationsOrdered: $medicationsOrdered, labResults: $labResults, clinicalSummary: $clinicalSummary)';
+  return 'AiExtractionResult(patientIdentity: $patientIdentity, encounterContext: $encounterContext, vitals: $vitals, medicationsOrdered: $medicationsOrdered, labResults: $labResults, clinicalSummary: $clinicalSummary, conclusion: $conclusion)';
 }
 
 
@@ -826,7 +846,7 @@ abstract mixin class _$AiExtractionResultCopyWith<$Res> implements $AiExtraction
   factory _$AiExtractionResultCopyWith(_AiExtractionResult value, $Res Function(_AiExtractionResult) _then) = __$AiExtractionResultCopyWithImpl;
 @override @useResult
 $Res call({
-@JsonKey(name: 'patient_identity') PatientIdentity patientIdentity,@JsonKey(name: 'encounter_context') EncounterContext encounterContext, AiVitals vitals,@JsonKey(name: 'medications_ordered') List<OrderedMedication> medicationsOrdered,@JsonKey(name: 'lab_results') List<AiLabResult> labResults, String clinicalSummary
+@JsonKey(name: 'patient_identity') PatientIdentity patientIdentity,@JsonKey(name: 'encounter_context') EncounterContext encounterContext, AiVitals vitals,@JsonKey(name: 'medications_ordered') List<OrderedMedication> medicationsOrdered,@JsonKey(name: 'lab_results') List<AiLabResult> labResults, String clinicalSummary,@JsonKey(name: 'conclusion') String conclusion
 });
 
 
@@ -843,7 +863,7 @@ class __$AiExtractionResultCopyWithImpl<$Res>
 
 /// Create a copy of AiExtractionResult
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? patientIdentity = null,Object? encounterContext = null,Object? vitals = null,Object? medicationsOrdered = null,Object? labResults = null,Object? clinicalSummary = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? patientIdentity = null,Object? encounterContext = null,Object? vitals = null,Object? medicationsOrdered = null,Object? labResults = null,Object? clinicalSummary = null,Object? conclusion = null,}) {
   return _then(_AiExtractionResult(
 patientIdentity: null == patientIdentity ? _self.patientIdentity : patientIdentity // ignore: cast_nullable_to_non_nullable
 as PatientIdentity,encounterContext: null == encounterContext ? _self.encounterContext : encounterContext // ignore: cast_nullable_to_non_nullable
@@ -851,6 +871,7 @@ as EncounterContext,vitals: null == vitals ? _self.vitals : vitals // ignore: ca
 as AiVitals,medicationsOrdered: null == medicationsOrdered ? _self._medicationsOrdered : medicationsOrdered // ignore: cast_nullable_to_non_nullable
 as List<OrderedMedication>,labResults: null == labResults ? _self._labResults : labResults // ignore: cast_nullable_to_non_nullable
 as List<AiLabResult>,clinicalSummary: null == clinicalSummary ? _self.clinicalSummary : clinicalSummary // ignore: cast_nullable_to_non_nullable
+as String,conclusion: null == conclusion ? _self.conclusion : conclusion // ignore: cast_nullable_to_non_nullable
 as String,
   ));
 }
@@ -889,7 +910,14 @@ $AiVitalsCopyWith<$Res> get vitals {
 /// @nodoc
 mixin _$PatientIdentity {
 
- String? get name; int? get age; String? get gender;@JsonKey(name: 'hospital_reg_no') String? get hospitalRegNo;
+ String? get name; int? get age; String? get gender;@JsonKey(name: 'hospital_reg_no') String? get hospitalRegNo;/// Sprint 15 — the facility this document was captured at.
+///
+/// Needed because a clinician covering several institutions can scan a
+/// report at hospital B for a patient whose identity record lives at
+/// hospital A. Without this the encounter and its observations are filed
+/// against whichever facility happened to be listed first, silently
+/// corrupting multi-hospital tracking.
+@JsonKey(name: 'hospital_id') String? get hospitalId;
 /// Create a copy of PatientIdentity
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -902,16 +930,16 @@ $PatientIdentityCopyWith<PatientIdentity> get copyWith => _$PatientIdentityCopyW
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is PatientIdentity&&(identical(other.name, name) || other.name == name)&&(identical(other.age, age) || other.age == age)&&(identical(other.gender, gender) || other.gender == gender)&&(identical(other.hospitalRegNo, hospitalRegNo) || other.hospitalRegNo == hospitalRegNo));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is PatientIdentity&&(identical(other.name, name) || other.name == name)&&(identical(other.age, age) || other.age == age)&&(identical(other.gender, gender) || other.gender == gender)&&(identical(other.hospitalRegNo, hospitalRegNo) || other.hospitalRegNo == hospitalRegNo)&&(identical(other.hospitalId, hospitalId) || other.hospitalId == hospitalId));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,name,age,gender,hospitalRegNo);
+int get hashCode => Object.hash(runtimeType,name,age,gender,hospitalRegNo,hospitalId);
 
 @override
 String toString() {
-  return 'PatientIdentity(name: $name, age: $age, gender: $gender, hospitalRegNo: $hospitalRegNo)';
+  return 'PatientIdentity(name: $name, age: $age, gender: $gender, hospitalRegNo: $hospitalRegNo, hospitalId: $hospitalId)';
 }
 
 
@@ -922,7 +950,7 @@ abstract mixin class $PatientIdentityCopyWith<$Res>  {
   factory $PatientIdentityCopyWith(PatientIdentity value, $Res Function(PatientIdentity) _then) = _$PatientIdentityCopyWithImpl;
 @useResult
 $Res call({
- String? name, int? age, String? gender,@JsonKey(name: 'hospital_reg_no') String? hospitalRegNo
+ String? name, int? age, String? gender,@JsonKey(name: 'hospital_reg_no') String? hospitalRegNo,@JsonKey(name: 'hospital_id') String? hospitalId
 });
 
 
@@ -939,12 +967,13 @@ class _$PatientIdentityCopyWithImpl<$Res>
 
 /// Create a copy of PatientIdentity
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? name = freezed,Object? age = freezed,Object? gender = freezed,Object? hospitalRegNo = freezed,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? name = freezed,Object? age = freezed,Object? gender = freezed,Object? hospitalRegNo = freezed,Object? hospitalId = freezed,}) {
   return _then(PatientIdentity(
 name: freezed == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
 as String?,age: freezed == age ? _self.age : age // ignore: cast_nullable_to_non_nullable
 as int?,gender: freezed == gender ? _self.gender : gender // ignore: cast_nullable_to_non_nullable
 as String?,hospitalRegNo: freezed == hospitalRegNo ? _self.hospitalRegNo : hospitalRegNo // ignore: cast_nullable_to_non_nullable
+as String?,hospitalId: freezed == hospitalId ? _self.hospitalId : hospitalId // ignore: cast_nullable_to_non_nullable
 as String?,
   ));
 }
@@ -1027,10 +1056,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String? name,  int? age,  String? gender, @JsonKey(name: 'hospital_reg_no')  String? hospitalRegNo)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String? name,  int? age,  String? gender, @JsonKey(name: 'hospital_reg_no')  String? hospitalRegNo, @JsonKey(name: 'hospital_id')  String? hospitalId)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _PatientIdentity() when $default != null:
-return $default(_that.name,_that.age,_that.gender,_that.hospitalRegNo);case _:
+return $default(_that.name,_that.age,_that.gender,_that.hospitalRegNo,_that.hospitalId);case _:
   return orElse();
 
 }
@@ -1048,10 +1077,10 @@ return $default(_that.name,_that.age,_that.gender,_that.hospitalRegNo);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String? name,  int? age,  String? gender, @JsonKey(name: 'hospital_reg_no')  String? hospitalRegNo)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String? name,  int? age,  String? gender, @JsonKey(name: 'hospital_reg_no')  String? hospitalRegNo, @JsonKey(name: 'hospital_id')  String? hospitalId)  $default,) {final _that = this;
 switch (_that) {
 case _PatientIdentity():
-return $default(_that.name,_that.age,_that.gender,_that.hospitalRegNo);}
+return $default(_that.name,_that.age,_that.gender,_that.hospitalRegNo,_that.hospitalId);}
 }
 /// A variant of `when` that fallback to returning `null`
 ///
@@ -1065,10 +1094,10 @@ return $default(_that.name,_that.age,_that.gender,_that.hospitalRegNo);}
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String? name,  int? age,  String? gender, @JsonKey(name: 'hospital_reg_no')  String? hospitalRegNo)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String? name,  int? age,  String? gender, @JsonKey(name: 'hospital_reg_no')  String? hospitalRegNo, @JsonKey(name: 'hospital_id')  String? hospitalId)?  $default,) {final _that = this;
 switch (_that) {
 case _PatientIdentity() when $default != null:
-return $default(_that.name,_that.age,_that.gender,_that.hospitalRegNo);case _:
+return $default(_that.name,_that.age,_that.gender,_that.hospitalRegNo,_that.hospitalId);case _:
   return null;
 
 }
@@ -1080,13 +1109,21 @@ return $default(_that.name,_that.age,_that.gender,_that.hospitalRegNo);case _:
 @JsonSerializable()
 
 class _PatientIdentity implements PatientIdentity {
-  const _PatientIdentity({this.name, this.age, this.gender, @JsonKey(name: 'hospital_reg_no') this.hospitalRegNo});
+  const _PatientIdentity({this.name, this.age, this.gender, @JsonKey(name: 'hospital_reg_no') this.hospitalRegNo, @JsonKey(name: 'hospital_id') this.hospitalId});
   factory _PatientIdentity.fromJson(Map<String, dynamic> json) => _$PatientIdentityFromJson(json);
 
 @override final  String? name;
 @override final  int? age;
 @override final  String? gender;
 @override@JsonKey(name: 'hospital_reg_no') final  String? hospitalRegNo;
+/// Sprint 15 — the facility this document was captured at.
+///
+/// Needed because a clinician covering several institutions can scan a
+/// report at hospital B for a patient whose identity record lives at
+/// hospital A. Without this the encounter and its observations are filed
+/// against whichever facility happened to be listed first, silently
+/// corrupting multi-hospital tracking.
+@override@JsonKey(name: 'hospital_id') final  String? hospitalId;
 
 /// Create a copy of PatientIdentity
 /// with the given fields replaced by the non-null parameter values.
@@ -1101,16 +1138,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _PatientIdentity&&(identical(other.name, name) || other.name == name)&&(identical(other.age, age) || other.age == age)&&(identical(other.gender, gender) || other.gender == gender)&&(identical(other.hospitalRegNo, hospitalRegNo) || other.hospitalRegNo == hospitalRegNo));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _PatientIdentity&&(identical(other.name, name) || other.name == name)&&(identical(other.age, age) || other.age == age)&&(identical(other.gender, gender) || other.gender == gender)&&(identical(other.hospitalRegNo, hospitalRegNo) || other.hospitalRegNo == hospitalRegNo)&&(identical(other.hospitalId, hospitalId) || other.hospitalId == hospitalId));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,name,age,gender,hospitalRegNo);
+int get hashCode => Object.hash(runtimeType,name,age,gender,hospitalRegNo,hospitalId);
 
 @override
 String toString() {
-  return 'PatientIdentity(name: $name, age: $age, gender: $gender, hospitalRegNo: $hospitalRegNo)';
+  return 'PatientIdentity(name: $name, age: $age, gender: $gender, hospitalRegNo: $hospitalRegNo, hospitalId: $hospitalId)';
 }
 
 
@@ -1121,7 +1158,7 @@ abstract mixin class _$PatientIdentityCopyWith<$Res> implements $PatientIdentity
   factory _$PatientIdentityCopyWith(_PatientIdentity value, $Res Function(_PatientIdentity) _then) = __$PatientIdentityCopyWithImpl;
 @override @useResult
 $Res call({
- String? name, int? age, String? gender,@JsonKey(name: 'hospital_reg_no') String? hospitalRegNo
+ String? name, int? age, String? gender,@JsonKey(name: 'hospital_reg_no') String? hospitalRegNo,@JsonKey(name: 'hospital_id') String? hospitalId
 });
 
 
@@ -1138,12 +1175,13 @@ class __$PatientIdentityCopyWithImpl<$Res>
 
 /// Create a copy of PatientIdentity
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? name = freezed,Object? age = freezed,Object? gender = freezed,Object? hospitalRegNo = freezed,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? name = freezed,Object? age = freezed,Object? gender = freezed,Object? hospitalRegNo = freezed,Object? hospitalId = freezed,}) {
   return _then(_PatientIdentity(
 name: freezed == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
 as String?,age: freezed == age ? _self.age : age // ignore: cast_nullable_to_non_nullable
 as int?,gender: freezed == gender ? _self.gender : gender // ignore: cast_nullable_to_non_nullable
 as String?,hospitalRegNo: freezed == hospitalRegNo ? _self.hospitalRegNo : hospitalRegNo // ignore: cast_nullable_to_non_nullable
+as String?,hospitalId: freezed == hospitalId ? _self.hospitalId : hospitalId // ignore: cast_nullable_to_non_nullable
 as String?,
   ));
 }

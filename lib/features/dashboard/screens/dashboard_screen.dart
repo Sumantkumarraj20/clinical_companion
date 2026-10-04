@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/providers/app_providers.dart';
-import '../widgets/update_progress_sheet.dart';
+import '../widgets/update_download_banner.dart';
 
 /// Sprint 8 — CI/CD & In-App Binary Updates.
 ///
@@ -246,19 +246,26 @@ class _UpdateBannerState extends ConsumerState<_UpdateBanner> {
   bool _dismissed = false;
 
   void _startUpdate(String apkUrl) {
-    // The banner has done its job once the sheet is up; hiding it keeps the
-    // dashboard uncluttered behind the progress sheet.
-    setState(() => _dismissed = true);
-    showInAppUpdateSheet(context, apkUrl);
+    // Sprint 14.5 — no modal. The download now runs in a provider-backed banner
+    // so the clinician can keep working; the banner stays visible with live
+    // progress until the installer launches.
+    ref.read(updateDownloadProvider.notifier).start(apkUrl);
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_dismissed) return const SizedBox.shrink();
-
     // Resolves to null while loading, when up to date, or when the check
-    // failed silently (offline) — the banner simply stays hidden.
+    // failed silently (offline) — the banner simply stays hidden. Once a
+    // download is in flight this renders progress instead of the prompt, so
+    // navigating away and back never loses the running transfer.
     final updateUrl = ref.watch(appUpdateCheckProvider).asData?.value;
+    final downloading = ref.watch(updateDownloadProvider) is UpdateDownloading;
+
+    if (downloading && updateUrl != null) {
+      return UpdateProgressBanner(apkUrl: updateUrl);
+    }
+
+    if (_dismissed) return const SizedBox.shrink();
     if (updateUrl == null) return const SizedBox.shrink();
 
     final colors = Theme.of(context).colorScheme;

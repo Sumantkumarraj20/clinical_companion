@@ -203,6 +203,28 @@ class BatchExtractionNotifier extends Notifier<List<DocumentTask>> {
     return const [];
   }
 
+  /// Sprint 14.5 (Edit Mode) — replaces the queue with a single pre-built
+  /// task and, critically, does **not** kick the extraction pipeline.
+  ///
+  /// [documentedAt] is passed through so the review editor seeds its date/time
+  /// pickers from the document's own timestamp rather than from "now" —
+  /// otherwise simply correcting a typo would silently re-date an old report
+  /// to today, which is the exact bug this whole sprint is fixing.
+  void replaceWithSeed(DocumentTask task, {DateTime? documentedAt}) {
+    state = [task];
+    if (documentedAt != null) _seedDocumentedAt = documentedAt;
+  }
+
+  /// Date the current Edit Mode task represents, consumed once by the review
+  /// screen. Null when the screen is in normal (scan queue) mode.
+  DateTime? takeSeedDocumentedAt() {
+    final value = _seedDocumentedAt;
+    _seedDocumentedAt = null;
+    return value;
+  }
+
+  DateTime? _seedDocumentedAt;
+
   /// Queue up one or more images. Re-adding an identical file path is a no-op
   /// so a double tap on the capture button cannot create duplicate tasks.
   void addFiles(List<File> files) {
@@ -547,6 +569,14 @@ final smartFollowUpsProvider = StreamProvider(
 final pendingNotesProvider = StreamProvider(
   (ref) => ref.watch(clinicalDaoProvider).watchPendingNotes(),
 );
+
+/// Sprint 15 (Phase 2) — the universal patient timeline: five previously
+/// separate stores merged into one reverse-chronological story.
+final unifiedTimelineProvider =
+    StreamProvider.family<List<TimelineEvent>, String>(
+      (ref, patientId) =>
+          ref.watch(clinicalDaoProvider).watchUnifiedTimeline(patientId),
+    );
 
 /// Post-operative day for a single patient. `autoDispose` matters here — the
 /// ward-rounds list can hold dozens of cards, and each should drop its query

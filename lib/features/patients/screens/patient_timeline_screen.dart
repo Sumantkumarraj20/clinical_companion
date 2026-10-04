@@ -8,6 +8,9 @@ import '../../../core/cds/decision_support_engine.dart';
 import '../../../core/database/local_database.dart';
 import '../../../core/providers/app_providers.dart';
 import '../../../core/utils/datetime_utils.dart';
+import '../../ingestion/screens/adaptive_review_screen.dart';
+import '../../ingestion/widgets/full_screen_image_viewer.dart';
+import '../../learning/widgets/reflection_entry_sheet.dart';
 import '../widgets/cohort_tagger.dart';
 import '../widgets/timeline_feed_model.dart';
 
@@ -163,6 +166,7 @@ class _PatientTimelineScreenState extends ConsumerState<PatientTimelineScreen> {
                 return _FeedItem(
                   entry: entry,
                   showDayHeader: previous == null || previous.day != entry.day,
+                  patient: widget.patient,
                 );
               },
             ),
@@ -259,6 +263,26 @@ class _PatientTimelineScreenState extends ConsumerState<PatientTimelineScreen> {
         ),
       ),
       actions: [
+        // Sprint 15 — the private learning loop, surfaced here as well as on
+        // the encounter screen. A reflection is often triggered by reviewing a
+        // patient's whole history, not just the encounter in front of you.
+        IconButton(
+          tooltip: 'Log reflection',
+          icon: const Icon(Icons.psychology_alt_outlined),
+          onPressed: () async {
+            // Captured before the await: using `context` after an async gap is
+            // exactly what the use_build_context_synchronously lint guards.
+            final messenger = ScaffoldMessenger.of(context);
+            final saved = await ReflectionEntrySheet.show(
+              context,
+              patientId: widget.patient.id,
+            );
+            if (!saved || !mounted) return;
+            messenger.showSnackBar(
+              const SnackBar(content: Text('Reflection saved (private)')),
+            );
+          },
+        ),
         IconButton(
           tooltip: 'Problem record',
           icon: const Icon(Icons.assignment_outlined),
@@ -437,10 +461,18 @@ String _formatClock(DateTime time) {
 /// One feed row: an optional day separator plus a kind-specific Material 3
 /// card.
 class _FeedItem extends StatelessWidget {
-  const _FeedItem({required this.entry, required this.showDayHeader});
+  const _FeedItem({
+    required this.entry,
+    required this.showDayHeader,
+    required this.patient,
+  });
 
   final TimelineEntry entry;
   final bool showDayHeader;
+
+  /// Sprint 14.5 — forwarded to document cards so Edit Mode files corrections
+  /// against the right patient.
+  final Patient patient;
 
   @override
   Widget build(BuildContext context) {
@@ -455,7 +487,10 @@ class _FeedItem extends StatelessWidget {
           switch (entry.kind) {
             TimelineEntryKind.encounter => _EncounterCard(entry: entry),
             TimelineEntryKind.labResult => _LabResultCard(entry: entry),
-            TimelineEntryKind.document => _DocumentCard(entry: entry),
+            TimelineEntryKind.document => _DocumentCard(
+              entry: entry,
+              patient: patient,
+            ),
             TimelineEntryKind.procedure => _ProcedureCard(entry: entry),
           },
           const SizedBox(height: 6),
@@ -530,6 +565,8 @@ class _FeedCard extends StatelessWidget {
     required this.title,
     this.trailing,
     this.subtitle,
+    this.onTap,
+    this.onLongPress,
     this.children = const [],
   });
 
@@ -538,6 +575,15 @@ class _FeedCard extends StatelessWidget {
   final String title;
   final String? subtitle;
   final Widget? trailing;
+
+  /// Sprint 14.5 — makes the whole card actionable (e.g. reopening a saved
+  /// document). Null keeps the card inert.
+  final VoidCallback? onTap;
+
+  /// Optional long-press, used here to jump straight to the full-screen scan
+  /// without entering Edit Mode.
+  final VoidCallback? onLongPress;
+
   final List<Widget> children;
 
   @override
@@ -551,51 +597,58 @@ class _FeedCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(14),
         side: BorderSide(color: theme.colorScheme.outlineVariant),
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(6),
-                  decoration: BoxDecoration(
-                    color: iconColor.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(8),
+      child: InkWell(
+        onTap: onTap,
+        onLongPress: onLongPress,
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: iconColor.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(icon, size: 16, color: iconColor),
                   ),
-                  child: Icon(icon, size: 16, color: iconColor),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        title,
-                        style: theme.textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.w700,
-                        ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      if (subtitle != null)
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
                         Text(
-                          subtitle!,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant,
+                          title,
+                          style: theme.textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.w700,
                           ),
-                          maxLines: 1,
+                          maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                         ),
-                    ],
+                        if (subtitle != null)
+                          Text(
+                            subtitle!,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                      ],
+                    ),
                   ),
-                ),
-                if (trailing != null) trailing!,
+                  if (trailing != null) trailing!,
+                ],
+              ),
+              for (final child in children) ...[
+                const SizedBox(height: 8),
+                child,
               ],
-            ),
-            for (final child in children) ...[const SizedBox(height: 8), child],
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -774,9 +827,41 @@ class _LabResultCard extends StatelessWidget {
 /// lets a clinician recognise the page they handed over, and the confidence
 /// score warns when the AI read it poorly.
 class _DocumentCard extends StatelessWidget {
-  const _DocumentCard({required this.entry});
+  const _DocumentCard({required this.entry, required this.patient});
 
   final TimelineEntry entry;
+
+  /// Needed to file corrections against the right patient in Edit Mode.
+  final Patient patient;
+
+  /// Sprint 14.5 — tapping a saved document re-opens it for correction.
+  ///
+  /// The card opens the review screen in **Edit Mode**, pre-seeded with the
+  /// stored timestamp, transcript and image, so a clinician can correct a
+  /// mistyped detail at any time. A long-press opens the raw scan full-screen
+  /// instead, for reading fine print without entering edit mode.
+  void _openDocument(
+    BuildContext context,
+    DocumentRegistry document,
+    Patient patient,
+  ) {
+    if (document.imagePath.trim().isEmpty) return;
+    AdaptiveReviewScreen.editExisting(
+      context,
+      document: document,
+      patient: patient,
+    );
+  }
+
+  /// Opens the stored scan read-only, full-screen.
+  void _viewScan(BuildContext context, DocumentRegistry document) {
+    if (document.imagePath.trim().isEmpty) return;
+    FullScreenImageViewer.open(
+      context,
+      imagePath: document.imagePath,
+      title: _prettyCategory(document.documentCategory),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -808,6 +893,8 @@ class _DocumentCard extends StatelessWidget {
               ),
             )
           : null,
+      onTap: () => _openDocument(context, document, patient),
+      onLongPress: () => _viewScan(context, document),
       children: [
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,

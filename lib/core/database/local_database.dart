@@ -762,6 +762,67 @@ class PersonalWiki extends Table {
   Set<Column<Object>> get primaryKey => {id};
 }
 
+/// Sprint 15 — private clinical reflection, deliberately kept **outside** the
+/// formal medical record.
+///
+/// A clinician's reasoning ("why did I think this was appendicitis rather than
+/// a perforated ulcer, and what would have changed my mind?") is exactly what
+/// makes them better over a career — but it is not part of the patient's chart,
+/// must never be shown to another clinician without consent, and must not be
+/// exported into audit datasets. Hence a separate table rather than a column
+/// on encounters.
+@DataClassName('ClinicalLearningLog')
+class ClinicalLearningLogs extends Table {
+  @override
+  String get tableName => 'clinical_learning_logs';
+
+  TextColumn get id => text().clientDefault(() => _uuid.v4())();
+
+  /// The encounter that prompted the reflection, when there was one. Nullable
+  /// because reflections are often triggered by something seen *after* the
+  /// encounter closed (a result, a readmission, a recall).
+  TextColumn get encounterId => text()
+      .references(ClinicalEncounters, #id, onDelete: KeyAction.setNull)
+      .nullable()();
+
+  TextColumn get patientId =>
+      text().references(Patients, #id, onDelete: KeyAction.cascade)();
+
+  TextColumn get ownerId =>
+      text().withDefault(const Constant('local-practitioner'))();
+
+  /// How confident the clinician felt at the time, 1–10.
+  ///
+  /// Captured *before* the outcome is known, which is what makes it a useful
+  /// calibration signal later. Clamped in the DAO rather than by a CHECK
+  /// constraint so a bad import cannot wedge the insert.
+  IntColumn get diagnosisConfidenceScore =>
+      integer().withDefault(const Constant(5))();
+
+  /// Alternatives seriously considered, free text.
+  TextColumn get differentialDiagnoses =>
+      text().withDefault(const Constant(''))();
+
+  /// The reasoning: what supported the leading diagnosis and what argued
+  /// against it.
+  TextColumn get decisionRationale => text().withDefault(const Constant(''))();
+
+  /// What the clinician would do differently, or what they learned.
+  TextColumn get clinicalTakeaway => text().withDefault(const Constant(''))();
+
+  DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+
+  @override
+  List<Set<Column<Object>>> get uniqueKeys => [
+    // One reflection per encounter; re-submitting updates rather than stacks
+    // duplicates.
+    {id},
+  ];
+}
+
 @DataClassName('SyncQueueEntry')
 class OfflineSyncQueue extends Table {
   @override
@@ -811,6 +872,7 @@ class OfflineSyncQueue extends Table {
     Formulations,
     Brands,
     PersonalWiki,
+    ClinicalLearningLogs,
     OfflineSyncQueue,
     CdssRules,
     AyushmanPackages,
@@ -832,7 +894,7 @@ class AppDatabase extends _$AppDatabase {
     : super(executor ?? openAppDatabaseExecutor());
 
   @override
-  int get schemaVersion => 24;
+  int get schemaVersion => 25;
 
   /// Tables that must exist for the drug catalog and POMR to function.
   ///
@@ -1177,7 +1239,7 @@ class AppDatabase extends _$AppDatabase {
             await m.createTable(brands);
           } catch (_) {}
         }
-      if (from < 23) {
+        if (from < 23) {
           // (placeholder retained so the version chain stays readable)
         }
         if (from < 24) {
@@ -1186,10 +1248,17 @@ class AppDatabase extends _$AppDatabase {
           // signed; a bulk "draft = true" backfill would bury the clinician in
           // already-completed notes.
           try {
-            await m.addColumn(
-              clinicalEncounters,
-              clinicalEncounters.isDraft,
-            );
+            await m.addColumn(clinicalEncounters, clinicalEncounters.isDraft);
+          } catch (_) {}
+        }
+        if (from < 25) {
+          // Sprint 15 — the clinical learning log. Purely additive: a new
+          // table, no ALTER on any existing one, so an interrupted upgrade can
+          // never leave a clinician's patient data half-migrated. Reflections
+          // are the clinician's own private notes, so they are deliberately
+          // NOT enqueued for sync (see ClinicalDao.saveReflection).
+          try {
+            await m.createTable(clinicalLearningLogs);
           } catch (_) {}
         }
       }

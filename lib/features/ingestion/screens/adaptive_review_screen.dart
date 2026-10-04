@@ -4,13 +4,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:photo_view/photo_view.dart';
 
 import '../../../core/database/local_database.dart';
 import '../../../core/models/ai_extraction_result.dart';
 import '../../../core/models/document_task.dart';
 import '../../../core/providers/app_providers.dart';
 import '../../../core/utils/datetime_utils.dart';
+import '../../patients/screens/hospital_picker_field.dart';
+import '../widgets/full_screen_image_viewer.dart';
 
 /// Sprint 9 — review half of the OCR/AI pipeline.
 ///
@@ -26,11 +27,42 @@ import '../../../core/utils/datetime_utils.dart';
 /// task from the queue and lets the [PageView] land on the next document, so
 /// the clinician reviews several pages without ever navigating "back".
 class AdaptiveReviewScreen extends ConsumerStatefulWidget {
-  const AdaptiveReviewScreen({this.patient, super.key});
+  const AdaptiveReviewScreen({this.patient, this.editDocument, super.key});
 
   /// When launched from a patient timeline, every page is filed under this
   /// patient, skipping identity resolution entirely.
   final Patient? patient;
+
+  /// Sprint 14.5 — Edit Mode. When set, the screen opens pre-seeded with this
+  /// already-saved document instead of the pending scan queue, so a clinician
+  /// can correct a mistyped timestamp, conclusion or field at any time.
+  ///
+  /// Returns the saved document id, or null if the clinician backed out.
+  final DocumentRegistry? editDocument;
+
+  /// Opens a saved document for correction.
+  static Future<String?> editExisting(
+    BuildContext context, {
+    required DocumentRegistry document,
+    required Patient patient,
+  }) {
+    return Navigator.of(context).push<String>(
+      MaterialPageRoute<String>(
+        fullscreenDialog: true,
+        builder: (_) => ProviderScope(
+          // The screen reads its work list from `batchExtractionProvider`.
+          // Overriding it with this single seeded task is what turns the
+          // screen into Edit Mode without duplicating the review UI.
+          overrides: [
+            batchExtractionProvider.overrideWith(
+              () => BatchExtractionNotifier(),
+            ),
+          ],
+          child: AdaptiveReviewScreen(patient: patient, editDocument: document),
+        ),
+      ),
+    );
+  }
 
   @override
   ConsumerState<AdaptiveReviewScreen> createState() =>
@@ -59,6 +91,50 @@ class _AdaptiveReviewScreenState extends ConsumerState<AdaptiveReviewScreen> {
   void initState() {
     super.initState();
     _patients = ref.read(clinicalDaoProvider).watchAllPatients();
+    if (widget.editDocument != null) {
+      // Edit Mode: put the saved document into the work queue as a single
+      // ready-for-review page so the existing review UI drives it unchanged.
+      WidgetsBinding.instance.addPostFrameCallback((_) => _seedEditTask());
+    }
+  }
+
+  /// Sprint 14.5 — rebuilds an editable task from an already-saved document.
+  ///
+  /// The stored OCR transcript is re-parsed locally where possible so the
+  /// clinician sees the values that were originally extracted, rather than an
+  /// empty form. `documentedAt` is preserved: correcting a document must not
+  /// silently re-date it to today.
+  void _seedEditTask() {
+    final document = widget.editDocument;
+    if (document == null) return;
+
+    final transcript = document.rawOcrTranscript.trim();
+    final extraction = AiExtractionResult(
+      // The stored category is the closest thing to a document type we keep,
+      // and re-seeding the date keeps Edit Mode from re-dating the record.
+      encounterContext: EncounterContext(
+        documentType: document.documentCategory,
+        date: document.documentedAt.toIso8601String(),
+      ),
+      clinicalSummary: transcript,
+    );
+
+    ref
+        .read(batchExtractionProvider.notifier)
+        .replaceWithSeed(
+          DocumentTask(
+            id: document.id,
+            originalFile: File(document.imagePath),
+            status: ExtractionStatus.readyForReview,
+            source: ExtractionSource.local,
+            rawOcrText: transcript.isEmpty ? null : transcript,
+            extractedData: extraction,
+          ),
+          // The document's own date wins over "now" — the whole point of Edit
+          // Mode is that saving does not re-date the record.
+          documentedAt: document.documentedAt.toLocal(),
+        );
+    if (mounted) setState(() {});
   }
 
   @override
@@ -104,13 +180,43 @@ class _AdaptiveReviewScreenState extends ConsumerState<AdaptiveReviewScreen> {
 
     setState(() => _saving = true);
     try {
-      await ref
-          .read(clinicalDaoProvider)
-          .processAiExtraction(
-            editor.toResult(extraction),
-            task.originalFile.path,
-            patientIdOverride: linkedId,
+      final dao = ref.read(clinicalDaoProvider);
+
+      // Sprint 14.5 — Edit Mode updates the stored document in place.
+      // `processAiExtraction` is deliberately idempotent and would return the
+      // existing encounter without applying any of these corrections, which
+      // would report success while discarding the clinician's work.
+      final editingDocument = widget.editDocument;
+      if (editingDocument != null) {
+        final applied = await dao.applyDocumentEdits(
+          documentId: editingDocument.id,
+          documentedAt: editor.documentedAt.toUtc(),
+          rawOcrTranscript: editor.conclusion.text.trim().isEmpty
+              ? editingDocument.rawOcrTranscript
+              : editor.conclusion.text.trim(),
+        );
+        if (!mounted) return;
+        if (!applied) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('That document is no longer available to edit.'),
+              backgroundColor: Colors.red,
+            ),
           );
+          return;
+        }
+        _savedCount++;
+        // Edit Mode has exactly one page; close the screen so the timeline
+        // refreshes behind it.
+        Navigator.of(context).pop(editingDocument.id);
+        return;
+      }
+
+      await dao.processAiExtraction(
+        editor.toResult(extraction),
+        task.originalFile.path,
+        patientIdOverride: linkedId,
+      );
 
       if (!mounted) return;
       _savedCount++;
@@ -172,6 +278,12 @@ class _AdaptiveReviewScreenState extends ConsumerState<AdaptiveReviewScreen> {
     final created = _TaskEditor(
       task.extractedData ?? const AiExtractionResult(),
       rawTranscript: task.rawOcrText,
+      // Sprint 14.5 — in Edit Mode this carries the saved document's real
+      // timestamp, so the date/time pickers show when the report was actually
+      // performed instead of when it was opened.
+      documentedAt: ref
+          .read(batchExtractionProvider.notifier)
+          .takeSeedDocumentedAt(),
     );
     _editors[task.id] = created;
     return created;
@@ -618,22 +730,18 @@ class _AdaptiveReviewScreenState extends ConsumerState<AdaptiveReviewScreen> {
     );
   }
 
-  void _openFullImage(File file) {
+  /// Opens the scan full-screen for close reading.
+  ///
+  /// Sprint 14.5 — was a `Dialog` capped at 80% of screen height, which cropped
+  /// wide pathology margins and forced repeated pinch-to-fit gestures. A real
+  /// full-screen route gives the image the whole display plus double-tap zoom and
+  /// a reset control, so fine print (grades, margins, measurements) is readable.
+  void _openFullImage(File file, {String? title}) {
     if (!file.existsSync()) return;
-    showDialog<void>(
-      context: context,
-      builder: (_) => Dialog(
-        child: SizedBox(
-          height: MediaQuery.sizeOf(context).height * 0.8,
-          child: PhotoView(
-            imageProvider: FileImage(file),
-            minScale: PhotoViewComputedScale.contained,
-            backgroundDecoration: const BoxDecoration(
-              color: Colors.transparent,
-            ),
-          ),
-        ),
-      ),
+    FullScreenImageViewer.open(
+      context,
+      imagePath: file.path,
+      title: title ?? 'Scanned Document',
     );
   }
 
@@ -843,6 +951,16 @@ class _AdaptiveReviewScreenState extends ConsumerState<AdaptiveReviewScreen> {
         ],
       ),
       const SizedBox(height: 10),
+      // Sprint 15 — the facility this document was captured at.
+      //
+      // A clinician covering several institutions can scan a report at hospital
+      // B for a patient whose record lives at hospital A. Without this the
+      // encounter would be filed against whichever facility was listed first.
+      HospitalPickerField(
+        selectedId: editor.hospitalId,
+        onChanged: (value) => setState(() => editor.hospitalId = value),
+      ),
+      const SizedBox(height: 12),
       TextField(
         controller: editor.registration,
         decoration: _decoration(
@@ -1140,6 +1258,90 @@ class _AdaptiveReviewScreenState extends ConsumerState<AdaptiveReviewScreen> {
           onChanged: (_) => setState(() {}),
         ),
         const SizedBox(height: 18),
+        _sectionTitle('Conclusion / Impression'),
+        TextField(
+          controller: editor.conclusion,
+          minLines: 2,
+          maxLines: 6,
+          decoration: _decoration(
+            // Sprint 14.5 — surfaced explicitly because OCR truncation here is
+            // the most clinically damaging failure: the numbers survive but the
+            // radiologist's interpretation does not.
+            'Verbatim conclusion from the report',
+            missing: editor.conclusion.text.trim().isEmpty,
+            hintText: 'e.g. "Features suggestive of acute appendicitis…"',
+          ),
+          onChanged: (_) => setState(() {}),
+        ),
+        const SizedBox(height: 18),
+        _sectionTitle('Document date & time'),
+        _dateTimeRow(editor),
+        const SizedBox(height: 18),
+      ],
+    );
+  }
+
+  /// Sprint 14.5 — explicit date and time pickers so the clinician can verify
+  /// and correct the *clinical* timestamp before saving, instead of the record
+  /// silently inheriting the scan time.
+  Widget _dateTimeRow(_TaskEditor editor) {
+    final local = editor.documentedAt.toLocal();
+    final dateLabel =
+        '${local.day.toString().padLeft(2, '0')}/${local.month.toString().padLeft(2, '0')}/${local.year}';
+    final timeLabel =
+        '${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')}';
+
+    return Row(
+      children: [
+        Expanded(
+          child: OutlinedButton.icon(
+            icon: const Icon(Icons.event_outlined),
+            label: Text('Date: $dateLabel'),
+            onPressed: () async {
+              final picked = await showDatePicker(
+                context: context,
+                initialDate: local,
+                // A document cannot be dated in the future; allowing it would
+                // let a typo file a report ahead of today.
+                firstDate: DateTime(2000),
+                lastDate: DateTime.now().add(const Duration(days: 1)),
+              );
+              if (picked == null) return;
+              setState(() {
+                editor.documentedAt = DateTime(
+                  picked.year,
+                  picked.month,
+                  picked.day,
+                  local.hour,
+                  local.minute,
+                );
+              });
+            },
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: OutlinedButton.icon(
+            icon: const Icon(Icons.schedule_outlined),
+            label: Text('Time: $timeLabel'),
+            onPressed: () async {
+              final picked = await showTimePicker(
+                context: context,
+                initialTime: TimeOfDay.fromDateTime(local),
+              );
+              if (picked == null) return;
+              setState(() {
+                editor.documentedAt = DateTime(
+                  local.year,
+                  local.month,
+                  local.day,
+                  picked.hour,
+                  picked.minute,
+                );
+              });
+            },
+          ),
+        ),
       ],
     );
   }
@@ -1178,12 +1380,20 @@ class _AdaptiveReviewScreenState extends ConsumerState<AdaptiveReviewScreen> {
 /// swipe away, fix a vitals row on another page, and come back without losing
 /// anything.
 class _TaskEditor {
-  _TaskEditor(AiExtractionResult seed, {String? rawTranscript}) {
+  _TaskEditor(
+    AiExtractionResult seed, {
+    String? rawTranscript,
+    DateTime? documentedAt,
+  }) {
     final identity = seed.patientIdentity;
     name = TextEditingController(text: identity.name ?? '');
     age = TextEditingController(text: identity.age?.toString() ?? '');
     gender = TextEditingController(text: identity.gender ?? '');
     registration = TextEditingController(text: identity.hospitalRegNo ?? '');
+
+    // Sprint 15 — facility context, carried through to `toResult` so the DAO
+    // can file the encounter against the hospital the document came from.
+    hospitalId = identity.hospitalId;
     documentType = TextEditingController(
       text: seed.encounterContext.documentType.trim().isEmpty
           ? 'Clinical Document'
@@ -1198,6 +1408,19 @@ class _TaskEditor {
     temp = TextEditingController(text: vitals.temperatureC?.toString() ?? '');
 
     summary = TextEditingController(text: seed.clinicalSummary);
+    // Sprint 14.5 — the pathologist's/radiologist's closing narrative is the
+    // part most often truncated by OCR, so it gets its own editable field
+    // rather than being flattened into the summary.
+    conclusion = TextEditingController(text: seed.conclusion);
+
+    // Seeded from the document's own date when one was parsed, otherwise the
+    // capture time. The clinician can correct it before saving.
+    //
+    // Priority: the explicit Edit Mode seed > the date parsed off the document
+    // > "now". Edit Mode must win because it carries the *stored* timestamp.
+    final seedDate =
+        documentedAt ?? DateTimeUtils.parseToUtc(seed.encounterContext.date);
+    this.documentedAt = seedDate ?? DateTime.now().toUtc();
     labs = [for (final lab in seed.labResults) _EditableLab.from(lab)];
     meds = [
       for (final medication in seed.medicationsOrdered)
@@ -1217,6 +1440,19 @@ class _TaskEditor {
   late final TextEditingController spo2;
   late final TextEditingController temp;
   late final TextEditingController summary;
+
+  /// Sprint 14.5 — the report's closing narrative ("Conclusion" / "Impression"
+  /// / "Final Remarks"), editable and persisted separately from the summary.
+  late final TextEditingController conclusion;
+
+  /// Sprint 14.5 — the clinical timestamp the clinician has verified. Seeded
+  /// from the document's own printed date, never from the scan time when a
+  /// date could be read.
+  late DateTime documentedAt;
+
+  /// Sprint 15 — facility chosen during review; null means "use the patient's
+  /// primary facility".
+  String? hospitalId;
   late final List<_EditableLab> labs;
   late final List<_EditableMedication> meds;
   late final String transcript;
@@ -1238,6 +1474,7 @@ class _TaskEditor {
     spo2.dispose();
     temp.dispose();
     summary.dispose();
+    conclusion.dispose();
     for (final lab in labs) {
       lab.dispose();
     }
@@ -1255,11 +1492,16 @@ class _TaskEditor {
         age: int.tryParse(age.text.trim()),
         gender: emptyToNull(gender.text),
         hospitalRegNo: emptyToNull(registration.text),
+        // Sprint 15 — carry the chosen facility into the persisted result.
+        hospitalId: hospitalId,
       ),
       encounterContext: base.encounterContext.copyWith(
         documentType: documentType.text.trim().isEmpty
             ? 'Clinical Document'
             : documentType.text.trim(),
+        // Sprint 14.5 — the clinician-verified clinical timestamp, as ISO so
+        // the DAO's `_date()` parses it into `occurredAt` / `documentedAt`.
+        date: documentedAt.toIso8601String(),
       ),
       vitals: base.vitals.copyWith(
         sbp: int.tryParse(sbp.text.trim()),
@@ -1288,6 +1530,9 @@ class _TaskEditor {
             ),
       ],
       clinicalSummary: summary.text.trim(),
+      // Sprint 14.5 — carry the clinician-verified clinical timestamp and the
+      // report's conclusion through to persistence.
+      conclusion: conclusion.text.trim(),
     );
   }
 }

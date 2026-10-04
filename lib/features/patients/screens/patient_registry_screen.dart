@@ -8,6 +8,7 @@ import '../../../core/database/local_database.dart';
 import '../../../core/providers/app_providers.dart';
 import '../../../core/utils/datetime_utils.dart';
 import '../widgets/cohort_tagger.dart';
+import 'hospital_picker_field.dart';
 
 class PatientRegistryScreen extends ConsumerStatefulWidget {
   const PatientRegistryScreen({this.selectForOpd = false, super.key});
@@ -300,10 +301,12 @@ class _PatientRegistryScreenState extends ConsumerState<PatientRegistryScreen> {
     WidgetRef ref, {
     Patient? patient,
   }) async {
-    final saved = await showDialog<Patient>(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => _PatientEditor(patient: patient),
+    // Sprint 14.5 — pushed as a full-screen route, not a modal dialog.
+    final saved = await Navigator.of(context).push<Patient>(
+      MaterialPageRoute<Patient>(
+        fullscreenDialog: true,
+        builder: (_) => _PatientEditor(patient: patient),
+      ),
     );
     if (saved != null && context.mounted) {
       if (widget.selectForOpd) {
@@ -550,7 +553,6 @@ class _PatientEditorState extends ConsumerState<_PatientEditor> {
 
   String? _gender;
   String? _selectedHospitalId;
-  List<Hospital> _hospitals = [];
   bool _saving = false;
   bool _loadingInitial = true;
 
@@ -567,15 +569,11 @@ class _PatientEditorState extends ConsumerState<_PatientEditor> {
       dao.hospitals,
     )..where((t) => t.isActive.equals(true))).get();
 
-    String defaultHospId;
-    if (hospitalList.isEmpty) {
-      defaultHospId = await dao.ensureDefaultHospitalId();
-      final fresh = await (dao.select(dao.hospitals)).get();
-      _hospitals = fresh;
-    } else {
-      _hospitals = hospitalList;
-      defaultHospId = hospitalList.first.id;
-    }
+    // Sprint 14.5 — [HospitalPickerField] owns the hospital list and can add
+    // new facilities inline, so the editor only needs a sensible default.
+    final defaultHospId = hospitalList.isEmpty
+        ? await dao.ensureDefaultHospitalId()
+        : hospitalList.first.id;
 
     _selectedHospitalId = defaultHospId;
 
@@ -619,269 +617,271 @@ class _PatientEditorState extends ConsumerState<_PatientEditor> {
   Widget build(BuildContext context) {
     final isNew = widget.patient == null;
 
-    return AlertDialog(
-      title: Text(isNew ? 'New Patient Profile' : 'Edit Demographics'),
-      content: _loadingInitial
-          ? const SizedBox(
-              height: 180,
-              child: Center(child: CircularProgressIndicator()),
-            )
-          : SizedBox(
-              width: 540,
-              child: Form(
-                key: _formKey,
-                child: SingleChildScrollView(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // ======== SECTION: Local Hospital MRN ========
-                      // Facility-scoped identifier: belongs to the hospital,
-                      // not to the global patient profile below.
-                      Text(
-                        'Local Hospital MRN',
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.bold,
-                          color: Theme.of(
-                            context,
-                          ).colorScheme.primary.withValues(alpha: 0.8),
-                        ),
+    // Sprint 14.5 — the editor is presented as a full-screen Scaffold rather than
+    // a modal AlertDialog. The dialog's backdrop rendered as a black sheet and
+    // its lower fields were clipped off-screen with the keyboard covering the
+    // rest. A Scaffold gives a scrolling body plus a keyboard-aware action bar,
+    // so every field stays reachable while typing on a ward phone.
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(isNew ? 'New Patient Profile' : 'Edit Demographics'),
+      ),
+      // Rides above the soft keyboard; the body scrolls beneath it.
+      bottomNavigationBar: _loadingInitial
+          ? null
+          : SafeArea(
+              minimum: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: _saving
+                          ? null
+                          : () => Navigator.pop(context, null),
+                      child: const Text('Cancel'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    flex: 2,
+                    child: FilledButton(
+                      onPressed: _saving ? null : _save,
+                      child: Text(_saving ? 'Saving…' : 'Save Patient Profile'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+      body: _loadingInitial
+          ? const Center(child: CircularProgressIndicator())
+          : Form(
+              key: _formKey,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // ======== SECTION: Local Hospital MRN ========
+                    // Facility-scoped identifier: belongs to the hospital,
+                    // not to the global patient profile below.
+                    Text(
+                      'Local Hospital MRN',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.primary.withValues(alpha: 0.8),
                       ),
-                      const SizedBox(height: 8),
+                    ),
+                    const SizedBox(height: 8),
 
-                      // A vertical layout keeps labels and values legible on
-                      // narrow ward phones and avoids clamped dialog fields.
-                      DropdownButtonFormField<String>(
-                        initialValue: _selectedHospitalId,
-                        isExpanded: true,
+                    // A vertical layout keeps labels and values legible on
+                    // narrow ward phones and avoids clamped dialog fields.
+                    // Sprint 14.5 — the shared picker supports registering a new facility
+                    // inline, which a plain dropdown could not.
+                    HospitalPickerField(
+                      selectedId: _selectedHospitalId,
+                      onChanged: (val) =>
+                          setState(() => _selectedHospitalId = val),
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: _regNo,
+                      decoration: const InputDecoration(
+                        labelText: 'MRN / CR No.',
+                        prefixIcon: Icon(Icons.badge_outlined),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // ======== SECTION: Inpatient Location ========
+                    // Deliberately opt-in: leaving the switch off means this
+                    // is an OPD contact and no `admissions` row is created.
+                    SwitchListTile.adaptive(
+                      contentPadding: EdgeInsets.zero,
+                      dense: true,
+                      value: _isAdmitted,
+                      onChanged: (value) => setState(() => _isAdmitted = value),
+                      title: const Text(
+                        'Currently admitted (inpatient)',
+                        style: TextStyle(fontSize: 14),
+                      ),
+                      subtitle: const Text(
+                        'Adds this patient to the ward bed board',
+                        style: TextStyle(fontSize: 12),
+                      ),
+                    ),
+                    if (_isAdmitted) ...[
+                      // Vertical stack keeps both fields legible on narrow
+                      // ward phones instead of clamping them side by side.
+                      TextFormField(
+                        controller: _ward,
                         decoration: const InputDecoration(
-                          labelText: 'Hospital / Clinic',
-                          prefixIcon: Icon(Icons.local_hospital_outlined),
+                          labelText: 'Ward / Unit',
+                          prefixIcon: Icon(Icons.apartment_outlined),
+                          isDense: true,
                         ),
-                        items: _hospitals.map((h) {
-                          return DropdownMenuItem(
-                            value: h.id,
-                            child: Text(
-                              h.name,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          );
-                        }).toList(),
-                        onChanged: (val) =>
-                            setState(() => _selectedHospitalId = val),
                       ),
                       const SizedBox(height: 12),
                       TextFormField(
-                        controller: _regNo,
+                        controller: _bed,
                         decoration: const InputDecoration(
-                          labelText: 'MRN / CR No.',
-                          prefixIcon: Icon(Icons.badge_outlined),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-
-                      // ======== SECTION: Inpatient Location ========
-                      // Deliberately opt-in: leaving the switch off means this
-                      // is an OPD contact and no `admissions` row is created.
-                      SwitchListTile.adaptive(
-                        contentPadding: EdgeInsets.zero,
-                        dense: true,
-                        value: _isAdmitted,
-                        onChanged: (value) =>
-                            setState(() => _isAdmitted = value),
-                        title: const Text(
-                          'Currently admitted (inpatient)',
-                          style: TextStyle(fontSize: 14),
-                        ),
-                        subtitle: const Text(
-                          'Adds this patient to the ward bed board',
-                          style: TextStyle(fontSize: 12),
-                        ),
-                      ),
-                      if (_isAdmitted) ...[
-                        // Vertical stack keeps both fields legible on narrow
-                        // ward phones instead of clamping them side by side.
-                        TextFormField(
-                          controller: _ward,
-                          decoration: const InputDecoration(
-                            labelText: 'Ward / Unit',
-                            prefixIcon: Icon(Icons.apartment_outlined),
-                            isDense: true,
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        TextFormField(
-                          controller: _bed,
-                          decoration: const InputDecoration(
-                            labelText: 'Bed No.',
-                            prefixIcon: Icon(Icons.bed_outlined),
-                            isDense: true,
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                      ],
-
-                      // ======== SECTION: Global Patient Info ========
-                      Text(
-                        'Global Patient Info',
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.bold,
-                          color: Theme.of(
-                            context,
-                          ).colorScheme.primary.withValues(alpha: 0.8),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-
-                      // Full Name
-                      TextFormField(
-                        controller: _name,
-                        decoration: const InputDecoration(
-                          labelText: 'Full Name *',
-                          prefixIcon: Icon(Icons.person_outline),
+                          labelText: 'Bed No.',
+                          prefixIcon: Icon(Icons.bed_outlined),
                           isDense: true,
                         ),
-                        validator: (v) =>
-                            v == null || v.trim().isEmpty ? 'Required' : null,
                       ),
                       const SizedBox(height: 16),
-
-                      // Age & Gender Row
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        children: [
-                          Expanded(
-                            flex: 2,
-                            child: TextFormField(
-                              controller: _age,
-                              keyboardType: TextInputType.number,
-                              decoration: const InputDecoration(
-                                labelText: 'Approx. Age (Years)',
-                                prefixIcon: Icon(Icons.cake_outlined),
-                                isDense: true,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            flex: 3,
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text(
-                                  'Gender',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: Colors.grey,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Row(
-                                  children: [
-                                    _genderChip('Male'),
-                                    const SizedBox(width: 6),
-                                    _genderChip('Female'),
-                                    const SizedBox(width: 6),
-                                    _genderChip('Other'),
-                                  ],
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-
-                      // Phone & Anthropometrics — baseline contact + dose math
-                      Row(
-                        children: [
-                          Expanded(
-                            flex: 2,
-                            child: TextFormField(
-                              controller: _phone,
-                              keyboardType: TextInputType.phone,
-                              decoration: const InputDecoration(
-                                labelText: 'Phone',
-                                prefixIcon: Icon(Icons.phone_outlined),
-                                isDense: true,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: TextFormField(
-                              controller: _heightCm,
-                              keyboardType:
-                                  const TextInputType.numberWithOptions(
-                                    decimal: true,
-                                  ),
-                              decoration: const InputDecoration(
-                                labelText: 'Height (cm)',
-                                isDense: true,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: TextFormField(
-                              controller: _weightKg,
-                              keyboardType:
-                                  const TextInputType.numberWithOptions(
-                                    decimal: true,
-                                  ),
-                              decoration: const InputDecoration(
-                                labelText: 'Weight (kg)',
-                                isDense: true,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-
-                      // Residence / Area & Occupation
-                      Row(
-                        children: [
-                          Expanded(
-                            child: TextFormField(
-                              controller: _residence,
-                              decoration: const InputDecoration(
-                                labelText: 'Residence / District / Village',
-                                prefixIcon: Icon(Icons.location_on_outlined),
-                                isDense: true,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: TextFormField(
-                              controller: _occupation,
-                              decoration: const InputDecoration(
-                                labelText: 'Occupation',
-                                prefixIcon: Icon(Icons.work_outline),
-                                isDense: true,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
                     ],
-                  ),
+
+                    // ======== SECTION: Global Patient Info ========
+                    Text(
+                      'Global Patient Info',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.primary.withValues(alpha: 0.8),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+
+                    // Full Name
+                    TextFormField(
+                      controller: _name,
+                      decoration: const InputDecoration(
+                        labelText: 'Full Name *',
+                        prefixIcon: Icon(Icons.person_outline),
+                        isDense: true,
+                      ),
+                      validator: (v) =>
+                          v == null || v.trim().isEmpty ? 'Required' : null,
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Age & Gender Row
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Expanded(
+                          flex: 2,
+                          child: TextFormField(
+                            controller: _age,
+                            keyboardType: TextInputType.number,
+                            decoration: const InputDecoration(
+                              labelText: 'Approx. Age (Years)',
+                              prefixIcon: Icon(Icons.cake_outlined),
+                              isDense: true,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          flex: 3,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Gender',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Row(
+                                children: [
+                                  _genderChip('Male'),
+                                  const SizedBox(width: 6),
+                                  _genderChip('Female'),
+                                  const SizedBox(width: 6),
+                                  _genderChip('Other'),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Phone & Anthropometrics — baseline contact + dose math
+                    Row(
+                      children: [
+                        Expanded(
+                          flex: 2,
+                          child: TextFormField(
+                            controller: _phone,
+                            keyboardType: TextInputType.phone,
+                            decoration: const InputDecoration(
+                              labelText: 'Phone',
+                              prefixIcon: Icon(Icons.phone_outlined),
+                              isDense: true,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: TextFormField(
+                            controller: _heightCm,
+                            keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true,
+                            ),
+                            decoration: const InputDecoration(
+                              labelText: 'Height (cm)',
+                              isDense: true,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: TextFormField(
+                            controller: _weightKg,
+                            keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true,
+                            ),
+                            decoration: const InputDecoration(
+                              labelText: 'Weight (kg)',
+                              isDense: true,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Residence / Area & Occupation
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextFormField(
+                            controller: _residence,
+                            decoration: const InputDecoration(
+                              labelText: 'Residence / District / Village',
+                              prefixIcon: Icon(Icons.location_on_outlined),
+                              isDense: true,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: TextFormField(
+                            controller: _occupation,
+                            decoration: const InputDecoration(
+                              labelText: 'Occupation',
+                              prefixIcon: Icon(Icons.work_outline),
+                              isDense: true,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
               ),
             ),
-      actions: [
-        TextButton(
-          onPressed: _saving ? null : () => Navigator.pop(context, false),
-          child: const Text('Cancel'),
-        ),
-        FilledButton(
-          onPressed: _saving ? null : _save,
-          child: Text(_saving ? 'Saving…' : 'Save Patient Profile'),
-        ),
-      ],
     );
   }
 

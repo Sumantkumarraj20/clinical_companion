@@ -41,6 +41,8 @@ mixin _$ClinicalDaoMixin on DatabaseAccessor<AppDatabase> {
   $ClinicalObservationsTable get clinicalObservations =>
       attachedDatabase.clinicalObservations;
   $AdmissionsTable get admissions => attachedDatabase.admissions;
+  $ClinicalLearningLogsTable get clinicalLearningLogs =>
+      attachedDatabase.clinicalLearningLogs;
   ClinicalDaoManager get managers => ClinicalDaoManager(this);
 }
 
@@ -141,4 +143,9 @@ class ClinicalDaoManager {
       );
   $$AdmissionsTableTableManager get admissions =>
       $$AdmissionsTableTableManager(_db.attachedDatabase, _db.admissions);
+  $$ClinicalLearningLogsTableTableManager get clinicalLearningLogs =>
+      $$ClinicalLearningLogsTableTableManager(
+        _db.attachedDatabase,
+        _db.clinicalLearningLogs,
+      );
 }

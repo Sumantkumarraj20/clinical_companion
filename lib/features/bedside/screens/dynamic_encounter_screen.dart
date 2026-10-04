@@ -13,6 +13,7 @@ import 'encounter_ipd_sections.dart';
 import 'encounter_opd_sections.dart';
 import 'encounter_orders_section.dart';
 import 'encounter_sections.dart' show EncounterCdssBanners;
+import '../../learning/widgets/reflection_entry_sheet.dart';
 
 class DynamicEncounterScreen extends ConsumerStatefulWidget {
   const DynamicEncounterScreen({required this.patient, super.key});
@@ -454,6 +455,26 @@ class _DynamicEncounterScreenState
               ? 'Clinical Encounter'
               : '$department Encounter',
         ),
+      ),
+      // Sprint 15 — the private learning loop. Placed at the end of the
+      // consultation, which is the only moment the clinician actually knows how
+      // confident they were and what they weighed.
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () async {
+          // Captured before the await: using `context` after an async gap is
+          // exactly what the use_build_context_synchronously lint guards.
+          final messenger = ScaffoldMessenger.of(context);
+          final saved = await ReflectionEntrySheet.show(
+            context,
+            patientId: widget.patient.id,
+          );
+          if (!saved || !mounted) return;
+          messenger.showSnackBar(
+            const SnackBar(content: Text('Reflection saved (private)')),
+          );
+        },
+        icon: const Icon(Icons.psychology_alt_outlined),
+        label: const Text('Log Reflection'),
       ),
       body: Form(
         key: _formKey,

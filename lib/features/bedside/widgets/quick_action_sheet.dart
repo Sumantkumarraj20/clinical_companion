@@ -179,10 +179,12 @@ class QuickActionSheet extends StatelessWidget {
             const SizedBox(height: 10),
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
-              // Wider, shorter tiles: these are shortcuts, not primary actions.
-              // The ratio is kept tall enough that the icon and label still fit
-              // at 2 lines on a 320dp phone; the card drops the caption itself.
-              child: _ActionGrid(actions: secondary, aspectRatio: 1.6),
+              // Wider tiles: these are shortcuts, not primary actions.
+              // Sprint 14.5 — the ratio was 2.1, which made these cells ~75dp
+              // tall. That forced the card into its compact mode and dropped
+              // the captions, leaving the section looking like a row of bare
+              // icons. 1.0 restores label AND caption at 320dp.
+              child: _ActionGrid(actions: secondary, aspectRatio: 1.0),
             ),
           ],
         ),
@@ -231,7 +233,10 @@ class _ActionCard extends StatelessWidget {
     // and drops the caption when there is genuinely no room for it.
     return LayoutBuilder(
       builder: (context, constraints) {
-        final compact = constraints.maxHeight < 130;
+        // Icon (42) + gap (10) + 2-line label (~34) + 2 + 1-line caption (~14)
+        // plus 28 of padding is ~130dp. Below that the card drops the caption
+        // rather than clipping it mid-word.
+        final compact = constraints.maxHeight < 120;
 
         return Card(
           elevation: 0,

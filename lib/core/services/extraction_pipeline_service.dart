@@ -208,6 +208,19 @@ Clean and normalise the data, then return structured JSON:
 - clinical_summary must be a terse clinician-facing description of what this
   document is and what it contains.
 
+CONCLUSION (do not skip this):
+- ALWAYS transcribe the report's closing narrative block into "conclusion"
+  verbatim. On pathology reports it is usually headed "Conclusion",
+  "Histopathological Report" or "Final Report"; on imaging it is "Impression",
+  "Findings" or "Report"; on discharge summaries "Final Remarks", "Advice" or
+  "Summary of Treatment". It sits at the BOTTOM of the page, after the tables.
+- A report's numbers without its conclusion are clinically worthless — the
+  conclusion states the diagnosis, the grade, the urgency and the follow-up.
+  Never leave "conclusion" empty when such a block is visible.
+- Copy the text as written, including hedging ("features suggestive of",
+  "cannot be excluded"). Do not soften, summarise away or harden it.
+- If the page genuinely has no conclusion block, return "conclusion": "".
+
 Raw on-device OCR transcript:
 ${transcript.isEmpty ? '(OCR returned no text — rely on the image only.)' : transcript}
 ''';

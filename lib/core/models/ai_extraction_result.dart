@@ -41,8 +41,7 @@ sealed class AiExtractionResult with _$AiExtractionResult {
     @JsonKey(name: 'encounter_context')
     @Default(EncounterContext())
     EncounterContext encounterContext,
-    @Default(AiVitals())
-    AiVitals vitals,
+    @Default(AiVitals()) AiVitals vitals,
     @JsonKey(name: 'medications_ordered')
     @Default(<OrderedMedication>[])
     List<OrderedMedication> medicationsOrdered,
@@ -50,6 +49,17 @@ sealed class AiExtractionResult with _$AiExtractionResult {
     @Default(<AiLabResult>[])
     List<AiLabResult> labResults,
     @Default('') String clinicalSummary,
+
+    /// Verbatim narrative conclusion from the document — the "Conclusion",
+    /// "Impression", "Final Remarks" or "Advice" block that pathology,
+    /// radiology and discharge summaries carry at the foot of the page.
+    ///
+    /// This is kept separate from [clinicalSummary] because it is the part a
+    /// pathologist or radiologist *wrote* for the clinician to read, and losing
+    /// it is the single most damaging way OCR can truncate a report: every
+    /// numeric value survives but the interpretation does not. Storing it apart
+    /// also keeps it editable in review instead of being flattened into prose.
+    @JsonKey(name: 'conclusion') @Default('') String conclusion,
   }) = _AiExtractionResult;
 
   factory AiExtractionResult.fromJson(Map<String, dynamic> json) =>
@@ -80,6 +90,15 @@ sealed class PatientIdentity with _$PatientIdentity {
     int? age,
     String? gender,
     @JsonKey(name: 'hospital_reg_no') String? hospitalRegNo,
+
+    /// Sprint 15 — the facility this document was captured at.
+    ///
+    /// Needed because a clinician covering several institutions can scan a
+    /// report at hospital B for a patient whose identity record lives at
+    /// hospital A. Without this the encounter and its observations are filed
+    /// against whichever facility happened to be listed first, silently
+    /// corrupting multi-hospital tracking.
+    @JsonKey(name: 'hospital_id') String? hospitalId,
   }) = _PatientIdentity;
 
   factory PatientIdentity.fromJson(Map<String, dynamic> json) =>

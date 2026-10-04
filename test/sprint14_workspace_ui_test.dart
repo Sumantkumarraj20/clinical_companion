@@ -529,6 +529,34 @@ void main() {
         await pumpSheet(tester, surface: const Size(834, 1112));
         expect(tester.takeException(), isNull);
       });
+
+      testWidgets('"More tools" tiles keep visible text labels', (
+        tester,
+      ) async {
+        await pumpSheet(tester, surface: const Size(320, 900));
+        // Sprint 14.5 — these labels were being swallowed when the secondary
+        // grid's short cells forced compact mode, leaving bare icons.
+        for (final label in [
+          'Vitals',
+          'Ward Board',
+          'Knowledge',
+          'Data & Sync',
+        ]) {
+          expect(
+            find.text(label),
+            findsOneWidget,
+            reason: '"More tools" must show a text label: $label',
+          );
+        }
+      });
+
+      testWidgets('"More tools" captions are visible, not just the labels', (
+        tester,
+      ) async {
+        await pumpSheet(tester, surface: const Size(320, 900));
+        expect(find.text('Bedside observations'), findsOneWidget);
+        expect(find.text('Beds and census'), findsOneWidget);
+      });
     });
   });
 }

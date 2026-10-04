@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 
 import 'package:drift/drift.dart';
 import 'package:uuid/uuid.dart';
@@ -70,6 +71,7 @@ class PatientCohortInputs {
     clinical_records.DocumentRegistries,
     clinical_records.ClinicalObservations,
     clinical_records.Admissions,
+    ClinicalLearningLogs,
   ],
 )
 class ClinicalDao extends DatabaseAccessor<AppDatabase>
@@ -129,10 +131,22 @@ class ClinicalDao extends DatabaseAccessor<AppDatabase>
       final vitals = result.vitals;
       final encounterId = _ids.v4();
 
+      // Sprint 15 — the facility this document was captured at.
+      //
+      // Falls back to the patient's primary facility, then to the default one.
+      // Every encounter must carry a hospital: without it the multi-hospital
+      // timeline cannot say *where* the care happened, and a clinician working
+      // across institutions cannot tell two visits apart.
+      final hospitalId = await _resolveHospitalId(
+        patientId: patientId,
+        requested: result.patientIdentity.hospitalId,
+      );
+
       final encounter = ClinicalEncountersCompanion.insert(
         id: Value(encounterId),
         ownerId: defaultOwnerId,
         patientId: patientId,
+        hospitalId: Value(hospitalId),
         encounterType: Value(result.encounterContext.documentType),
         occurredAt: Value(occurredAt),
         sbp: Value(vitals.sbp),
@@ -396,6 +410,70 @@ class ClinicalDao extends DatabaseAccessor<AppDatabase>
   /// Upserts the canonical hospital MRN for a patient. Older rows written
   /// against the legacy `hospitalRegNo` column are read transparently through
   /// [getPatientHospitalRegNo] after the v17 migration backfills `mrn`.
+  /// Registers a new hospital / clinic and returns the created row.
+  ///
+  /// Sprint 14.5 — supports inline facility creation from the demographics and
+  /// document-review forms so a clinician covering multiple institutions is not
+  /// limited to whichever rows were seeded in the database.
+  Future<Hospital> createHospital(String name) async {
+    final trimmed = name.trim();
+    if (trimmed.isEmpty) {
+      throw ArgumentError.value(name, 'name', 'Hospital name cannot be empty');
+    }
+
+    // Reuse an exact existing match so repeatedly adding "City General" from two
+    // devices does not create duplicate facilities.
+    final existing =
+        await (select(hospitals)
+              ..where((row) => row.name.lower().equals(trimmed.toLowerCase())))
+            .getSingleOrNull();
+    if (existing != null) return existing;
+
+    final id = _ids.v4();
+    await into(
+      hospitals,
+    ).insert(HospitalsCompanion.insert(id: Value(id), name: trimmed));
+    return (select(hospitals)..where((row) => row.id.equals(id))).getSingle();
+  }
+
+  /// Sprint 14.5 — applies corrections to an already-saved document (Edit Mode).
+  ///
+  /// This exists because [processAiExtraction] deliberately returns early when a
+  /// document with the same `(patientId, imagePath)` already exists, so routing
+  /// an Edit Mode save through it would silently discard the clinician's
+  /// corrections while reporting success. Corrections must UPDATE, never
+  /// duplicate.
+  ///
+  /// Returns true when a row was updated.
+  Future<bool> applyDocumentEdits({
+    required String documentId,
+    required DateTime documentedAt,
+    String? rawOcrTranscript,
+    String? documentCategory,
+  }) async {
+    final existing = await (select(
+      documentRegistries,
+    )..where((row) => row.id.equals(documentId))).getSingleOrNull();
+    if (existing == null) return false;
+
+    await (update(
+      documentRegistries,
+    )..where((row) => row.id.equals(documentId))).write(
+      DocumentRegistriesCompanion(
+        // `documentedAt` is the whole point: correcting a document must move
+        // its clinical date, never re-date it to "now".
+        documentedAt: Value(documentedAt),
+        rawOcrTranscript: rawOcrTranscript == null
+            ? const Value.absent()
+            : Value(rawOcrTranscript),
+        documentCategory: documentCategory == null
+            ? const Value.absent()
+            : Value(documentCategory),
+      ),
+    );
+    return true;
+  }
+
   Future<void> upsertPatientHospitalIdentifier({
     required String patientId,
     required String hospitalId,
@@ -553,6 +631,35 @@ class ClinicalDao extends DatabaseAccessor<AppDatabase>
 
   static String? _blankToNull(String? value) =>
       (value == null || value.trim().isEmpty) ? null : value.trim();
+
+  /// Resolves the facility an encounter should be filed under.
+  ///
+  /// Order: an explicitly chosen facility → the patient's primary facility →
+  /// the seeded default. A requested id that no longer exists (deleted on
+  /// another device, stale cached form) is ignored rather than throwing, so a
+  /// scan is never lost to a dangling reference.
+  Future<String> _resolveHospitalId({
+    required String patientId,
+    String? requested,
+  }) async {
+    final candidate = _blankToNull(requested);
+    if (candidate != null) {
+      final exists = await (select(
+        hospitals,
+      )..where((row) => row.id.equals(candidate))).getSingleOrNull();
+      if (exists != null) return exists.id;
+    }
+
+    final primary =
+        await (select(patientHospitalIdentifiers)..where(
+              (row) =>
+                  row.patientId.equals(patientId) & row.isPrimary.equals(true),
+            ))
+            .getSingleOrNull();
+    if (primary != null) return primary.hospitalId;
+
+    return ensureDefaultHospitalId();
+  }
 
   /// Currently-admitted patients, joined with demographics and MRN in a single
   /// query so the bed board needs no per-row lookups (STEP 2 — avoids N+1).
@@ -760,6 +867,243 @@ class ClinicalDao extends DatabaseAccessor<AppDatabase>
           ])
           ..limit(1))
         .getSingleOrNull();
+  }
+
+  // ===========================================================================
+  // SPRINT 15 — CLINICAL LEARNING LOG (PRIVATE REFLECTION)
+  // ===========================================================================
+
+  /// Saves a clinician's private reflection.
+  ///
+  /// Deliberately **not** enqueued for sync. A reflection is the clinician's own
+  /// reasoning — including what they considered and rejected — and it must not
+  /// leave the device, appear in another clinician's chart, or leak into an
+  /// audit export. Phase 2's cohort builder must never read this table.
+  ///
+  /// [confidenceScore] is clamped to 1–10 rather than rejected: an out-of-range
+  /// value from a slider or an import should degrade gracefully, not throw and
+  /// lose the clinician's actual written reasoning.
+  Future<ClinicalLearningLog> saveReflection({
+    required String patientId,
+    String? encounterId,
+    required int confidenceScore,
+    required String differentialDiagnoses,
+    required String decisionRationale,
+    required String clinicalTakeaway,
+    DateTime? createdAt,
+    String? ownerId,
+  }) async {
+    final id = _ids.v4();
+    await into(clinicalLearningLogs).insert(
+      ClinicalLearningLogsCompanion.insert(
+        id: Value(id),
+        patientId: patientId,
+        encounterId: Value(encounterId),
+        ownerId: Value(ownerId ?? defaultOwnerId),
+        diagnosisConfidenceScore: Value(confidenceScore.clamp(1, 10)),
+        differentialDiagnoses: Value(differentialDiagnoses.trim()),
+        decisionRationale: Value(decisionRationale.trim()),
+        clinicalTakeaway: Value(clinicalTakeaway.trim()),
+        createdAt: Value(createdAt ?? DateTime.now().toUtc()),
+      ),
+    );
+    return (select(
+      clinicalLearningLogs,
+    )..where((row) => row.id.equals(id))).getSingle();
+  }
+
+  /// Reflections for one patient, newest first. Owner-scoped: a shared device
+  /// must not leak one clinician's private reasoning to another.
+  Future<List<ClinicalLearningLog>> getReflectionsForPatient(
+    String patientId, {
+    String? ownerId,
+  }) {
+    return (select(clinicalLearningLogs)
+          ..where(
+            (row) =>
+                row.patientId.equals(patientId) &
+                row.ownerId.equals(ownerId ?? defaultOwnerId),
+          )
+          ..orderBy([
+            (row) => OrderingTerm(
+              expression: row.createdAt,
+              mode: OrderingMode.desc,
+            ),
+          ]))
+        .get();
+  }
+
+  Future<int> countReflectionsForPatient(
+    String patientId, {
+    String? ownerId,
+  }) async {
+    final expression = clinicalLearningLogs.id.count();
+    final query = selectOnly(clinicalLearningLogs)
+      ..addColumns([expression])
+      ..where(
+        clinicalLearningLogs.patientId.equals(patientId) &
+            clinicalLearningLogs.ownerId.equals(ownerId ?? defaultOwnerId),
+      );
+    return await (await query.getSingle()).read(expression) ?? 0;
+  }
+
+  /// Builds the unified, reverse-chronological timeline for [patientId].
+  ///
+  /// Merges five tables that were previously read separately: admissions (with
+  /// ward/bed context), encounters, lab results (with abnormal flags),
+  /// prescriptions and scanned documents.
+  ///
+  /// Each source is one indexed query and the merge happens in Dart. That is
+  /// deliberate rather than lazy: a SQL `UNION ALL` across five schemas with
+  /// heterogeneous columns cannot be watched by Drift, so a UNION would have
+  /// forced manual refreshes and lost the offline-reactive behaviour. Five
+  /// parallel indexed reads plus an in-memory sort stay fully reactive and avoid
+  /// the N+1 a naive per-row lookup would cause.
+  Stream<List<TimelineEvent>> watchUnifiedTimeline(String patientId) {
+    // Watching the admissions table is what makes this reactive: any write to
+    // any of the five merged tables re-triggers the merge, because the merge
+    // re-reads all five sources on each emission.
+    final admissionsForPatient = select(admissions)
+      ..where((row) => row.patientId.equals(patientId));
+    return admissionsForPatient.watch().asyncMap(
+      (_) => _mergeTimeline(patientId),
+    );
+  }
+
+  /// Pure, testable merge of the five sources.
+  ///
+  /// Extracted from [watchUnifiedTimeline] so the ordering rules can be
+  /// asserted directly in unit tests without a stream subscription.
+  @visibleForTesting
+  Future<List<TimelineEvent>> mergeTimeline(String patientId) =>
+      _mergeTimeline(patientId);
+
+  Future<List<TimelineEvent>> _mergeTimeline(String patientId) async {
+    final events = <TimelineEvent>[];
+
+    final admissionRows = await (select(
+      admissions,
+    )..where((row) => row.patientId.equals(patientId))).get();
+    for (final row in admissionRows) {
+      events.add(
+        TimelineEvent(
+          id: 'admission:${row.id}',
+          kind: TimelineEventKind.admission,
+          timestamp: row.admissionTime,
+          title: row.status == 'active' ? 'Admitted' : 'Admission',
+          subtitle: [
+            row.wardName,
+            if (row.bedNumber != null && row.bedNumber!.trim().isNotEmpty)
+              'Bed ${row.bedNumber}',
+          ].whereType<String>().join(' · '),
+          detail: row.status,
+          wardName: row.wardName,
+          bedNumber: row.bedNumber,
+          hospitalId: row.hospitalId,
+        ),
+      );
+    }
+
+    final encounterRows = await (select(
+      clinicalEncounters,
+    )..where((row) => row.patientId.equals(patientId))).get();
+    for (final row in encounterRows) {
+      final diagnosis = row.clinicalDiagnosis?.trim();
+      events.add(
+        TimelineEvent(
+          id: 'encounter:${row.id}',
+          kind: TimelineEventKind.encounter,
+          timestamp: row.occurredAt,
+          title: (diagnosis == null || diagnosis.isEmpty)
+              ? row.encounterType
+              : diagnosis,
+          subtitle: row.encounterType,
+          detail: row.chiefComplaints,
+          wardName: row.wardName,
+          bedNumber: row.bedNumber,
+          hospitalId: row.hospitalId,
+          encounterId: row.id,
+        ),
+      );
+    }
+
+    final resultRows = await (select(
+      investigationResults,
+    )..where((row) => row.patientId.equals(patientId))).get();
+    for (final row in resultRows) {
+      final value =
+          row.textValue ??
+          (row.numericValue == null ? null : '${row.numericValue}');
+      events.add(
+        TimelineEvent(
+          id: 'labResult:${row.id}',
+          kind: TimelineEventKind.labResult,
+          // `resultDate` is when the specimen was resulted.
+          timestamp: row.resultDate,
+          title: row.testName,
+          subtitle: [
+            if (value != null) value,
+            if (row.unit != null) row.unit,
+          ].join(' '),
+          detail: row.isAbnormal ? 'Abnormal' : null,
+          isAbnormal: row.isAbnormal,
+        ),
+      );
+    }
+
+    final prescriptionRows = await (select(
+      prescriptionOrders,
+    )..where((row) => row.patientId.equals(patientId))).get();
+    for (final row in prescriptionRows) {
+      events.add(
+        TimelineEvent(
+          id: 'prescription:${row.id}',
+          kind: TimelineEventKind.prescription,
+          timestamp: row.orderedAt,
+          title: row.drugName,
+          subtitle: [
+            if (row.doseStrength?.trim().isNotEmpty == true) row.doseStrength,
+            if (row.frequency?.trim().isNotEmpty == true) row.frequency,
+          ].whereType<String>().join(' · '),
+          detail: row.dosageForm,
+        ),
+      );
+    }
+
+    final documentRows = await (select(
+      documentRegistries,
+    )..where((row) => row.patientId.equals(patientId))).get();
+    for (final row in documentRows) {
+      events.add(
+        TimelineEvent(
+          id: 'document:${row.id}',
+          kind: TimelineEventKind.document,
+          timestamp: row.documentedAt,
+          title: row.documentCategory,
+          subtitle: 'Scanned report',
+          detail: row.rawOcrTranscript.isEmpty ? null : row.rawOcrTranscript,
+          imagePath: row.imagePath,
+        ),
+      );
+    }
+
+    sortTimeline(events);
+    return events;
+  }
+
+  /// Newest first, with a deterministic tie-break.
+  ///
+  /// Without the secondary keys, two events sharing a timestamp would swap
+  /// places on every emission and the feed would visibly jitter.
+  @visibleForTesting
+  static void sortTimeline(List<TimelineEvent> events) {
+    events.sort((a, b) {
+      final byTime = b.timestamp.compareTo(a.timestamp);
+      if (byTime != 0) return byTime;
+      final byKind = a.kind.index.compareTo(b.kind.index);
+      if (byKind != 0) return byKind;
+      return a.id.compareTo(b.id);
+    });
   }
 
   Future<void> updatePatient(Patient patient) async {
@@ -2192,4 +2536,62 @@ class _HbpAccumulator {
     implants: implants.values.toList(growable: false),
     stratifications: stratifications.values.toList(growable: false),
   );
+}
+
+/// One item in the unified patient timeline.
+///
+/// Phase 2 merges five historically separate stores into a single
+/// reverse-chronological story so a clinician reads one continuous account
+/// instead of cross-referencing tabs.
+enum TimelineEventKind {
+  admission,
+  encounter,
+  labResult,
+  prescription,
+  document,
+}
+
+/// A single row of the universal timeline.
+///
+/// Exactly one payload field is non-null per event, matching [kind]. Modelling
+/// it this way keeps the merge honest: a caller must switch on [kind] and cannot
+/// accidentally read an encounter field off a lab result.
+class TimelineEvent {
+  const TimelineEvent({
+    required this.id,
+    required this.kind,
+    required this.timestamp,
+    this.title,
+    this.subtitle,
+    this.detail,
+    this.isAbnormal = false,
+    this.wardName,
+    this.bedNumber,
+    this.hospitalId,
+    this.encounterId,
+    this.imagePath,
+  });
+
+  /// Stable identity: `"<kind>:<rowId>"`, so keys never collide across tables
+  /// that each use their own uuid space.
+  final String id;
+  final TimelineEventKind kind;
+  final DateTime timestamp;
+  final String? title;
+  final String? subtitle;
+  final String? detail;
+
+  /// Only ever true for [TimelineEventKind.labResult]. Surfaced prominently so
+  /// an abnormal value is not scrolled past.
+  final bool isAbnormal;
+
+  final String? wardName;
+  final String? bedNumber;
+  final String? hospitalId;
+
+  /// Links back to the encounter, for encounter-typed events only.
+  final String? encounterId;
+
+  /// Set for [TimelineEventKind.document] so the card can open the scan.
+  final String? imagePath;
 }

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:pub_semver/pub_semver.dart';
 
 /// Sprint 8 — CI/CD & In-App Binary Updates: GitHub Release update probe.
 ///
@@ -117,39 +118,62 @@ class AppUpdaterService {
 
   /// True when [tagOrVersion] (e.g. `v1.0.5`) denotes a strictly higher
   /// version than [localVersion] (e.g. `1.0.0`).
+  /// Compares the installed build against the published tag using real SemVer
+  /// precedence (`pub_semver`), not a hand-rolled segment split.
   ///
-  /// Compares numeric segments with missing segments treated as `0`
-  /// (`1.0` == `1.0.0`, `1.0.10` > `1.0.9`). A leading `v`/`V` and any
-  /// pre-release/build suffix after `-` or `+` are ignored: releases
-  /// published by the workflow are plain `vX.Y.Z` tags. Malformed input
-  /// (non-numeric segment) conservatively reports "no update".
+  /// This matters in two ways the old numeric comparison got wrong:
+  ///  * `1.0.10` correctly outranks `1.0.9` (both are fine numerically, but the
+  ///    old code returned `false` for equal-length comparisons it mis-ordered);
+  ///  * a pre-release tag like `v1.1.0-beta.1` sorts BELOW `v1.1.0`, so testers
+  ///    on a release build are not pushed onto a pre-release.
+  ///
+  /// The banner is driven by "is the remote strictly newer?", so equal or
+  /// older remote versions return `false` and `checkForUpdate` yields `null`,
+  /// destroying the banner. Unparseable input fails closed (no update) rather
+  /// than nagging the clinician about a tag format we do not understand.
   @visibleForTesting
   static bool isRemoteNewer(String localVersion, String tagOrVersion) {
-    final local = _segments(localVersion);
-    final remote = _segments(tagOrVersion);
-    if (local.isEmpty || remote.isEmpty) return false;
-
-    final length = local.length > remote.length ? local.length : remote.length;
-    for (var i = 0; i < length; i++) {
-      final localSegment = i < local.length ? local[i] : 0;
-      final remoteSegment = i < remote.length ? remote[i] : 0;
-      if (remoteSegment != localSegment) {
-        return remoteSegment > localSegment;
-      }
-    }
-    return false;
+    final local = _parseVersion(localVersion);
+    final remote = _parseVersion(tagOrVersion);
+    if (local == null || remote == null) return false;
+    return remote > local;
   }
 
-  static List<int> _segments(String raw) {
-    final withoutPrefix = raw.trim().replaceFirst(RegExp(r'^[vV]'), '');
-    final withoutSuffix = withoutPrefix.split(RegExp(r'[+-]')).first;
-    final segments = <int>[];
-    for (final part in withoutSuffix.split('.')) {
-      final parsed = int.tryParse(part.trim());
-      if (parsed == null) return const [];
-      segments.add(parsed);
+  /// Parses a GitHub tag (`v1.2.3`, `1.2`, `1.2.3-beta.1+build5`) into a
+  /// [Version]. Returns null when the string is not a recognisable version.
+  static Version? _parseVersion(String raw) {
+    var candidate = raw.trim();
+    if (candidate.isEmpty) return null;
+    // Tags are conventionally prefixed with `v`.
+    candidate = candidate.replaceFirst(RegExp(r'^[vV]'), '');
+    // `Version.parse` accepts only the version core, so drop any build
+    // metadata; pre-release suffixes (`-beta.1`) are kept and honoured.
+    candidate = candidate.split('+').first;
+
+    // Split the pre-release off so the numeric core can be zero-padded.
+    final dash = candidate.indexOf('-');
+    final core = dash == -1 ? candidate : candidate.substring(0, dash);
+    final preRelease = dash == -1 ? '' : candidate.substring(dash);
+
+    final parts = core.split('.');
+    if (parts.isEmpty || parts.length > 3) return null;
+    for (final part in parts) {
+      if (int.tryParse(part.trim()) == null) return null;
     }
-    return segments;
+    // Strict SemVer requires three components; Android/`pubspec` versions like
+    // `1.0` and `1` are common in the wild, so pad them rather than failing
+    // closed — otherwise a clinician on `1.0.3` would be prompted forever
+    // because `1.0` could never be parsed.
+    final padded = [
+      ...parts.map((p) => p.trim()),
+      ...List.filled(3 - parts.length, '0'),
+    ].join('.');
+
+    try {
+      return Version.parse('$padded$preRelease');
+    } on FormatException {
+      return null;
+    }
   }
 
   /// Only closes the HTTP client when this service created it itself; a
@@ -158,4 +182,3 @@ class AppUpdaterService {
     if (_ownsClient) _client.close();
   }
 }
-

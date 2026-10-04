@@ -14470,6 +14470,623 @@ class PersonalWikiCompanion extends UpdateCompanion<PersonalWikiEntry> {
   }
 }
 
+class $ClinicalLearningLogsTable extends ClinicalLearningLogs
+    with TableInfo<$ClinicalLearningLogsTable, ClinicalLearningLog> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ClinicalLearningLogsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    clientDefault: () => _uuid.v4(),
+  );
+  static const VerificationMeta _encounterIdMeta = const VerificationMeta(
+    'encounterId',
+  );
+  @override
+  late final GeneratedColumn<String> encounterId = GeneratedColumn<String>(
+    'encounter_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES clinical_encounters (id) ON DELETE SET NULL',
+    ),
+  );
+  static const VerificationMeta _patientIdMeta = const VerificationMeta(
+    'patientId',
+  );
+  @override
+  late final GeneratedColumn<String> patientId = GeneratedColumn<String>(
+    'patient_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES patients (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _ownerIdMeta = const VerificationMeta(
+    'ownerId',
+  );
+  @override
+  late final GeneratedColumn<String> ownerId = GeneratedColumn<String>(
+    'owner_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('local-practitioner'),
+  );
+  static const VerificationMeta _diagnosisConfidenceScoreMeta =
+      const VerificationMeta('diagnosisConfidenceScore');
+  @override
+  late final GeneratedColumn<int> diagnosisConfidenceScore =
+      GeneratedColumn<int>(
+        'diagnosis_confidence_score',
+        aliasedName,
+        false,
+        type: DriftSqlType.int,
+        requiredDuringInsert: false,
+        defaultValue: const Constant(5),
+      );
+  static const VerificationMeta _differentialDiagnosesMeta =
+      const VerificationMeta('differentialDiagnoses');
+  @override
+  late final GeneratedColumn<String> differentialDiagnoses =
+      GeneratedColumn<String>(
+        'differential_diagnoses',
+        aliasedName,
+        false,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+        defaultValue: const Constant(''),
+      );
+  static const VerificationMeta _decisionRationaleMeta = const VerificationMeta(
+    'decisionRationale',
+  );
+  @override
+  late final GeneratedColumn<String> decisionRationale =
+      GeneratedColumn<String>(
+        'decision_rationale',
+        aliasedName,
+        false,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+        defaultValue: const Constant(''),
+      );
+  static const VerificationMeta _clinicalTakeawayMeta = const VerificationMeta(
+    'clinicalTakeaway',
+  );
+  @override
+  late final GeneratedColumn<String> clinicalTakeaway = GeneratedColumn<String>(
+    'clinical_takeaway',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    encounterId,
+    patientId,
+    ownerId,
+    diagnosisConfidenceScore,
+    differentialDiagnoses,
+    decisionRationale,
+    clinicalTakeaway,
+    createdAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'clinical_learning_logs';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<ClinicalLearningLog> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('encounter_id')) {
+      context.handle(
+        _encounterIdMeta,
+        encounterId.isAcceptableOrUnknown(
+          data['encounter_id']!,
+          _encounterIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('patient_id')) {
+      context.handle(
+        _patientIdMeta,
+        patientId.isAcceptableOrUnknown(data['patient_id']!, _patientIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_patientIdMeta);
+    }
+    if (data.containsKey('owner_id')) {
+      context.handle(
+        _ownerIdMeta,
+        ownerId.isAcceptableOrUnknown(data['owner_id']!, _ownerIdMeta),
+      );
+    }
+    if (data.containsKey('diagnosis_confidence_score')) {
+      context.handle(
+        _diagnosisConfidenceScoreMeta,
+        diagnosisConfidenceScore.isAcceptableOrUnknown(
+          data['diagnosis_confidence_score']!,
+          _diagnosisConfidenceScoreMeta,
+        ),
+      );
+    }
+    if (data.containsKey('differential_diagnoses')) {
+      context.handle(
+        _differentialDiagnosesMeta,
+        differentialDiagnoses.isAcceptableOrUnknown(
+          data['differential_diagnoses']!,
+          _differentialDiagnosesMeta,
+        ),
+      );
+    }
+    if (data.containsKey('decision_rationale')) {
+      context.handle(
+        _decisionRationaleMeta,
+        decisionRationale.isAcceptableOrUnknown(
+          data['decision_rationale']!,
+          _decisionRationaleMeta,
+        ),
+      );
+    }
+    if (data.containsKey('clinical_takeaway')) {
+      context.handle(
+        _clinicalTakeawayMeta,
+        clinicalTakeaway.isAcceptableOrUnknown(
+          data['clinical_takeaway']!,
+          _clinicalTakeawayMeta,
+        ),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  List<Set<GeneratedColumn>> get uniqueKeys => [
+    {id},
+  ];
+  @override
+  ClinicalLearningLog map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ClinicalLearningLog(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      encounterId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}encounter_id'],
+      ),
+      patientId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}patient_id'],
+      )!,
+      ownerId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}owner_id'],
+      )!,
+      diagnosisConfidenceScore: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}diagnosis_confidence_score'],
+      )!,
+      differentialDiagnoses: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}differential_diagnoses'],
+      )!,
+      decisionRationale: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}decision_rationale'],
+      )!,
+      clinicalTakeaway: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}clinical_takeaway'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+    );
+  }
+
+  @override
+  $ClinicalLearningLogsTable createAlias(String alias) {
+    return $ClinicalLearningLogsTable(attachedDatabase, alias);
+  }
+}
+
+class ClinicalLearningLog extends DataClass
+    implements Insertable<ClinicalLearningLog> {
+  final String id;
+
+  /// The encounter that prompted the reflection, when there was one. Nullable
+  /// because reflections are often triggered by something seen *after* the
+  /// encounter closed (a result, a readmission, a recall).
+  final String? encounterId;
+  final String patientId;
+  final String ownerId;
+
+  /// How confident the clinician felt at the time, 1–10.
+  ///
+  /// Captured *before* the outcome is known, which is what makes it a useful
+  /// calibration signal later. Clamped in the DAO rather than by a CHECK
+  /// constraint so a bad import cannot wedge the insert.
+  final int diagnosisConfidenceScore;
+
+  /// Alternatives seriously considered, free text.
+  final String differentialDiagnoses;
+
+  /// The reasoning: what supported the leading diagnosis and what argued
+  /// against it.
+  final String decisionRationale;
+
+  /// What the clinician would do differently, or what they learned.
+  final String clinicalTakeaway;
+  final DateTime createdAt;
+  const ClinicalLearningLog({
+    required this.id,
+    this.encounterId,
+    required this.patientId,
+    required this.ownerId,
+    required this.diagnosisConfidenceScore,
+    required this.differentialDiagnoses,
+    required this.decisionRationale,
+    required this.clinicalTakeaway,
+    required this.createdAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    if (!nullToAbsent || encounterId != null) {
+      map['encounter_id'] = Variable<String>(encounterId);
+    }
+    map['patient_id'] = Variable<String>(patientId);
+    map['owner_id'] = Variable<String>(ownerId);
+    map['diagnosis_confidence_score'] = Variable<int>(diagnosisConfidenceScore);
+    map['differential_diagnoses'] = Variable<String>(differentialDiagnoses);
+    map['decision_rationale'] = Variable<String>(decisionRationale);
+    map['clinical_takeaway'] = Variable<String>(clinicalTakeaway);
+    map['created_at'] = Variable<DateTime>(createdAt);
+    return map;
+  }
+
+  ClinicalLearningLogsCompanion toCompanion(bool nullToAbsent) {
+    return ClinicalLearningLogsCompanion(
+      id: Value(id),
+      encounterId: encounterId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(encounterId),
+      patientId: Value(patientId),
+      ownerId: Value(ownerId),
+      diagnosisConfidenceScore: Value(diagnosisConfidenceScore),
+      differentialDiagnoses: Value(differentialDiagnoses),
+      decisionRationale: Value(decisionRationale),
+      clinicalTakeaway: Value(clinicalTakeaway),
+      createdAt: Value(createdAt),
+    );
+  }
+
+  factory ClinicalLearningLog.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ClinicalLearningLog(
+      id: serializer.fromJson<String>(json['id']),
+      encounterId: serializer.fromJson<String?>(json['encounterId']),
+      patientId: serializer.fromJson<String>(json['patientId']),
+      ownerId: serializer.fromJson<String>(json['ownerId']),
+      diagnosisConfidenceScore: serializer.fromJson<int>(
+        json['diagnosisConfidenceScore'],
+      ),
+      differentialDiagnoses: serializer.fromJson<String>(
+        json['differentialDiagnoses'],
+      ),
+      decisionRationale: serializer.fromJson<String>(json['decisionRationale']),
+      clinicalTakeaway: serializer.fromJson<String>(json['clinicalTakeaway']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'encounterId': serializer.toJson<String?>(encounterId),
+      'patientId': serializer.toJson<String>(patientId),
+      'ownerId': serializer.toJson<String>(ownerId),
+      'diagnosisConfidenceScore': serializer.toJson<int>(
+        diagnosisConfidenceScore,
+      ),
+      'differentialDiagnoses': serializer.toJson<String>(differentialDiagnoses),
+      'decisionRationale': serializer.toJson<String>(decisionRationale),
+      'clinicalTakeaway': serializer.toJson<String>(clinicalTakeaway),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+    };
+  }
+
+  ClinicalLearningLog copyWith({
+    String? id,
+    Value<String?> encounterId = const Value.absent(),
+    String? patientId,
+    String? ownerId,
+    int? diagnosisConfidenceScore,
+    String? differentialDiagnoses,
+    String? decisionRationale,
+    String? clinicalTakeaway,
+    DateTime? createdAt,
+  }) => ClinicalLearningLog(
+    id: id ?? this.id,
+    encounterId: encounterId.present ? encounterId.value : this.encounterId,
+    patientId: patientId ?? this.patientId,
+    ownerId: ownerId ?? this.ownerId,
+    diagnosisConfidenceScore:
+        diagnosisConfidenceScore ?? this.diagnosisConfidenceScore,
+    differentialDiagnoses: differentialDiagnoses ?? this.differentialDiagnoses,
+    decisionRationale: decisionRationale ?? this.decisionRationale,
+    clinicalTakeaway: clinicalTakeaway ?? this.clinicalTakeaway,
+    createdAt: createdAt ?? this.createdAt,
+  );
+  ClinicalLearningLog copyWithCompanion(ClinicalLearningLogsCompanion data) {
+    return ClinicalLearningLog(
+      id: data.id.present ? data.id.value : this.id,
+      encounterId: data.encounterId.present
+          ? data.encounterId.value
+          : this.encounterId,
+      patientId: data.patientId.present ? data.patientId.value : this.patientId,
+      ownerId: data.ownerId.present ? data.ownerId.value : this.ownerId,
+      diagnosisConfidenceScore: data.diagnosisConfidenceScore.present
+          ? data.diagnosisConfidenceScore.value
+          : this.diagnosisConfidenceScore,
+      differentialDiagnoses: data.differentialDiagnoses.present
+          ? data.differentialDiagnoses.value
+          : this.differentialDiagnoses,
+      decisionRationale: data.decisionRationale.present
+          ? data.decisionRationale.value
+          : this.decisionRationale,
+      clinicalTakeaway: data.clinicalTakeaway.present
+          ? data.clinicalTakeaway.value
+          : this.clinicalTakeaway,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ClinicalLearningLog(')
+          ..write('id: $id, ')
+          ..write('encounterId: $encounterId, ')
+          ..write('patientId: $patientId, ')
+          ..write('ownerId: $ownerId, ')
+          ..write('diagnosisConfidenceScore: $diagnosisConfidenceScore, ')
+          ..write('differentialDiagnoses: $differentialDiagnoses, ')
+          ..write('decisionRationale: $decisionRationale, ')
+          ..write('clinicalTakeaway: $clinicalTakeaway, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    encounterId,
+    patientId,
+    ownerId,
+    diagnosisConfidenceScore,
+    differentialDiagnoses,
+    decisionRationale,
+    clinicalTakeaway,
+    createdAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ClinicalLearningLog &&
+          other.id == this.id &&
+          other.encounterId == this.encounterId &&
+          other.patientId == this.patientId &&
+          other.ownerId == this.ownerId &&
+          other.diagnosisConfidenceScore == this.diagnosisConfidenceScore &&
+          other.differentialDiagnoses == this.differentialDiagnoses &&
+          other.decisionRationale == this.decisionRationale &&
+          other.clinicalTakeaway == this.clinicalTakeaway &&
+          other.createdAt == this.createdAt);
+}
+
+class ClinicalLearningLogsCompanion
+    extends UpdateCompanion<ClinicalLearningLog> {
+  final Value<String> id;
+  final Value<String?> encounterId;
+  final Value<String> patientId;
+  final Value<String> ownerId;
+  final Value<int> diagnosisConfidenceScore;
+  final Value<String> differentialDiagnoses;
+  final Value<String> decisionRationale;
+  final Value<String> clinicalTakeaway;
+  final Value<DateTime> createdAt;
+  final Value<int> rowid;
+  const ClinicalLearningLogsCompanion({
+    this.id = const Value.absent(),
+    this.encounterId = const Value.absent(),
+    this.patientId = const Value.absent(),
+    this.ownerId = const Value.absent(),
+    this.diagnosisConfidenceScore = const Value.absent(),
+    this.differentialDiagnoses = const Value.absent(),
+    this.decisionRationale = const Value.absent(),
+    this.clinicalTakeaway = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  ClinicalLearningLogsCompanion.insert({
+    this.id = const Value.absent(),
+    this.encounterId = const Value.absent(),
+    required String patientId,
+    this.ownerId = const Value.absent(),
+    this.diagnosisConfidenceScore = const Value.absent(),
+    this.differentialDiagnoses = const Value.absent(),
+    this.decisionRationale = const Value.absent(),
+    this.clinicalTakeaway = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : patientId = Value(patientId);
+  static Insertable<ClinicalLearningLog> custom({
+    Expression<String>? id,
+    Expression<String>? encounterId,
+    Expression<String>? patientId,
+    Expression<String>? ownerId,
+    Expression<int>? diagnosisConfidenceScore,
+    Expression<String>? differentialDiagnoses,
+    Expression<String>? decisionRationale,
+    Expression<String>? clinicalTakeaway,
+    Expression<DateTime>? createdAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (encounterId != null) 'encounter_id': encounterId,
+      if (patientId != null) 'patient_id': patientId,
+      if (ownerId != null) 'owner_id': ownerId,
+      if (diagnosisConfidenceScore != null)
+        'diagnosis_confidence_score': diagnosisConfidenceScore,
+      if (differentialDiagnoses != null)
+        'differential_diagnoses': differentialDiagnoses,
+      if (decisionRationale != null) 'decision_rationale': decisionRationale,
+      if (clinicalTakeaway != null) 'clinical_takeaway': clinicalTakeaway,
+      if (createdAt != null) 'created_at': createdAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  ClinicalLearningLogsCompanion copyWith({
+    Value<String>? id,
+    Value<String?>? encounterId,
+    Value<String>? patientId,
+    Value<String>? ownerId,
+    Value<int>? diagnosisConfidenceScore,
+    Value<String>? differentialDiagnoses,
+    Value<String>? decisionRationale,
+    Value<String>? clinicalTakeaway,
+    Value<DateTime>? createdAt,
+    Value<int>? rowid,
+  }) {
+    return ClinicalLearningLogsCompanion(
+      id: id ?? this.id,
+      encounterId: encounterId ?? this.encounterId,
+      patientId: patientId ?? this.patientId,
+      ownerId: ownerId ?? this.ownerId,
+      diagnosisConfidenceScore:
+          diagnosisConfidenceScore ?? this.diagnosisConfidenceScore,
+      differentialDiagnoses:
+          differentialDiagnoses ?? this.differentialDiagnoses,
+      decisionRationale: decisionRationale ?? this.decisionRationale,
+      clinicalTakeaway: clinicalTakeaway ?? this.clinicalTakeaway,
+      createdAt: createdAt ?? this.createdAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (encounterId.present) {
+      map['encounter_id'] = Variable<String>(encounterId.value);
+    }
+    if (patientId.present) {
+      map['patient_id'] = Variable<String>(patientId.value);
+    }
+    if (ownerId.present) {
+      map['owner_id'] = Variable<String>(ownerId.value);
+    }
+    if (diagnosisConfidenceScore.present) {
+      map['diagnosis_confidence_score'] = Variable<int>(
+        diagnosisConfidenceScore.value,
+      );
+    }
+    if (differentialDiagnoses.present) {
+      map['differential_diagnoses'] = Variable<String>(
+        differentialDiagnoses.value,
+      );
+    }
+    if (decisionRationale.present) {
+      map['decision_rationale'] = Variable<String>(decisionRationale.value);
+    }
+    if (clinicalTakeaway.present) {
+      map['clinical_takeaway'] = Variable<String>(clinicalTakeaway.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ClinicalLearningLogsCompanion(')
+          ..write('id: $id, ')
+          ..write('encounterId: $encounterId, ')
+          ..write('patientId: $patientId, ')
+          ..write('ownerId: $ownerId, ')
+          ..write('diagnosisConfidenceScore: $diagnosisConfidenceScore, ')
+          ..write('differentialDiagnoses: $differentialDiagnoses, ')
+          ..write('decisionRationale: $decisionRationale, ')
+          ..write('clinicalTakeaway: $clinicalTakeaway, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class $OfflineSyncQueueTable extends OfflineSyncQueue
     with TableInfo<$OfflineSyncQueueTable, SyncQueueEntry> {
   @override
@@ -20304,6 +20921,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $FormulationsTable formulations = $FormulationsTable(this);
   late final $BrandsTable brands = $BrandsTable(this);
   late final $PersonalWikiTable personalWiki = $PersonalWikiTable(this);
+  late final $ClinicalLearningLogsTable clinicalLearningLogs =
+      $ClinicalLearningLogsTable(this);
   late final $OfflineSyncQueueTable offlineSyncQueue = $OfflineSyncQueueTable(
     this,
   );
@@ -20416,6 +21035,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     formulations,
     brands,
     personalWiki,
+    clinicalLearningLogs,
     offlineSyncQueue,
     cdssRules,
     ayushmanPackages,
@@ -20623,6 +21243,20 @@ abstract class _$AppDatabase extends GeneratedDatabase {
         limitUpdateKind: UpdateKind.delete,
       ),
       result: [TableUpdate('investigation_results', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'clinical_encounters',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('clinical_learning_logs', kind: UpdateKind.update)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'patients',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('clinical_learning_logs', kind: UpdateKind.delete)],
     ),
     WritePropagation(
       on: TableUpdateQuery.onTableName(
@@ -20933,6 +21567,31 @@ final class $$PatientsTableReferences
 
     final cache = $_typedResult.readTableOrNull(
       _investigationResultsRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<
+    $ClinicalLearningLogsTable,
+    List<ClinicalLearningLog>
+  >
+  _clinicalLearningLogsRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.clinicalLearningLogs,
+        aliasName: 'patients__id__clinical_learning_logs__patient_id',
+      );
+
+  $$ClinicalLearningLogsTableProcessedTableManager
+  get clinicalLearningLogsRefs {
+    final manager = $$ClinicalLearningLogsTableTableManager(
+      $_db,
+      $_db.clinicalLearningLogs,
+    ).filter((f) => f.patientId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _clinicalLearningLogsRefsTable($_db),
     );
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: cache),
@@ -21333,6 +21992,31 @@ class $$PatientsTableFilterComposer
           }) => $$InvestigationResultsTableFilterComposer(
             $db: $db,
             $table: $db.investigationResults,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> clinicalLearningLogsRefs(
+    Expression<bool> Function($$ClinicalLearningLogsTableFilterComposer f) f,
+  ) {
+    final $$ClinicalLearningLogsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.clinicalLearningLogs,
+      getReferencedColumn: (t) => t.patientId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ClinicalLearningLogsTableFilterComposer(
+            $db: $db,
+            $table: $db.clinicalLearningLogs,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -21818,6 +22502,32 @@ class $$PatientsTableAnnotationComposer
     return f(composer);
   }
 
+  Expression<T> clinicalLearningLogsRefs<T extends Object>(
+    Expression<T> Function($$ClinicalLearningLogsTableAnnotationComposer a) f,
+  ) {
+    final $$ClinicalLearningLogsTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.clinicalLearningLogs,
+          getReferencedColumn: (t) => t.patientId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$ClinicalLearningLogsTableAnnotationComposer(
+                $db: $db,
+                $table: $db.clinicalLearningLogs,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
+
   Expression<T> documentRegistriesRefs<T extends Object>(
     Expression<T> Function($$DocumentRegistriesTableAnnotationComposer a) f,
   ) {
@@ -21970,6 +22680,7 @@ class $$PatientsTableTableManager
             bool prescriptionOrdersRefs,
             bool investigationOrdersRefs,
             bool investigationResultsRefs,
+            bool clinicalLearningLogsRefs,
             bool documentRegistriesRefs,
             bool clinicalObservationsRefs,
             bool microbiologyCulturesRefs,
@@ -22063,6 +22774,7 @@ class $$PatientsTableTableManager
                 prescriptionOrdersRefs = false,
                 investigationOrdersRefs = false,
                 investigationResultsRefs = false,
+                clinicalLearningLogsRefs = false,
                 documentRegistriesRefs = false,
                 clinicalObservationsRefs = false,
                 microbiologyCulturesRefs = false,
@@ -22083,6 +22795,7 @@ class $$PatientsTableTableManager
                     if (prescriptionOrdersRefs) db.prescriptionOrders,
                     if (investigationOrdersRefs) db.investigationOrders,
                     if (investigationResultsRefs) db.investigationResults,
+                    if (clinicalLearningLogsRefs) db.clinicalLearningLogs,
                     if (documentRegistriesRefs) db.documentRegistries,
                     if (clinicalObservationsRefs) db.clinicalObservations,
                     if (microbiologyCulturesRefs) db.microbiologyCultures,
@@ -22281,6 +22994,27 @@ class $$PatientsTableTableManager
                               ),
                           typedResults: items,
                         ),
+                      if (clinicalLearningLogsRefs)
+                        await $_getPrefetchedData<
+                          Patient,
+                          $PatientsTable,
+                          ClinicalLearningLog
+                        >(
+                          currentTable: table,
+                          referencedTable: $$PatientsTableReferences
+                              ._clinicalLearningLogsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$PatientsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).clinicalLearningLogsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.patientId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                       if (documentRegistriesRefs)
                         await $_getPrefetchedData<
                           Patient,
@@ -22416,6 +23150,7 @@ typedef $$PatientsTableProcessedTableManager =
         bool prescriptionOrdersRefs,
         bool investigationOrdersRefs,
         bool investigationResultsRefs,
+        bool clinicalLearningLogsRefs,
         bool documentRegistriesRefs,
         bool clinicalObservationsRefs,
         bool microbiologyCulturesRefs,
@@ -24093,6 +24828,32 @@ final class $$ClinicalEncountersTableReferences
       manager.$state.copyWith(prefetchedData: cache),
     );
   }
+
+  static MultiTypedResultKey<
+    $ClinicalLearningLogsTable,
+    List<ClinicalLearningLog>
+  >
+  _clinicalLearningLogsRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.clinicalLearningLogs,
+        aliasName:
+            'clinical_encounters__id__clinical_learning_logs__encounter_id',
+      );
+
+  $$ClinicalLearningLogsTableProcessedTableManager
+  get clinicalLearningLogsRefs {
+    final manager = $$ClinicalLearningLogsTableTableManager(
+      $_db,
+      $_db.clinicalLearningLogs,
+    ).filter((f) => f.encounterId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _clinicalLearningLogsRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
 }
 
 class $$ClinicalEncountersTableFilterComposer
@@ -24485,6 +25246,31 @@ class $$ClinicalEncountersTableFilterComposer
           }) => $$InvestigationOrdersTableFilterComposer(
             $db: $db,
             $table: $db.investigationOrders,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> clinicalLearningLogsRefs(
+    Expression<bool> Function($$ClinicalLearningLogsTableFilterComposer f) f,
+  ) {
+    final $$ClinicalLearningLogsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.clinicalLearningLogs,
+      getReferencedColumn: (t) => t.encounterId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ClinicalLearningLogsTableFilterComposer(
+            $db: $db,
+            $table: $db.clinicalLearningLogs,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -25086,6 +25872,32 @@ class $$ClinicalEncountersTableAnnotationComposer
         );
     return f(composer);
   }
+
+  Expression<T> clinicalLearningLogsRefs<T extends Object>(
+    Expression<T> Function($$ClinicalLearningLogsTableAnnotationComposer a) f,
+  ) {
+    final $$ClinicalLearningLogsTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.clinicalLearningLogs,
+          getReferencedColumn: (t) => t.encounterId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$ClinicalLearningLogsTableAnnotationComposer(
+                $db: $db,
+                $table: $db.clinicalLearningLogs,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
 }
 
 class $$ClinicalEncountersTableTableManager
@@ -25110,6 +25922,7 @@ class $$ClinicalEncountersTableTableManager
             bool clinicalOutcomeMetricsRefs,
             bool prescriptionOrdersRefs,
             bool investigationOrdersRefs,
+            bool clinicalLearningLogsRefs,
           })
         > {
   $$ClinicalEncountersTableTableManager(
@@ -25308,6 +26121,7 @@ class $$ClinicalEncountersTableTableManager
                 clinicalOutcomeMetricsRefs = false,
                 prescriptionOrdersRefs = false,
                 investigationOrdersRefs = false,
+                clinicalLearningLogsRefs = false,
               }) {
                 return PrefetchHooks(
                   db: db,
@@ -25319,6 +26133,7 @@ class $$ClinicalEncountersTableTableManager
                     if (clinicalOutcomeMetricsRefs) db.clinicalOutcomeMetrics,
                     if (prescriptionOrdersRefs) db.prescriptionOrders,
                     if (investigationOrdersRefs) db.investigationOrders,
+                    if (clinicalLearningLogsRefs) db.clinicalLearningLogs,
                   ],
                   addJoins:
                       <
@@ -25497,6 +26312,27 @@ class $$ClinicalEncountersTableTableManager
                               ),
                           typedResults: items,
                         ),
+                      if (clinicalLearningLogsRefs)
+                        await $_getPrefetchedData<
+                          ClinicalEncounter,
+                          $ClinicalEncountersTable,
+                          ClinicalLearningLog
+                        >(
+                          currentTable: table,
+                          referencedTable: $$ClinicalEncountersTableReferences
+                              ._clinicalLearningLogsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$ClinicalEncountersTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).clinicalLearningLogsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.encounterId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                     ];
                   },
                 );
@@ -25526,6 +26362,7 @@ typedef $$ClinicalEncountersTableProcessedTableManager =
         bool clinicalOutcomeMetricsRefs,
         bool prescriptionOrdersRefs,
         bool investigationOrdersRefs,
+        bool clinicalLearningLogsRefs,
       })
     >;
 typedef $$PatientProblemsTableCreateCompanionBuilder =
@@ -32923,6 +33760,517 @@ typedef $$PersonalWikiTableProcessedTableManager =
       PersonalWikiEntry,
       PrefetchHooks Function()
     >;
+typedef $$ClinicalLearningLogsTableCreateCompanionBuilder =
+    ClinicalLearningLogsCompanion Function({
+      Value<String> id,
+      Value<String?> encounterId,
+      required String patientId,
+      Value<String> ownerId,
+      Value<int> diagnosisConfidenceScore,
+      Value<String> differentialDiagnoses,
+      Value<String> decisionRationale,
+      Value<String> clinicalTakeaway,
+      Value<DateTime> createdAt,
+      Value<int> rowid,
+    });
+typedef $$ClinicalLearningLogsTableUpdateCompanionBuilder =
+    ClinicalLearningLogsCompanion Function({
+      Value<String> id,
+      Value<String?> encounterId,
+      Value<String> patientId,
+      Value<String> ownerId,
+      Value<int> diagnosisConfidenceScore,
+      Value<String> differentialDiagnoses,
+      Value<String> decisionRationale,
+      Value<String> clinicalTakeaway,
+      Value<DateTime> createdAt,
+      Value<int> rowid,
+    });
+
+final class $$ClinicalLearningLogsTableReferences
+    extends
+        BaseReferences<
+          _$AppDatabase,
+          $ClinicalLearningLogsTable,
+          ClinicalLearningLog
+        > {
+  $$ClinicalLearningLogsTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $ClinicalEncountersTable _encounterIdTable(_$AppDatabase db) =>
+      db.clinicalEncounters.createAlias(
+        'clinical_learning_logs__encounter_id__clinical_encounters__id',
+      );
+
+  $$ClinicalEncountersTableProcessedTableManager? get encounterId {
+    final $_column = $_itemColumn<String>('encounter_id');
+    if ($_column == null) return null;
+    final manager = $$ClinicalEncountersTableTableManager(
+      $_db,
+      $_db.clinicalEncounters,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_encounterIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $PatientsTable _patientIdTable(_$AppDatabase db) => db.patients
+      .createAlias('clinical_learning_logs__patient_id__patients__id');
+
+  $$PatientsTableProcessedTableManager get patientId {
+    final $_column = $_itemColumn<String>('patient_id')!;
+
+    final manager = $$PatientsTableTableManager(
+      $_db,
+      $_db.patients,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_patientIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$ClinicalLearningLogsTableFilterComposer
+    extends Composer<_$AppDatabase, $ClinicalLearningLogsTable> {
+  $$ClinicalLearningLogsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get ownerId => $composableBuilder(
+    column: $table.ownerId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get diagnosisConfidenceScore => $composableBuilder(
+    column: $table.diagnosisConfidenceScore,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get differentialDiagnoses => $composableBuilder(
+    column: $table.differentialDiagnoses,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get decisionRationale => $composableBuilder(
+    column: $table.decisionRationale,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get clinicalTakeaway => $composableBuilder(
+    column: $table.clinicalTakeaway,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$ClinicalEncountersTableFilterComposer get encounterId {
+    final $$ClinicalEncountersTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.encounterId,
+      referencedTable: $db.clinicalEncounters,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ClinicalEncountersTableFilterComposer(
+            $db: $db,
+            $table: $db.clinicalEncounters,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$PatientsTableFilterComposer get patientId {
+    final $$PatientsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.patientId,
+      referencedTable: $db.patients,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PatientsTableFilterComposer(
+            $db: $db,
+            $table: $db.patients,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$ClinicalLearningLogsTableOrderingComposer
+    extends Composer<_$AppDatabase, $ClinicalLearningLogsTable> {
+  $$ClinicalLearningLogsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get ownerId => $composableBuilder(
+    column: $table.ownerId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get diagnosisConfidenceScore => $composableBuilder(
+    column: $table.diagnosisConfidenceScore,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get differentialDiagnoses => $composableBuilder(
+    column: $table.differentialDiagnoses,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get decisionRationale => $composableBuilder(
+    column: $table.decisionRationale,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get clinicalTakeaway => $composableBuilder(
+    column: $table.clinicalTakeaway,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$ClinicalEncountersTableOrderingComposer get encounterId {
+    final $$ClinicalEncountersTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.encounterId,
+      referencedTable: $db.clinicalEncounters,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ClinicalEncountersTableOrderingComposer(
+            $db: $db,
+            $table: $db.clinicalEncounters,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$PatientsTableOrderingComposer get patientId {
+    final $$PatientsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.patientId,
+      referencedTable: $db.patients,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PatientsTableOrderingComposer(
+            $db: $db,
+            $table: $db.patients,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$ClinicalLearningLogsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $ClinicalLearningLogsTable> {
+  $$ClinicalLearningLogsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get ownerId =>
+      $composableBuilder(column: $table.ownerId, builder: (column) => column);
+
+  GeneratedColumn<int> get diagnosisConfidenceScore => $composableBuilder(
+    column: $table.diagnosisConfidenceScore,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get differentialDiagnoses => $composableBuilder(
+    column: $table.differentialDiagnoses,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get decisionRationale => $composableBuilder(
+    column: $table.decisionRationale,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get clinicalTakeaway => $composableBuilder(
+    column: $table.clinicalTakeaway,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  $$ClinicalEncountersTableAnnotationComposer get encounterId {
+    final $$ClinicalEncountersTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.encounterId,
+          referencedTable: $db.clinicalEncounters,
+          getReferencedColumn: (t) => t.id,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$ClinicalEncountersTableAnnotationComposer(
+                $db: $db,
+                $table: $db.clinicalEncounters,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return composer;
+  }
+
+  $$PatientsTableAnnotationComposer get patientId {
+    final $$PatientsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.patientId,
+      referencedTable: $db.patients,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PatientsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.patients,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$ClinicalLearningLogsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $ClinicalLearningLogsTable,
+          ClinicalLearningLog,
+          $$ClinicalLearningLogsTableFilterComposer,
+          $$ClinicalLearningLogsTableOrderingComposer,
+          $$ClinicalLearningLogsTableAnnotationComposer,
+          $$ClinicalLearningLogsTableCreateCompanionBuilder,
+          $$ClinicalLearningLogsTableUpdateCompanionBuilder,
+          (ClinicalLearningLog, $$ClinicalLearningLogsTableReferences),
+          ClinicalLearningLog,
+          PrefetchHooks Function({bool encounterId, bool patientId})
+        > {
+  $$ClinicalLearningLogsTableTableManager(
+    _$AppDatabase db,
+    $ClinicalLearningLogsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ClinicalLearningLogsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$ClinicalLearningLogsTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$ClinicalLearningLogsTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String?> encounterId = const Value.absent(),
+                Value<String> patientId = const Value.absent(),
+                Value<String> ownerId = const Value.absent(),
+                Value<int> diagnosisConfidenceScore = const Value.absent(),
+                Value<String> differentialDiagnoses = const Value.absent(),
+                Value<String> decisionRationale = const Value.absent(),
+                Value<String> clinicalTakeaway = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ClinicalLearningLogsCompanion(
+                id: id,
+                encounterId: encounterId,
+                patientId: patientId,
+                ownerId: ownerId,
+                diagnosisConfidenceScore: diagnosisConfidenceScore,
+                differentialDiagnoses: differentialDiagnoses,
+                decisionRationale: decisionRationale,
+                clinicalTakeaway: clinicalTakeaway,
+                createdAt: createdAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String?> encounterId = const Value.absent(),
+                required String patientId,
+                Value<String> ownerId = const Value.absent(),
+                Value<int> diagnosisConfidenceScore = const Value.absent(),
+                Value<String> differentialDiagnoses = const Value.absent(),
+                Value<String> decisionRationale = const Value.absent(),
+                Value<String> clinicalTakeaway = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ClinicalLearningLogsCompanion.insert(
+                id: id,
+                encounterId: encounterId,
+                patientId: patientId,
+                ownerId: ownerId,
+                diagnosisConfidenceScore: diagnosisConfidenceScore,
+                differentialDiagnoses: differentialDiagnoses,
+                decisionRationale: decisionRationale,
+                clinicalTakeaway: clinicalTakeaway,
+                createdAt: createdAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$ClinicalLearningLogsTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({encounterId = false, patientId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (encounterId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.encounterId,
+                                referencedTable:
+                                    $$ClinicalLearningLogsTableReferences
+                                        ._encounterIdTable(db),
+                                referencedColumn:
+                                    $$ClinicalLearningLogsTableReferences
+                                        ._encounterIdTable(db)
+                                        .id,
+                              )
+                              as T;
+                    }
+                    if (patientId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.patientId,
+                                referencedTable:
+                                    $$ClinicalLearningLogsTableReferences
+                                        ._patientIdTable(db),
+                                referencedColumn:
+                                    $$ClinicalLearningLogsTableReferences
+                                        ._patientIdTable(db)
+                                        .id,
+                              )
+                              as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$ClinicalLearningLogsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $ClinicalLearningLogsTable,
+      ClinicalLearningLog,
+      $$ClinicalLearningLogsTableFilterComposer,
+      $$ClinicalLearningLogsTableOrderingComposer,
+      $$ClinicalLearningLogsTableAnnotationComposer,
+      $$ClinicalLearningLogsTableCreateCompanionBuilder,
+      $$ClinicalLearningLogsTableUpdateCompanionBuilder,
+      (ClinicalLearningLog, $$ClinicalLearningLogsTableReferences),
+      ClinicalLearningLog,
+      PrefetchHooks Function({bool encounterId, bool patientId})
+    >;
 typedef $$OfflineSyncQueueTableCreateCompanionBuilder =
     OfflineSyncQueueCompanion Function({
       Value<String> id,
@@ -37193,6 +38541,8 @@ class $AppDatabaseManager {
       $$BrandsTableTableManager(_db, _db.brands);
   $$PersonalWikiTableTableManager get personalWiki =>
       $$PersonalWikiTableTableManager(_db, _db.personalWiki);
+  $$ClinicalLearningLogsTableTableManager get clinicalLearningLogs =>
+      $$ClinicalLearningLogsTableTableManager(_db, _db.clinicalLearningLogs);
   $$OfflineSyncQueueTableTableManager get offlineSyncQueue =>
       $$OfflineSyncQueueTableTableManager(_db, _db.offlineSyncQueue);
   $$CdssRulesTableTableManager get cdssRules =>

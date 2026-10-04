@@ -65,6 +65,7 @@ _AiExtractionResult _$AiExtractionResultFromJson(Map<String, dynamic> json) =>
               .toList() ??
           const <AiLabResult>[],
       clinicalSummary: json['clinicalSummary'] as String? ?? '',
+      conclusion: json['conclusion'] as String? ?? '',
     );
 
 Map<String, dynamic> _$AiExtractionResultToJson(_AiExtractionResult instance) =>
@@ -75,6 +76,7 @@ Map<String, dynamic> _$AiExtractionResultToJson(_AiExtractionResult instance) =>
       'medications_ordered': instance.medicationsOrdered,
       'lab_results': instance.labResults,
       'clinicalSummary': instance.clinicalSummary,
+      'conclusion': instance.conclusion,
     };
 
 _PatientIdentity _$PatientIdentityFromJson(Map<String, dynamic> json) =>
@@ -83,6 +85,7 @@ _PatientIdentity _$PatientIdentityFromJson(Map<String, dynamic> json) =>
       age: (json['age'] as num?)?.toInt(),
       gender: json['gender'] as String?,
       hospitalRegNo: json['hospital_reg_no'] as String?,
+      hospitalId: json['hospital_id'] as String?,
     );
 
 Map<String, dynamic> _$PatientIdentityToJson(_PatientIdentity instance) =>
@@ -91,6 +94,7 @@ Map<String, dynamic> _$PatientIdentityToJson(_PatientIdentity instance) =>
       'age': instance.age,
       'gender': instance.gender,
       'hospital_reg_no': instance.hospitalRegNo,
+      'hospital_id': instance.hospitalId,
     };
 
 _EncounterContext _$EncounterContextFromJson(Map<String, dynamic> json) =>

@@ -43,6 +43,10 @@ dependencies:
   url_launcher: ^6.3.1
   web: ^1.1.1
   google_mlkit_text_recognition: ^0.17.1
+  # Real SemVer precedence for comparing the installed build against the
+  # published GitHub tag, so `1.0.10 > 1.0.9` and a pre-release tag such as
+  # `v1.1.0-beta.1` correctly sorts BELOW `1.1.0`.
+  pub_semver: ^2.2.0
   open_filex: ^4.7.0
   flutter_image_compress: ^2.5.1
   package_info_plus: ^9.0.1
