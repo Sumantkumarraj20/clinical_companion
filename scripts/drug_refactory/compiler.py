@@ -420,6 +420,9 @@ class DrugCompiler:
             ingredients TEXT NOT NULL DEFAULT '[]',
             problem_indications TEXT NOT NULL DEFAULT '[]',
             prioritized_side_effects TEXT NOT NULL DEFAULT '[]',
+            common_indications TEXT NOT NULL DEFAULT '[]',
+            dose_adjustments TEXT NOT NULL DEFAULT '{}',
+            common_side_effects TEXT NOT NULL DEFAULT '[]',
             prescribing_pearls TEXT,
             available_forms TEXT,
             routes TEXT,
@@ -441,12 +444,13 @@ class DrugCompiler:
         insert_sql = f"""
         INSERT INTO {temp_table} (
             id, generic_molecule, ingredients, problem_indications,
-            prioritized_side_effects, prescribing_pearls, available_forms,
+            prioritized_side_effects, common_indications, dose_adjustments,
+            common_side_effects, prescribing_pearls, available_forms,
             routes, top_brands, usage_frequency, drug_classes,
             contraindications, interactions, clinical_flags,
             data_status, confidence, data_source, knowledge_version,
             data_quality_score
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
         """
 
         rows_to_insert = []
@@ -456,6 +460,9 @@ class DrugCompiler:
                 r.display_name,
                 json.dumps(r.ingredients),
                 json.dumps(r.indications),
+                json.dumps(r.side_effects),
+                json.dumps(r.indications),
+                "{}",
                 json.dumps(r.side_effects),
                 json.dumps(r.prescribing_pearls) if r.prescribing_pearls else None,
                 json.dumps(r.dosage_forms),

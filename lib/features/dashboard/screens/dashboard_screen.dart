@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/providers/app_providers.dart';
+import '../../../core/services/app_updater_service.dart';
 import '../widgets/update_download_banner.dart';
 
 /// Sprint 8 — CI/CD & In-App Binary Updates.
@@ -10,8 +11,8 @@ import '../widgets/update_download_banner.dart';
 /// `FutureProvider`). [AppUpdaterService.checkForUpdate] swallows every
 /// network/parse failure and resolves `null`, so offline starts simply
 /// resolve with "no update" and the dashboard never waits on the network.
-final appUpdateCheckProvider = FutureProvider<String?>(
-  (ref) => ref.watch(appUpdaterServiceProvider).checkForUpdate(),
+final appUpdateCheckProvider = FutureProvider<AppUpdateInfo?>(
+  (ref) => ref.watch(appUpdaterServiceProvider).checkForUpdateInfo(),
 );
 
 class DashboardScreen extends ConsumerWidget {
@@ -126,6 +127,11 @@ class DashboardScreen extends ConsumerWidget {
                           onPressed: () => context.go('/smart-capture'),
                           icon: const Icon(Icons.document_scanner_outlined),
                           label: const Text('Scan clinical document'),
+                        ),
+                        OutlinedButton.icon(
+                          onPressed: () => context.push('/text-ingestion'),
+                          icon: const Icon(Icons.content_paste_go_outlined),
+                          label: const Text('Smart Paste'),
                         ),
                         OutlinedButton.icon(
                           onPressed: () => context.go('/ward-dashboard'),
@@ -258,22 +264,23 @@ class _UpdateBannerState extends ConsumerState<_UpdateBanner> {
     // failed silently (offline) — the banner simply stays hidden. Once a
     // download is in flight this renders progress instead of the prompt, so
     // navigating away and back never loses the running transfer.
-    final updateUrl = ref.watch(appUpdateCheckProvider).asData?.value;
+    final update = ref.watch(appUpdateCheckProvider).asData?.value;
     final downloading = ref.watch(updateDownloadProvider) is UpdateDownloading;
 
-    if (downloading && updateUrl != null) {
-      return UpdateProgressBanner(apkUrl: updateUrl);
+    if (downloading && update != null) {
+      return UpdateProgressBanner(apkUrl: update.apkUrl);
     }
 
     if (_dismissed) return const SizedBox.shrink();
-    if (updateUrl == null) return const SizedBox.shrink();
+    if (update == null) return const SizedBox.shrink();
 
     final colors = Theme.of(context).colorScheme;
     return MaterialBanner(
       backgroundColor: colors.secondaryContainer,
       leading: Icon(Icons.system_update, color: colors.onSecondaryContainer),
       content: Text(
-        'Update Available: A new version of Clinical Companion is ready.',
+        'Update Available: v${update.remoteVersion} '
+        '(Current: v${update.localVersion})',
         style: TextStyle(
           color: colors.onSecondaryContainer,
           fontWeight: FontWeight.w600,
@@ -281,7 +288,7 @@ class _UpdateBannerState extends ConsumerState<_UpdateBanner> {
       ),
       actions: [
         TextButton(
-          onPressed: () => _startUpdate(updateUrl),
+          onPressed: () => _startUpdate(update.apkUrl),
           child: const Text('Update Now'),
         ),
         TextButton(

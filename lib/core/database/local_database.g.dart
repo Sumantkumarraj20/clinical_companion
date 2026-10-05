@@ -10753,6 +10753,44 @@ class $ClinicalDrugsTable extends ClinicalDrugs
         requiredDuringInsert: false,
         defaultValue: const Constant('[]'),
       );
+  static const VerificationMeta _commonIndicationsMeta = const VerificationMeta(
+    'commonIndications',
+  );
+  @override
+  late final GeneratedColumn<String> commonIndications =
+      GeneratedColumn<String>(
+        'common_indications',
+        aliasedName,
+        false,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+        defaultValue: const Constant('[]'),
+      );
+  static const VerificationMeta _doseAdjustmentsMeta = const VerificationMeta(
+    'doseAdjustments',
+  );
+  @override
+  late final GeneratedColumn<String> doseAdjustments = GeneratedColumn<String>(
+    'dose_adjustments',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('{}'),
+  );
+  static const VerificationMeta _commonSideEffectsMeta = const VerificationMeta(
+    'commonSideEffects',
+  );
+  @override
+  late final GeneratedColumn<String> commonSideEffects =
+      GeneratedColumn<String>(
+        'common_side_effects',
+        aliasedName,
+        false,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+        defaultValue: const Constant('[]'),
+      );
   static const VerificationMeta _prescribingPearlsMeta = const VerificationMeta(
     'prescribingPearls',
   );
@@ -10814,6 +10852,9 @@ class $ClinicalDrugsTable extends ClinicalDrugs
     genericMolecule,
     problemIndications,
     prioritizedSideEffects,
+    commonIndications,
+    doseAdjustments,
+    commonSideEffects,
     prescribingPearls,
     availableForms,
     routes,
@@ -10861,6 +10902,33 @@ class $ClinicalDrugsTable extends ClinicalDrugs
         prioritizedSideEffects.isAcceptableOrUnknown(
           data['prioritized_side_effects']!,
           _prioritizedSideEffectsMeta,
+        ),
+      );
+    }
+    if (data.containsKey('common_indications')) {
+      context.handle(
+        _commonIndicationsMeta,
+        commonIndications.isAcceptableOrUnknown(
+          data['common_indications']!,
+          _commonIndicationsMeta,
+        ),
+      );
+    }
+    if (data.containsKey('dose_adjustments')) {
+      context.handle(
+        _doseAdjustmentsMeta,
+        doseAdjustments.isAcceptableOrUnknown(
+          data['dose_adjustments']!,
+          _doseAdjustmentsMeta,
+        ),
+      );
+    }
+    if (data.containsKey('common_side_effects')) {
+      context.handle(
+        _commonSideEffectsMeta,
+        commonSideEffects.isAcceptableOrUnknown(
+          data['common_side_effects']!,
+          _commonSideEffectsMeta,
         ),
       );
     }
@@ -10928,6 +10996,18 @@ class $ClinicalDrugsTable extends ClinicalDrugs
         DriftSqlType.string,
         data['${effectivePrefix}prioritized_side_effects'],
       )!,
+      commonIndications: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}common_indications'],
+      )!,
+      doseAdjustments: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}dose_adjustments'],
+      )!,
+      commonSideEffects: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}common_side_effects'],
+      )!,
       prescribingPearls: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}prescribing_pearls'],
@@ -10962,6 +11042,9 @@ class ClinicalDrug extends DataClass implements Insertable<ClinicalDrug> {
   final String genericMolecule;
   final String problemIndications;
   final String prioritizedSideEffects;
+  final String commonIndications;
+  final String doseAdjustments;
+  final String commonSideEffects;
   final String? prescribingPearls;
   final String? availableForms;
   final String? routes;
@@ -10972,6 +11055,9 @@ class ClinicalDrug extends DataClass implements Insertable<ClinicalDrug> {
     required this.genericMolecule,
     required this.problemIndications,
     required this.prioritizedSideEffects,
+    required this.commonIndications,
+    required this.doseAdjustments,
+    required this.commonSideEffects,
     this.prescribingPearls,
     this.availableForms,
     this.routes,
@@ -10985,6 +11071,9 @@ class ClinicalDrug extends DataClass implements Insertable<ClinicalDrug> {
     map['generic_molecule'] = Variable<String>(genericMolecule);
     map['problem_indications'] = Variable<String>(problemIndications);
     map['prioritized_side_effects'] = Variable<String>(prioritizedSideEffects);
+    map['common_indications'] = Variable<String>(commonIndications);
+    map['dose_adjustments'] = Variable<String>(doseAdjustments);
+    map['common_side_effects'] = Variable<String>(commonSideEffects);
     if (!nullToAbsent || prescribingPearls != null) {
       map['prescribing_pearls'] = Variable<String>(prescribingPearls);
     }
@@ -11007,6 +11096,9 @@ class ClinicalDrug extends DataClass implements Insertable<ClinicalDrug> {
       genericMolecule: Value(genericMolecule),
       problemIndications: Value(problemIndications),
       prioritizedSideEffects: Value(prioritizedSideEffects),
+      commonIndications: Value(commonIndications),
+      doseAdjustments: Value(doseAdjustments),
+      commonSideEffects: Value(commonSideEffects),
       prescribingPearls: prescribingPearls == null && nullToAbsent
           ? const Value.absent()
           : Value(prescribingPearls),
@@ -11037,6 +11129,9 @@ class ClinicalDrug extends DataClass implements Insertable<ClinicalDrug> {
       prioritizedSideEffects: serializer.fromJson<String>(
         json['prioritizedSideEffects'],
       ),
+      commonIndications: serializer.fromJson<String>(json['commonIndications']),
+      doseAdjustments: serializer.fromJson<String>(json['doseAdjustments']),
+      commonSideEffects: serializer.fromJson<String>(json['commonSideEffects']),
       prescribingPearls: serializer.fromJson<String?>(
         json['prescribingPearls'],
       ),
@@ -11056,6 +11151,9 @@ class ClinicalDrug extends DataClass implements Insertable<ClinicalDrug> {
       'prioritizedSideEffects': serializer.toJson<String>(
         prioritizedSideEffects,
       ),
+      'commonIndications': serializer.toJson<String>(commonIndications),
+      'doseAdjustments': serializer.toJson<String>(doseAdjustments),
+      'commonSideEffects': serializer.toJson<String>(commonSideEffects),
       'prescribingPearls': serializer.toJson<String?>(prescribingPearls),
       'availableForms': serializer.toJson<String?>(availableForms),
       'routes': serializer.toJson<String?>(routes),
@@ -11069,6 +11167,9 @@ class ClinicalDrug extends DataClass implements Insertable<ClinicalDrug> {
     String? genericMolecule,
     String? problemIndications,
     String? prioritizedSideEffects,
+    String? commonIndications,
+    String? doseAdjustments,
+    String? commonSideEffects,
     Value<String?> prescribingPearls = const Value.absent(),
     Value<String?> availableForms = const Value.absent(),
     Value<String?> routes = const Value.absent(),
@@ -11080,6 +11181,9 @@ class ClinicalDrug extends DataClass implements Insertable<ClinicalDrug> {
     problemIndications: problemIndications ?? this.problemIndications,
     prioritizedSideEffects:
         prioritizedSideEffects ?? this.prioritizedSideEffects,
+    commonIndications: commonIndications ?? this.commonIndications,
+    doseAdjustments: doseAdjustments ?? this.doseAdjustments,
+    commonSideEffects: commonSideEffects ?? this.commonSideEffects,
     prescribingPearls: prescribingPearls.present
         ? prescribingPearls.value
         : this.prescribingPearls,
@@ -11102,6 +11206,15 @@ class ClinicalDrug extends DataClass implements Insertable<ClinicalDrug> {
       prioritizedSideEffects: data.prioritizedSideEffects.present
           ? data.prioritizedSideEffects.value
           : this.prioritizedSideEffects,
+      commonIndications: data.commonIndications.present
+          ? data.commonIndications.value
+          : this.commonIndications,
+      doseAdjustments: data.doseAdjustments.present
+          ? data.doseAdjustments.value
+          : this.doseAdjustments,
+      commonSideEffects: data.commonSideEffects.present
+          ? data.commonSideEffects.value
+          : this.commonSideEffects,
       prescribingPearls: data.prescribingPearls.present
           ? data.prescribingPearls.value
           : this.prescribingPearls,
@@ -11123,6 +11236,9 @@ class ClinicalDrug extends DataClass implements Insertable<ClinicalDrug> {
           ..write('genericMolecule: $genericMolecule, ')
           ..write('problemIndications: $problemIndications, ')
           ..write('prioritizedSideEffects: $prioritizedSideEffects, ')
+          ..write('commonIndications: $commonIndications, ')
+          ..write('doseAdjustments: $doseAdjustments, ')
+          ..write('commonSideEffects: $commonSideEffects, ')
           ..write('prescribingPearls: $prescribingPearls, ')
           ..write('availableForms: $availableForms, ')
           ..write('routes: $routes, ')
@@ -11138,6 +11254,9 @@ class ClinicalDrug extends DataClass implements Insertable<ClinicalDrug> {
     genericMolecule,
     problemIndications,
     prioritizedSideEffects,
+    commonIndications,
+    doseAdjustments,
+    commonSideEffects,
     prescribingPearls,
     availableForms,
     routes,
@@ -11152,6 +11271,9 @@ class ClinicalDrug extends DataClass implements Insertable<ClinicalDrug> {
           other.genericMolecule == this.genericMolecule &&
           other.problemIndications == this.problemIndications &&
           other.prioritizedSideEffects == this.prioritizedSideEffects &&
+          other.commonIndications == this.commonIndications &&
+          other.doseAdjustments == this.doseAdjustments &&
+          other.commonSideEffects == this.commonSideEffects &&
           other.prescribingPearls == this.prescribingPearls &&
           other.availableForms == this.availableForms &&
           other.routes == this.routes &&
@@ -11164,6 +11286,9 @@ class ClinicalDrugsCompanion extends UpdateCompanion<ClinicalDrug> {
   final Value<String> genericMolecule;
   final Value<String> problemIndications;
   final Value<String> prioritizedSideEffects;
+  final Value<String> commonIndications;
+  final Value<String> doseAdjustments;
+  final Value<String> commonSideEffects;
   final Value<String?> prescribingPearls;
   final Value<String?> availableForms;
   final Value<String?> routes;
@@ -11175,6 +11300,9 @@ class ClinicalDrugsCompanion extends UpdateCompanion<ClinicalDrug> {
     this.genericMolecule = const Value.absent(),
     this.problemIndications = const Value.absent(),
     this.prioritizedSideEffects = const Value.absent(),
+    this.commonIndications = const Value.absent(),
+    this.doseAdjustments = const Value.absent(),
+    this.commonSideEffects = const Value.absent(),
     this.prescribingPearls = const Value.absent(),
     this.availableForms = const Value.absent(),
     this.routes = const Value.absent(),
@@ -11187,6 +11315,9 @@ class ClinicalDrugsCompanion extends UpdateCompanion<ClinicalDrug> {
     required String genericMolecule,
     this.problemIndications = const Value.absent(),
     this.prioritizedSideEffects = const Value.absent(),
+    this.commonIndications = const Value.absent(),
+    this.doseAdjustments = const Value.absent(),
+    this.commonSideEffects = const Value.absent(),
     this.prescribingPearls = const Value.absent(),
     this.availableForms = const Value.absent(),
     this.routes = const Value.absent(),
@@ -11199,6 +11330,9 @@ class ClinicalDrugsCompanion extends UpdateCompanion<ClinicalDrug> {
     Expression<String>? genericMolecule,
     Expression<String>? problemIndications,
     Expression<String>? prioritizedSideEffects,
+    Expression<String>? commonIndications,
+    Expression<String>? doseAdjustments,
+    Expression<String>? commonSideEffects,
     Expression<String>? prescribingPearls,
     Expression<String>? availableForms,
     Expression<String>? routes,
@@ -11212,6 +11346,9 @@ class ClinicalDrugsCompanion extends UpdateCompanion<ClinicalDrug> {
       if (problemIndications != null) 'problem_indications': problemIndications,
       if (prioritizedSideEffects != null)
         'prioritized_side_effects': prioritizedSideEffects,
+      if (commonIndications != null) 'common_indications': commonIndications,
+      if (doseAdjustments != null) 'dose_adjustments': doseAdjustments,
+      if (commonSideEffects != null) 'common_side_effects': commonSideEffects,
       if (prescribingPearls != null) 'prescribing_pearls': prescribingPearls,
       if (availableForms != null) 'available_forms': availableForms,
       if (routes != null) 'routes': routes,
@@ -11226,6 +11363,9 @@ class ClinicalDrugsCompanion extends UpdateCompanion<ClinicalDrug> {
     Value<String>? genericMolecule,
     Value<String>? problemIndications,
     Value<String>? prioritizedSideEffects,
+    Value<String>? commonIndications,
+    Value<String>? doseAdjustments,
+    Value<String>? commonSideEffects,
     Value<String?>? prescribingPearls,
     Value<String?>? availableForms,
     Value<String?>? routes,
@@ -11239,6 +11379,9 @@ class ClinicalDrugsCompanion extends UpdateCompanion<ClinicalDrug> {
       problemIndications: problemIndications ?? this.problemIndications,
       prioritizedSideEffects:
           prioritizedSideEffects ?? this.prioritizedSideEffects,
+      commonIndications: commonIndications ?? this.commonIndications,
+      doseAdjustments: doseAdjustments ?? this.doseAdjustments,
+      commonSideEffects: commonSideEffects ?? this.commonSideEffects,
       prescribingPearls: prescribingPearls ?? this.prescribingPearls,
       availableForms: availableForms ?? this.availableForms,
       routes: routes ?? this.routes,
@@ -11264,6 +11407,15 @@ class ClinicalDrugsCompanion extends UpdateCompanion<ClinicalDrug> {
       map['prioritized_side_effects'] = Variable<String>(
         prioritizedSideEffects.value,
       );
+    }
+    if (commonIndications.present) {
+      map['common_indications'] = Variable<String>(commonIndications.value);
+    }
+    if (doseAdjustments.present) {
+      map['dose_adjustments'] = Variable<String>(doseAdjustments.value);
+    }
+    if (commonSideEffects.present) {
+      map['common_side_effects'] = Variable<String>(commonSideEffects.value);
     }
     if (prescribingPearls.present) {
       map['prescribing_pearls'] = Variable<String>(prescribingPearls.value);
@@ -11293,6 +11445,9 @@ class ClinicalDrugsCompanion extends UpdateCompanion<ClinicalDrug> {
           ..write('genericMolecule: $genericMolecule, ')
           ..write('problemIndications: $problemIndications, ')
           ..write('prioritizedSideEffects: $prioritizedSideEffects, ')
+          ..write('commonIndications: $commonIndications, ')
+          ..write('doseAdjustments: $doseAdjustments, ')
+          ..write('commonSideEffects: $commonSideEffects, ')
           ..write('prescribingPearls: $prescribingPearls, ')
           ..write('availableForms: $availableForms, ')
           ..write('routes: $routes, ')
@@ -15209,6 +15364,473 @@ class ClinicalLearningLogsCompanion
   }
 }
 
+class $ClinicalAuditsTable extends ClinicalAudits
+    with TableInfo<$ClinicalAuditsTable, ClinicalAudit> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ClinicalAuditsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    clientDefault: () => _uuid.v4(),
+  );
+  static const VerificationMeta _patientIdMeta = const VerificationMeta(
+    'patientId',
+  );
+  @override
+  late final GeneratedColumn<String> patientId = GeneratedColumn<String>(
+    'patient_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES patients (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _suggestionTypeMeta = const VerificationMeta(
+    'suggestionType',
+  );
+  @override
+  late final GeneratedColumn<String> suggestionType = GeneratedColumn<String>(
+    'suggestion_type',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _titleMeta = const VerificationMeta('title');
+  @override
+  late final GeneratedColumn<String> title = GeneratedColumn<String>(
+    'title',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _reasoningMeta = const VerificationMeta(
+    'reasoning',
+  );
+  @override
+  late final GeneratedColumn<String> reasoning = GeneratedColumn<String>(
+    'reasoning',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _statusMeta = const VerificationMeta('status');
+  @override
+  late final GeneratedColumn<String> status = GeneratedColumn<String>(
+    'status',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    $customConstraints:
+        'NOT NULL CHECK (status IN (\'accepted\', \'dismissed\'))',
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    patientId,
+    suggestionType,
+    title,
+    reasoning,
+    status,
+    createdAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'clinical_audits';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<ClinicalAudit> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('patient_id')) {
+      context.handle(
+        _patientIdMeta,
+        patientId.isAcceptableOrUnknown(data['patient_id']!, _patientIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_patientIdMeta);
+    }
+    if (data.containsKey('suggestion_type')) {
+      context.handle(
+        _suggestionTypeMeta,
+        suggestionType.isAcceptableOrUnknown(
+          data['suggestion_type']!,
+          _suggestionTypeMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_suggestionTypeMeta);
+    }
+    if (data.containsKey('title')) {
+      context.handle(
+        _titleMeta,
+        title.isAcceptableOrUnknown(data['title']!, _titleMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_titleMeta);
+    }
+    if (data.containsKey('reasoning')) {
+      context.handle(
+        _reasoningMeta,
+        reasoning.isAcceptableOrUnknown(data['reasoning']!, _reasoningMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_reasoningMeta);
+    }
+    if (data.containsKey('status')) {
+      context.handle(
+        _statusMeta,
+        status.isAcceptableOrUnknown(data['status']!, _statusMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_statusMeta);
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  ClinicalAudit map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ClinicalAudit(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      patientId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}patient_id'],
+      )!,
+      suggestionType: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}suggestion_type'],
+      )!,
+      title: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}title'],
+      )!,
+      reasoning: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}reasoning'],
+      )!,
+      status: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}status'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+    );
+  }
+
+  @override
+  $ClinicalAuditsTable createAlias(String alias) {
+    return $ClinicalAuditsTable(attachedDatabase, alias);
+  }
+}
+
+class ClinicalAudit extends DataClass implements Insertable<ClinicalAudit> {
+  /// Clinician outcome for a generated recommendation.
+  final String id;
+  final String patientId;
+  final String suggestionType;
+  final String title;
+  final String reasoning;
+  final String status;
+  final DateTime createdAt;
+  const ClinicalAudit({
+    required this.id,
+    required this.patientId,
+    required this.suggestionType,
+    required this.title,
+    required this.reasoning,
+    required this.status,
+    required this.createdAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['patient_id'] = Variable<String>(patientId);
+    map['suggestion_type'] = Variable<String>(suggestionType);
+    map['title'] = Variable<String>(title);
+    map['reasoning'] = Variable<String>(reasoning);
+    map['status'] = Variable<String>(status);
+    map['created_at'] = Variable<DateTime>(createdAt);
+    return map;
+  }
+
+  ClinicalAuditsCompanion toCompanion(bool nullToAbsent) {
+    return ClinicalAuditsCompanion(
+      id: Value(id),
+      patientId: Value(patientId),
+      suggestionType: Value(suggestionType),
+      title: Value(title),
+      reasoning: Value(reasoning),
+      status: Value(status),
+      createdAt: Value(createdAt),
+    );
+  }
+
+  factory ClinicalAudit.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ClinicalAudit(
+      id: serializer.fromJson<String>(json['id']),
+      patientId: serializer.fromJson<String>(json['patientId']),
+      suggestionType: serializer.fromJson<String>(json['suggestionType']),
+      title: serializer.fromJson<String>(json['title']),
+      reasoning: serializer.fromJson<String>(json['reasoning']),
+      status: serializer.fromJson<String>(json['status']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'patientId': serializer.toJson<String>(patientId),
+      'suggestionType': serializer.toJson<String>(suggestionType),
+      'title': serializer.toJson<String>(title),
+      'reasoning': serializer.toJson<String>(reasoning),
+      'status': serializer.toJson<String>(status),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+    };
+  }
+
+  ClinicalAudit copyWith({
+    String? id,
+    String? patientId,
+    String? suggestionType,
+    String? title,
+    String? reasoning,
+    String? status,
+    DateTime? createdAt,
+  }) => ClinicalAudit(
+    id: id ?? this.id,
+    patientId: patientId ?? this.patientId,
+    suggestionType: suggestionType ?? this.suggestionType,
+    title: title ?? this.title,
+    reasoning: reasoning ?? this.reasoning,
+    status: status ?? this.status,
+    createdAt: createdAt ?? this.createdAt,
+  );
+  ClinicalAudit copyWithCompanion(ClinicalAuditsCompanion data) {
+    return ClinicalAudit(
+      id: data.id.present ? data.id.value : this.id,
+      patientId: data.patientId.present ? data.patientId.value : this.patientId,
+      suggestionType: data.suggestionType.present
+          ? data.suggestionType.value
+          : this.suggestionType,
+      title: data.title.present ? data.title.value : this.title,
+      reasoning: data.reasoning.present ? data.reasoning.value : this.reasoning,
+      status: data.status.present ? data.status.value : this.status,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ClinicalAudit(')
+          ..write('id: $id, ')
+          ..write('patientId: $patientId, ')
+          ..write('suggestionType: $suggestionType, ')
+          ..write('title: $title, ')
+          ..write('reasoning: $reasoning, ')
+          ..write('status: $status, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    patientId,
+    suggestionType,
+    title,
+    reasoning,
+    status,
+    createdAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ClinicalAudit &&
+          other.id == this.id &&
+          other.patientId == this.patientId &&
+          other.suggestionType == this.suggestionType &&
+          other.title == this.title &&
+          other.reasoning == this.reasoning &&
+          other.status == this.status &&
+          other.createdAt == this.createdAt);
+}
+
+class ClinicalAuditsCompanion extends UpdateCompanion<ClinicalAudit> {
+  final Value<String> id;
+  final Value<String> patientId;
+  final Value<String> suggestionType;
+  final Value<String> title;
+  final Value<String> reasoning;
+  final Value<String> status;
+  final Value<DateTime> createdAt;
+  final Value<int> rowid;
+  const ClinicalAuditsCompanion({
+    this.id = const Value.absent(),
+    this.patientId = const Value.absent(),
+    this.suggestionType = const Value.absent(),
+    this.title = const Value.absent(),
+    this.reasoning = const Value.absent(),
+    this.status = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  ClinicalAuditsCompanion.insert({
+    this.id = const Value.absent(),
+    required String patientId,
+    required String suggestionType,
+    required String title,
+    required String reasoning,
+    required String status,
+    this.createdAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : patientId = Value(patientId),
+       suggestionType = Value(suggestionType),
+       title = Value(title),
+       reasoning = Value(reasoning),
+       status = Value(status);
+  static Insertable<ClinicalAudit> custom({
+    Expression<String>? id,
+    Expression<String>? patientId,
+    Expression<String>? suggestionType,
+    Expression<String>? title,
+    Expression<String>? reasoning,
+    Expression<String>? status,
+    Expression<DateTime>? createdAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (patientId != null) 'patient_id': patientId,
+      if (suggestionType != null) 'suggestion_type': suggestionType,
+      if (title != null) 'title': title,
+      if (reasoning != null) 'reasoning': reasoning,
+      if (status != null) 'status': status,
+      if (createdAt != null) 'created_at': createdAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  ClinicalAuditsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? patientId,
+    Value<String>? suggestionType,
+    Value<String>? title,
+    Value<String>? reasoning,
+    Value<String>? status,
+    Value<DateTime>? createdAt,
+    Value<int>? rowid,
+  }) {
+    return ClinicalAuditsCompanion(
+      id: id ?? this.id,
+      patientId: patientId ?? this.patientId,
+      suggestionType: suggestionType ?? this.suggestionType,
+      title: title ?? this.title,
+      reasoning: reasoning ?? this.reasoning,
+      status: status ?? this.status,
+      createdAt: createdAt ?? this.createdAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (patientId.present) {
+      map['patient_id'] = Variable<String>(patientId.value);
+    }
+    if (suggestionType.present) {
+      map['suggestion_type'] = Variable<String>(suggestionType.value);
+    }
+    if (title.present) {
+      map['title'] = Variable<String>(title.value);
+    }
+    if (reasoning.present) {
+      map['reasoning'] = Variable<String>(reasoning.value);
+    }
+    if (status.present) {
+      map['status'] = Variable<String>(status.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ClinicalAuditsCompanion(')
+          ..write('id: $id, ')
+          ..write('patientId: $patientId, ')
+          ..write('suggestionType: $suggestionType, ')
+          ..write('title: $title, ')
+          ..write('reasoning: $reasoning, ')
+          ..write('status: $status, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class $OfflineSyncQueueTable extends OfflineSyncQueue
     with TableInfo<$OfflineSyncQueueTable, SyncQueueEntry> {
   @override
@@ -18092,6 +18714,17 @@ class $DocumentRegistriesTable extends DocumentRegistries
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _clincomJsonMeta = const VerificationMeta(
+    'clincomJson',
+  );
+  @override
+  late final GeneratedColumn<String> clincomJson = GeneratedColumn<String>(
+    'clincom_json',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _confidenceScoreMeta = const VerificationMeta(
     'confidenceScore',
   );
@@ -18135,6 +18768,7 @@ class $DocumentRegistriesTable extends DocumentRegistries
     imagePath,
     rawOcrTranscript,
     imageHash,
+    clincomJson,
     confidenceScore,
     documentedAt,
     createdAt,
@@ -18198,6 +18832,15 @@ class $DocumentRegistriesTable extends DocumentRegistries
         imageHash.isAcceptableOrUnknown(data['image_hash']!, _imageHashMeta),
       );
     }
+    if (data.containsKey('clincom_json')) {
+      context.handle(
+        _clincomJsonMeta,
+        clincomJson.isAcceptableOrUnknown(
+          data['clincom_json']!,
+          _clincomJsonMeta,
+        ),
+      );
+    }
     if (data.containsKey('confidence_score')) {
       context.handle(
         _confidenceScoreMeta,
@@ -18257,6 +18900,10 @@ class $DocumentRegistriesTable extends DocumentRegistries
         DriftSqlType.string,
         data['${effectivePrefix}image_hash'],
       ),
+      clincomJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}clincom_json'],
+      ),
       confidenceScore: attachedDatabase.typeMapping.read(
         DriftSqlType.double,
         data['${effectivePrefix}confidence_score'],
@@ -18294,6 +18941,17 @@ class DocumentRegistry extends DataClass
   /// an older backup), so a null hash must never be treated as a match — see
   /// `ClinicalDao.findDocumentByImageHash`.
   final String? imageHash;
+
+  /// Sprint 17.5 — the full ClinCom extraction as JSON, so Edit Mode can
+  /// rehydrate the *entire* review form (complaints, diagnoses, ordered
+  /// investigations, vitals, labs, meds) rather than just the summary.
+  ///
+  /// This is what makes the 1-year retention lifecycle fully editable: without
+  /// it, opening a document a year later shows an almost-empty form and the
+  /// clinician would have to re-scan a page that is still perfectly valid.
+  /// Null on documents stored before Sprint 17.5; those degrade gracefully to
+  /// the previous summary-only behaviour.
+  final String? clincomJson;
   final double confidenceScore;
   final DateTime documentedAt;
   final DateTime createdAt;
@@ -18304,6 +18962,7 @@ class DocumentRegistry extends DataClass
     required this.imagePath,
     required this.rawOcrTranscript,
     this.imageHash,
+    this.clincomJson,
     required this.confidenceScore,
     required this.documentedAt,
     required this.createdAt,
@@ -18318,6 +18977,9 @@ class DocumentRegistry extends DataClass
     map['raw_ocr_transcript'] = Variable<String>(rawOcrTranscript);
     if (!nullToAbsent || imageHash != null) {
       map['image_hash'] = Variable<String>(imageHash);
+    }
+    if (!nullToAbsent || clincomJson != null) {
+      map['clincom_json'] = Variable<String>(clincomJson);
     }
     map['confidence_score'] = Variable<double>(confidenceScore);
     map['documented_at'] = Variable<DateTime>(documentedAt);
@@ -18335,6 +18997,9 @@ class DocumentRegistry extends DataClass
       imageHash: imageHash == null && nullToAbsent
           ? const Value.absent()
           : Value(imageHash),
+      clincomJson: clincomJson == null && nullToAbsent
+          ? const Value.absent()
+          : Value(clincomJson),
       confidenceScore: Value(confidenceScore),
       documentedAt: Value(documentedAt),
       createdAt: Value(createdAt),
@@ -18353,6 +19018,7 @@ class DocumentRegistry extends DataClass
       imagePath: serializer.fromJson<String>(json['imagePath']),
       rawOcrTranscript: serializer.fromJson<String>(json['rawOcrTranscript']),
       imageHash: serializer.fromJson<String?>(json['imageHash']),
+      clincomJson: serializer.fromJson<String?>(json['clincomJson']),
       confidenceScore: serializer.fromJson<double>(json['confidenceScore']),
       documentedAt: serializer.fromJson<DateTime>(json['documentedAt']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
@@ -18368,6 +19034,7 @@ class DocumentRegistry extends DataClass
       'imagePath': serializer.toJson<String>(imagePath),
       'rawOcrTranscript': serializer.toJson<String>(rawOcrTranscript),
       'imageHash': serializer.toJson<String?>(imageHash),
+      'clincomJson': serializer.toJson<String?>(clincomJson),
       'confidenceScore': serializer.toJson<double>(confidenceScore),
       'documentedAt': serializer.toJson<DateTime>(documentedAt),
       'createdAt': serializer.toJson<DateTime>(createdAt),
@@ -18381,6 +19048,7 @@ class DocumentRegistry extends DataClass
     String? imagePath,
     String? rawOcrTranscript,
     Value<String?> imageHash = const Value.absent(),
+    Value<String?> clincomJson = const Value.absent(),
     double? confidenceScore,
     DateTime? documentedAt,
     DateTime? createdAt,
@@ -18391,6 +19059,7 @@ class DocumentRegistry extends DataClass
     imagePath: imagePath ?? this.imagePath,
     rawOcrTranscript: rawOcrTranscript ?? this.rawOcrTranscript,
     imageHash: imageHash.present ? imageHash.value : this.imageHash,
+    clincomJson: clincomJson.present ? clincomJson.value : this.clincomJson,
     confidenceScore: confidenceScore ?? this.confidenceScore,
     documentedAt: documentedAt ?? this.documentedAt,
     createdAt: createdAt ?? this.createdAt,
@@ -18407,6 +19076,9 @@ class DocumentRegistry extends DataClass
           ? data.rawOcrTranscript.value
           : this.rawOcrTranscript,
       imageHash: data.imageHash.present ? data.imageHash.value : this.imageHash,
+      clincomJson: data.clincomJson.present
+          ? data.clincomJson.value
+          : this.clincomJson,
       confidenceScore: data.confidenceScore.present
           ? data.confidenceScore.value
           : this.confidenceScore,
@@ -18426,6 +19098,7 @@ class DocumentRegistry extends DataClass
           ..write('imagePath: $imagePath, ')
           ..write('rawOcrTranscript: $rawOcrTranscript, ')
           ..write('imageHash: $imageHash, ')
+          ..write('clincomJson: $clincomJson, ')
           ..write('confidenceScore: $confidenceScore, ')
           ..write('documentedAt: $documentedAt, ')
           ..write('createdAt: $createdAt')
@@ -18441,6 +19114,7 @@ class DocumentRegistry extends DataClass
     imagePath,
     rawOcrTranscript,
     imageHash,
+    clincomJson,
     confidenceScore,
     documentedAt,
     createdAt,
@@ -18455,6 +19129,7 @@ class DocumentRegistry extends DataClass
           other.imagePath == this.imagePath &&
           other.rawOcrTranscript == this.rawOcrTranscript &&
           other.imageHash == this.imageHash &&
+          other.clincomJson == this.clincomJson &&
           other.confidenceScore == this.confidenceScore &&
           other.documentedAt == this.documentedAt &&
           other.createdAt == this.createdAt);
@@ -18467,6 +19142,7 @@ class DocumentRegistriesCompanion extends UpdateCompanion<DocumentRegistry> {
   final Value<String> imagePath;
   final Value<String> rawOcrTranscript;
   final Value<String?> imageHash;
+  final Value<String?> clincomJson;
   final Value<double> confidenceScore;
   final Value<DateTime> documentedAt;
   final Value<DateTime> createdAt;
@@ -18478,6 +19154,7 @@ class DocumentRegistriesCompanion extends UpdateCompanion<DocumentRegistry> {
     this.imagePath = const Value.absent(),
     this.rawOcrTranscript = const Value.absent(),
     this.imageHash = const Value.absent(),
+    this.clincomJson = const Value.absent(),
     this.confidenceScore = const Value.absent(),
     this.documentedAt = const Value.absent(),
     this.createdAt = const Value.absent(),
@@ -18490,6 +19167,7 @@ class DocumentRegistriesCompanion extends UpdateCompanion<DocumentRegistry> {
     required String imagePath,
     this.rawOcrTranscript = const Value.absent(),
     this.imageHash = const Value.absent(),
+    this.clincomJson = const Value.absent(),
     this.confidenceScore = const Value.absent(),
     required DateTime documentedAt,
     this.createdAt = const Value.absent(),
@@ -18506,6 +19184,7 @@ class DocumentRegistriesCompanion extends UpdateCompanion<DocumentRegistry> {
     Expression<String>? imagePath,
     Expression<String>? rawOcrTranscript,
     Expression<String>? imageHash,
+    Expression<String>? clincomJson,
     Expression<double>? confidenceScore,
     Expression<DateTime>? documentedAt,
     Expression<DateTime>? createdAt,
@@ -18518,6 +19197,7 @@ class DocumentRegistriesCompanion extends UpdateCompanion<DocumentRegistry> {
       if (imagePath != null) 'image_path': imagePath,
       if (rawOcrTranscript != null) 'raw_ocr_transcript': rawOcrTranscript,
       if (imageHash != null) 'image_hash': imageHash,
+      if (clincomJson != null) 'clincom_json': clincomJson,
       if (confidenceScore != null) 'confidence_score': confidenceScore,
       if (documentedAt != null) 'documented_at': documentedAt,
       if (createdAt != null) 'created_at': createdAt,
@@ -18532,6 +19212,7 @@ class DocumentRegistriesCompanion extends UpdateCompanion<DocumentRegistry> {
     Value<String>? imagePath,
     Value<String>? rawOcrTranscript,
     Value<String?>? imageHash,
+    Value<String?>? clincomJson,
     Value<double>? confidenceScore,
     Value<DateTime>? documentedAt,
     Value<DateTime>? createdAt,
@@ -18544,6 +19225,7 @@ class DocumentRegistriesCompanion extends UpdateCompanion<DocumentRegistry> {
       imagePath: imagePath ?? this.imagePath,
       rawOcrTranscript: rawOcrTranscript ?? this.rawOcrTranscript,
       imageHash: imageHash ?? this.imageHash,
+      clincomJson: clincomJson ?? this.clincomJson,
       confidenceScore: confidenceScore ?? this.confidenceScore,
       documentedAt: documentedAt ?? this.documentedAt,
       createdAt: createdAt ?? this.createdAt,
@@ -18572,6 +19254,9 @@ class DocumentRegistriesCompanion extends UpdateCompanion<DocumentRegistry> {
     if (imageHash.present) {
       map['image_hash'] = Variable<String>(imageHash.value);
     }
+    if (clincomJson.present) {
+      map['clincom_json'] = Variable<String>(clincomJson.value);
+    }
     if (confidenceScore.present) {
       map['confidence_score'] = Variable<double>(confidenceScore.value);
     }
@@ -18596,6 +19281,7 @@ class DocumentRegistriesCompanion extends UpdateCompanion<DocumentRegistry> {
           ..write('imagePath: $imagePath, ')
           ..write('rawOcrTranscript: $rawOcrTranscript, ')
           ..write('imageHash: $imageHash, ')
+          ..write('clincomJson: $clincomJson, ')
           ..write('confidenceScore: $confidenceScore, ')
           ..write('documentedAt: $documentedAt, ')
           ..write('createdAt: $createdAt, ')
@@ -21102,6 +21788,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $PersonalWikiTable personalWiki = $PersonalWikiTable(this);
   late final $ClinicalLearningLogsTable clinicalLearningLogs =
       $ClinicalLearningLogsTable(this);
+  late final $ClinicalAuditsTable clinicalAudits = $ClinicalAuditsTable(this);
   late final $OfflineSyncQueueTable offlineSyncQueue = $OfflineSyncQueueTable(
     this,
   );
@@ -21185,6 +21872,10 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     'personal_wiki_updated_idx',
     'CREATE INDEX personal_wiki_updated_idx ON personal_wiki (updated_at)',
   );
+  late final Index clinicalAuditsPatientIdx = Index(
+    'clinical_audits_patient_idx',
+    'CREATE INDEX clinical_audits_patient_idx ON clinical_audits (patient_id)',
+  );
   late final Index admissionsHospitalStatusIdx = Index(
     'admissions_hospital_status_idx',
     'CREATE INDEX admissions_hospital_status_idx ON admissions (hospital_id, status)',
@@ -21215,6 +21906,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     brands,
     personalWiki,
     clinicalLearningLogs,
+    clinicalAudits,
     offlineSyncQueue,
     cdssRules,
     ayushmanPackages,
@@ -21242,6 +21934,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     brandsCodeIdx,
     brandsNameIdx,
     personalWikiUpdatedIdx,
+    clinicalAuditsPatientIdx,
     admissionsHospitalStatusIdx,
   ];
   @override
@@ -21436,6 +22129,13 @@ abstract class _$AppDatabase extends GeneratedDatabase {
         limitUpdateKind: UpdateKind.delete,
       ),
       result: [TableUpdate('clinical_learning_logs', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'patients',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('clinical_audits', kind: UpdateKind.delete)],
     ),
     WritePropagation(
       on: TableUpdateQuery.onTableName(
@@ -21772,6 +22472,24 @@ final class $$PatientsTableReferences
     final cache = $_typedResult.readTableOrNull(
       _clinicalLearningLogsRefsTable($_db),
     );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$ClinicalAuditsTable, List<ClinicalAudit>>
+  _clinicalAuditsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.clinicalAudits,
+    aliasName: 'patients__id__clinical_audits__patient_id',
+  );
+
+  $$ClinicalAuditsTableProcessedTableManager get clinicalAuditsRefs {
+    final manager = $$ClinicalAuditsTableTableManager(
+      $_db,
+      $_db.clinicalAudits,
+    ).filter((f) => f.patientId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_clinicalAuditsRefsTable($_db));
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: cache),
     );
@@ -22196,6 +22914,31 @@ class $$PatientsTableFilterComposer
           }) => $$ClinicalLearningLogsTableFilterComposer(
             $db: $db,
             $table: $db.clinicalLearningLogs,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> clinicalAuditsRefs(
+    Expression<bool> Function($$ClinicalAuditsTableFilterComposer f) f,
+  ) {
+    final $$ClinicalAuditsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.clinicalAudits,
+      getReferencedColumn: (t) => t.patientId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ClinicalAuditsTableFilterComposer(
+            $db: $db,
+            $table: $db.clinicalAudits,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -22707,6 +23450,31 @@ class $$PatientsTableAnnotationComposer
     return f(composer);
   }
 
+  Expression<T> clinicalAuditsRefs<T extends Object>(
+    Expression<T> Function($$ClinicalAuditsTableAnnotationComposer a) f,
+  ) {
+    final $$ClinicalAuditsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.clinicalAudits,
+      getReferencedColumn: (t) => t.patientId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ClinicalAuditsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.clinicalAudits,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
   Expression<T> documentRegistriesRefs<T extends Object>(
     Expression<T> Function($$DocumentRegistriesTableAnnotationComposer a) f,
   ) {
@@ -22860,6 +23628,7 @@ class $$PatientsTableTableManager
             bool investigationOrdersRefs,
             bool investigationResultsRefs,
             bool clinicalLearningLogsRefs,
+            bool clinicalAuditsRefs,
             bool documentRegistriesRefs,
             bool clinicalObservationsRefs,
             bool microbiologyCulturesRefs,
@@ -22954,6 +23723,7 @@ class $$PatientsTableTableManager
                 investigationOrdersRefs = false,
                 investigationResultsRefs = false,
                 clinicalLearningLogsRefs = false,
+                clinicalAuditsRefs = false,
                 documentRegistriesRefs = false,
                 clinicalObservationsRefs = false,
                 microbiologyCulturesRefs = false,
@@ -22975,6 +23745,7 @@ class $$PatientsTableTableManager
                     if (investigationOrdersRefs) db.investigationOrders,
                     if (investigationResultsRefs) db.investigationResults,
                     if (clinicalLearningLogsRefs) db.clinicalLearningLogs,
+                    if (clinicalAuditsRefs) db.clinicalAudits,
                     if (documentRegistriesRefs) db.documentRegistries,
                     if (clinicalObservationsRefs) db.clinicalObservations,
                     if (microbiologyCulturesRefs) db.microbiologyCultures,
@@ -23194,6 +23965,27 @@ class $$PatientsTableTableManager
                               ),
                           typedResults: items,
                         ),
+                      if (clinicalAuditsRefs)
+                        await $_getPrefetchedData<
+                          Patient,
+                          $PatientsTable,
+                          ClinicalAudit
+                        >(
+                          currentTable: table,
+                          referencedTable: $$PatientsTableReferences
+                              ._clinicalAuditsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$PatientsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).clinicalAuditsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.patientId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                       if (documentRegistriesRefs)
                         await $_getPrefetchedData<
                           Patient,
@@ -23330,6 +24122,7 @@ typedef $$PatientsTableProcessedTableManager =
         bool investigationOrdersRefs,
         bool investigationResultsRefs,
         bool clinicalLearningLogsRefs,
+        bool clinicalAuditsRefs,
         bool documentRegistriesRefs,
         bool clinicalObservationsRefs,
         bool microbiologyCulturesRefs,
@@ -32159,6 +32952,9 @@ typedef $$ClinicalDrugsTableCreateCompanionBuilder =
       required String genericMolecule,
       Value<String> problemIndications,
       Value<String> prioritizedSideEffects,
+      Value<String> commonIndications,
+      Value<String> doseAdjustments,
+      Value<String> commonSideEffects,
       Value<String?> prescribingPearls,
       Value<String?> availableForms,
       Value<String?> routes,
@@ -32172,6 +32968,9 @@ typedef $$ClinicalDrugsTableUpdateCompanionBuilder =
       Value<String> genericMolecule,
       Value<String> problemIndications,
       Value<String> prioritizedSideEffects,
+      Value<String> commonIndications,
+      Value<String> doseAdjustments,
+      Value<String> commonSideEffects,
       Value<String?> prescribingPearls,
       Value<String?> availableForms,
       Value<String?> routes,
@@ -32206,6 +33005,21 @@ class $$ClinicalDrugsTableFilterComposer
 
   ColumnFilters<String> get prioritizedSideEffects => $composableBuilder(
     column: $table.prioritizedSideEffects,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get commonIndications => $composableBuilder(
+    column: $table.commonIndications,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get doseAdjustments => $composableBuilder(
+    column: $table.doseAdjustments,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get commonSideEffects => $composableBuilder(
+    column: $table.commonSideEffects,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -32264,6 +33078,21 @@ class $$ClinicalDrugsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get commonIndications => $composableBuilder(
+    column: $table.commonIndications,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get doseAdjustments => $composableBuilder(
+    column: $table.doseAdjustments,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get commonSideEffects => $composableBuilder(
+    column: $table.commonSideEffects,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get prescribingPearls => $composableBuilder(
     column: $table.prescribingPearls,
     builder: (column) => ColumnOrderings(column),
@@ -32314,6 +33143,21 @@ class $$ClinicalDrugsTableAnnotationComposer
 
   GeneratedColumn<String> get prioritizedSideEffects => $composableBuilder(
     column: $table.prioritizedSideEffects,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get commonIndications => $composableBuilder(
+    column: $table.commonIndications,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get doseAdjustments => $composableBuilder(
+    column: $table.doseAdjustments,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get commonSideEffects => $composableBuilder(
+    column: $table.commonSideEffects,
     builder: (column) => column,
   );
 
@@ -32374,6 +33218,9 @@ class $$ClinicalDrugsTableTableManager
                 Value<String> genericMolecule = const Value.absent(),
                 Value<String> problemIndications = const Value.absent(),
                 Value<String> prioritizedSideEffects = const Value.absent(),
+                Value<String> commonIndications = const Value.absent(),
+                Value<String> doseAdjustments = const Value.absent(),
+                Value<String> commonSideEffects = const Value.absent(),
                 Value<String?> prescribingPearls = const Value.absent(),
                 Value<String?> availableForms = const Value.absent(),
                 Value<String?> routes = const Value.absent(),
@@ -32385,6 +33232,9 @@ class $$ClinicalDrugsTableTableManager
                 genericMolecule: genericMolecule,
                 problemIndications: problemIndications,
                 prioritizedSideEffects: prioritizedSideEffects,
+                commonIndications: commonIndications,
+                doseAdjustments: doseAdjustments,
+                commonSideEffects: commonSideEffects,
                 prescribingPearls: prescribingPearls,
                 availableForms: availableForms,
                 routes: routes,
@@ -32398,6 +33248,9 @@ class $$ClinicalDrugsTableTableManager
                 required String genericMolecule,
                 Value<String> problemIndications = const Value.absent(),
                 Value<String> prioritizedSideEffects = const Value.absent(),
+                Value<String> commonIndications = const Value.absent(),
+                Value<String> doseAdjustments = const Value.absent(),
+                Value<String> commonSideEffects = const Value.absent(),
                 Value<String?> prescribingPearls = const Value.absent(),
                 Value<String?> availableForms = const Value.absent(),
                 Value<String?> routes = const Value.absent(),
@@ -32409,6 +33262,9 @@ class $$ClinicalDrugsTableTableManager
                 genericMolecule: genericMolecule,
                 problemIndications: problemIndications,
                 prioritizedSideEffects: prioritizedSideEffects,
+                commonIndications: commonIndications,
+                doseAdjustments: doseAdjustments,
+                commonSideEffects: commonSideEffects,
                 prescribingPearls: prescribingPearls,
                 availableForms: availableForms,
                 routes: routes,
@@ -34491,6 +35347,370 @@ typedef $$ClinicalLearningLogsTableProcessedTableManager =
       ClinicalLearningLog,
       PrefetchHooks Function({bool encounterId, bool patientId})
     >;
+typedef $$ClinicalAuditsTableCreateCompanionBuilder =
+    ClinicalAuditsCompanion Function({
+      Value<String> id,
+      required String patientId,
+      required String suggestionType,
+      required String title,
+      required String reasoning,
+      required String status,
+      Value<DateTime> createdAt,
+      Value<int> rowid,
+    });
+typedef $$ClinicalAuditsTableUpdateCompanionBuilder =
+    ClinicalAuditsCompanion Function({
+      Value<String> id,
+      Value<String> patientId,
+      Value<String> suggestionType,
+      Value<String> title,
+      Value<String> reasoning,
+      Value<String> status,
+      Value<DateTime> createdAt,
+      Value<int> rowid,
+    });
+
+final class $$ClinicalAuditsTableReferences
+    extends BaseReferences<_$AppDatabase, $ClinicalAuditsTable, ClinicalAudit> {
+  $$ClinicalAuditsTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $PatientsTable _patientIdTable(_$AppDatabase db) =>
+      db.patients.createAlias('clinical_audits__patient_id__patients__id');
+
+  $$PatientsTableProcessedTableManager get patientId {
+    final $_column = $_itemColumn<String>('patient_id')!;
+
+    final manager = $$PatientsTableTableManager(
+      $_db,
+      $_db.patients,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_patientIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$ClinicalAuditsTableFilterComposer
+    extends Composer<_$AppDatabase, $ClinicalAuditsTable> {
+  $$ClinicalAuditsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get suggestionType => $composableBuilder(
+    column: $table.suggestionType,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get title => $composableBuilder(
+    column: $table.title,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get reasoning => $composableBuilder(
+    column: $table.reasoning,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get status => $composableBuilder(
+    column: $table.status,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$PatientsTableFilterComposer get patientId {
+    final $$PatientsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.patientId,
+      referencedTable: $db.patients,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PatientsTableFilterComposer(
+            $db: $db,
+            $table: $db.patients,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$ClinicalAuditsTableOrderingComposer
+    extends Composer<_$AppDatabase, $ClinicalAuditsTable> {
+  $$ClinicalAuditsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get suggestionType => $composableBuilder(
+    column: $table.suggestionType,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get title => $composableBuilder(
+    column: $table.title,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get reasoning => $composableBuilder(
+    column: $table.reasoning,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get status => $composableBuilder(
+    column: $table.status,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$PatientsTableOrderingComposer get patientId {
+    final $$PatientsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.patientId,
+      referencedTable: $db.patients,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PatientsTableOrderingComposer(
+            $db: $db,
+            $table: $db.patients,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$ClinicalAuditsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $ClinicalAuditsTable> {
+  $$ClinicalAuditsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get suggestionType => $composableBuilder(
+    column: $table.suggestionType,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get title =>
+      $composableBuilder(column: $table.title, builder: (column) => column);
+
+  GeneratedColumn<String> get reasoning =>
+      $composableBuilder(column: $table.reasoning, builder: (column) => column);
+
+  GeneratedColumn<String> get status =>
+      $composableBuilder(column: $table.status, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  $$PatientsTableAnnotationComposer get patientId {
+    final $$PatientsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.patientId,
+      referencedTable: $db.patients,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PatientsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.patients,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$ClinicalAuditsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $ClinicalAuditsTable,
+          ClinicalAudit,
+          $$ClinicalAuditsTableFilterComposer,
+          $$ClinicalAuditsTableOrderingComposer,
+          $$ClinicalAuditsTableAnnotationComposer,
+          $$ClinicalAuditsTableCreateCompanionBuilder,
+          $$ClinicalAuditsTableUpdateCompanionBuilder,
+          (ClinicalAudit, $$ClinicalAuditsTableReferences),
+          ClinicalAudit,
+          PrefetchHooks Function({bool patientId})
+        > {
+  $$ClinicalAuditsTableTableManager(
+    _$AppDatabase db,
+    $ClinicalAuditsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ClinicalAuditsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$ClinicalAuditsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$ClinicalAuditsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> patientId = const Value.absent(),
+                Value<String> suggestionType = const Value.absent(),
+                Value<String> title = const Value.absent(),
+                Value<String> reasoning = const Value.absent(),
+                Value<String> status = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ClinicalAuditsCompanion(
+                id: id,
+                patientId: patientId,
+                suggestionType: suggestionType,
+                title: title,
+                reasoning: reasoning,
+                status: status,
+                createdAt: createdAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                required String patientId,
+                required String suggestionType,
+                required String title,
+                required String reasoning,
+                required String status,
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ClinicalAuditsCompanion.insert(
+                id: id,
+                patientId: patientId,
+                suggestionType: suggestionType,
+                title: title,
+                reasoning: reasoning,
+                status: status,
+                createdAt: createdAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$ClinicalAuditsTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({patientId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (patientId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.patientId,
+                                referencedTable: $$ClinicalAuditsTableReferences
+                                    ._patientIdTable(db),
+                                referencedColumn:
+                                    $$ClinicalAuditsTableReferences
+                                        ._patientIdTable(db)
+                                        .id,
+                              )
+                              as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$ClinicalAuditsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $ClinicalAuditsTable,
+      ClinicalAudit,
+      $$ClinicalAuditsTableFilterComposer,
+      $$ClinicalAuditsTableOrderingComposer,
+      $$ClinicalAuditsTableAnnotationComposer,
+      $$ClinicalAuditsTableCreateCompanionBuilder,
+      $$ClinicalAuditsTableUpdateCompanionBuilder,
+      (ClinicalAudit, $$ClinicalAuditsTableReferences),
+      ClinicalAudit,
+      PrefetchHooks Function({bool patientId})
+    >;
 typedef $$OfflineSyncQueueTableCreateCompanionBuilder =
     OfflineSyncQueueCompanion Function({
       Value<String> id,
@@ -35963,6 +37183,7 @@ typedef $$DocumentRegistriesTableCreateCompanionBuilder =
       required String imagePath,
       Value<String> rawOcrTranscript,
       Value<String?> imageHash,
+      Value<String?> clincomJson,
       Value<double> confidenceScore,
       required DateTime documentedAt,
       Value<DateTime> createdAt,
@@ -35976,6 +37197,7 @@ typedef $$DocumentRegistriesTableUpdateCompanionBuilder =
       Value<String> imagePath,
       Value<String> rawOcrTranscript,
       Value<String?> imageHash,
+      Value<String?> clincomJson,
       Value<double> confidenceScore,
       Value<DateTime> documentedAt,
       Value<DateTime> createdAt,
@@ -36114,6 +37336,11 @@ class $$DocumentRegistriesTableFilterComposer
 
   ColumnFilters<String> get imageHash => $composableBuilder(
     column: $table.imageHash,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get clincomJson => $composableBuilder(
+    column: $table.clincomJson,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -36265,6 +37492,11 @@ class $$DocumentRegistriesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get clincomJson => $composableBuilder(
+    column: $table.clincomJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<double> get confidenceScore => $composableBuilder(
     column: $table.confidenceScore,
     builder: (column) => ColumnOrderings(column),
@@ -36331,6 +37563,11 @@ class $$DocumentRegistriesTableAnnotationComposer
 
   GeneratedColumn<String> get imageHash =>
       $composableBuilder(column: $table.imageHash, builder: (column) => column);
+
+  GeneratedColumn<String> get clincomJson => $composableBuilder(
+    column: $table.clincomJson,
+    builder: (column) => column,
+  );
 
   GeneratedColumn<double> get confidenceScore => $composableBuilder(
     column: $table.confidenceScore,
@@ -36490,6 +37727,7 @@ class $$DocumentRegistriesTableTableManager
                 Value<String> imagePath = const Value.absent(),
                 Value<String> rawOcrTranscript = const Value.absent(),
                 Value<String?> imageHash = const Value.absent(),
+                Value<String?> clincomJson = const Value.absent(),
                 Value<double> confidenceScore = const Value.absent(),
                 Value<DateTime> documentedAt = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
@@ -36501,6 +37739,7 @@ class $$DocumentRegistriesTableTableManager
                 imagePath: imagePath,
                 rawOcrTranscript: rawOcrTranscript,
                 imageHash: imageHash,
+                clincomJson: clincomJson,
                 confidenceScore: confidenceScore,
                 documentedAt: documentedAt,
                 createdAt: createdAt,
@@ -36514,6 +37753,7 @@ class $$DocumentRegistriesTableTableManager
                 required String imagePath,
                 Value<String> rawOcrTranscript = const Value.absent(),
                 Value<String?> imageHash = const Value.absent(),
+                Value<String?> clincomJson = const Value.absent(),
                 Value<double> confidenceScore = const Value.absent(),
                 required DateTime documentedAt,
                 Value<DateTime> createdAt = const Value.absent(),
@@ -36525,6 +37765,7 @@ class $$DocumentRegistriesTableTableManager
                 imagePath: imagePath,
                 rawOcrTranscript: rawOcrTranscript,
                 imageHash: imageHash,
+                clincomJson: clincomJson,
                 confidenceScore: confidenceScore,
                 documentedAt: documentedAt,
                 createdAt: createdAt,
@@ -38782,6 +40023,8 @@ class $AppDatabaseManager {
       $$PersonalWikiTableTableManager(_db, _db.personalWiki);
   $$ClinicalLearningLogsTableTableManager get clinicalLearningLogs =>
       $$ClinicalLearningLogsTableTableManager(_db, _db.clinicalLearningLogs);
+  $$ClinicalAuditsTableTableManager get clinicalAudits =>
+      $$ClinicalAuditsTableTableManager(_db, _db.clinicalAudits);
   $$OfflineSyncQueueTableTableManager get offlineSyncQueue =>
       $$OfflineSyncQueueTableTableManager(_db, _db.offlineSyncQueue);
   $$CdssRulesTableTableManager get cdssRules =>

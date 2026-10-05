@@ -7,6 +7,7 @@ import 'package:google_generative_ai/google_generative_ai.dart';
 
 import '../database/daos/pharmacopeia_dao.dart';
 import '../models/ai_extraction_result.dart';
+import '../models/clinical_insight.dart';
 import 'clinical_prompts.dart';
 
 /// JSON decoding is CPU work and can be substantial for multi-page results.
@@ -82,6 +83,99 @@ class DocumentAiService {
   static const int maxAttempts = 3;
 
   final String apiKey;
+
+  /// Audits a chart summary and returns concise, evidence-grounded
+  /// recommendations. The caller runs this asynchronously and surfaces any
+  /// configuration/network errors to the clinician.
+  Future<List<ClinicalInsight>> generateClinicalInsights(
+    String chartSummary,
+  ) async {
+    if (chartSummary.trim().isEmpty) {
+      throw ArgumentError.value(
+        chartSummary,
+        'chartSummary',
+        'A chart summary is required for audit.',
+      );
+    }
+    final schema = Schema.object(
+      properties: {
+        'clinical_insights': Schema.array(
+          items: Schema.object(
+            properties: {
+              'type': Schema.enumString(
+                enumValues: [
+                  'missing_investigation',
+                  'management_suggestion',
+                  'differential_diagnosis',
+                  'warning',
+                ],
+              ),
+              'title': Schema.string(),
+              'reasoning': Schema.string(),
+              'actionable_items': Schema.array(items: Schema.string()),
+            },
+            requiredProperties: [
+              'type',
+              'title',
+              'reasoning',
+              'actionable_items',
+            ],
+          ),
+        ),
+      },
+      requiredProperties: ['clinical_insights'],
+    );
+    final response = await _extractStructuredJson(
+      image: null,
+      prompt:
+          '''
+You are an elite academic attending physician auditing a patient's chart.
+Review active problems, medications, and investigation results to catch
+cognitive blind spots. Identify missing standard-of-care investigations,
+cost-effective next steps, and conflicting treatments. Every suggestion MUST
+include a brief, evidence-based rationale. Be specific to the information
+present; do not invent patient history, results, or diagnoses. Avoid duplicate
+tests already completed or active. Return an empty array when no actionable
+gap or safety concern is supported. Recommendations are decision support, not
+orders; a clinician must review each item.
+
+Return JSON matching the clinical_insights schema. Each insight has:
+- type: missing_investigation, management_suggestion,
+  differential_diagnosis, or warning
+- title: concise clinician-facing title
+- reasoning: short rationale referencing standard-of-care evidence
+- actionable_items: standardized laboratory or medication names to order, or
+  an empty array when no order is appropriate
+
+PATIENT CHART SUMMARY:
+$chartSummary
+''',
+      schema: schema,
+      validator: (json) {
+        final raw = json['clinical_insights'];
+        if (raw is! List) {
+          throw const FormatException(
+            'Clinical audit response omitted clinical_insights.',
+          );
+        }
+        for (final item in raw) {
+          if (item is! Map) {
+            throw const FormatException(
+              'Clinical audit insight must be a JSON object.',
+            );
+          }
+          ClinicalInsight.fromJson(Map<String, dynamic>.from(item));
+        }
+        return json;
+      },
+    );
+    return (response['clinical_insights']! as List)
+        .map(
+          (item) =>
+              ClinicalInsight.fromJson(Map<String, dynamic>.from(item as Map)),
+        )
+        .toList(growable: false);
+  }
 
   static bool shouldEscalateToFallback(Object error) {
     // Classified exceptions carry the authoritative signal: only a genuine
@@ -393,9 +487,7 @@ class DocumentAiService {
         if (preparedImage != null) {
           parts.add(DataPart(mimeType!, await preparedImage.readAsBytes()));
         }
-        final response = await model.generateContent([
-          Content.multi(parts),
-        ]);
+        final response = await model.generateContent([Content.multi(parts)]);
 
         final text = response.text;
         if (text == null || text.trim().isEmpty) {
@@ -434,60 +526,102 @@ class DocumentAiService {
   }) async {
     final schema = Schema.object(
       properties: {
-        'patient_identity': Schema.object(
+        'inferredPatientDemographics': Schema.object(
           properties: {
             'name': Schema.string(nullable: true),
             'age': Schema.integer(nullable: true),
             'gender': Schema.string(nullable: true),
-            'hospital_reg_no': Schema.string(nullable: true),
+            'mrn': Schema.string(nullable: true),
           },
         ),
-        'encounter_context': Schema.object(
+        'encounterDetails': Schema.object(
           properties: {
-            'document_type': Schema.string(),
             'date': Schema.string(nullable: true),
+            'type': Schema.string(
+              description: 'One of OPD, IPD, ER, or Clinical Note.',
+            ),
             'department': Schema.string(nullable: true),
             'ward_bed': Schema.string(nullable: true),
+            'vitals': Schema.object(
+              properties: {
+                'sbp': Schema.integer(nullable: true),
+                'dbp': Schema.integer(nullable: true),
+                'pulse': Schema.integer(nullable: true),
+                'spo2': Schema.integer(nullable: true),
+                'temperature_c': Schema.number(nullable: true),
+                'respiratory_rate': Schema.integer(nullable: true),
+                'map': Schema.number(nullable: true),
+              },
+            ),
           },
         ),
-        'vitals': Schema.object(
+        'pomr_data': Schema.array(
+          items: Schema.object(
+            properties: {
+              'diagnosis': Schema.string(),
+              'linked_medications': Schema.array(
+                items: Schema.object(
+                  properties: {
+                    'name': Schema.string(),
+                    'dose': Schema.string(nullable: true),
+                    'frequency': Schema.string(nullable: true),
+                    'route': Schema.string(nullable: true),
+                    'duration': Schema.string(nullable: true),
+                  },
+                ),
+              ),
+              'linked_investigations': Schema.array(
+                items: Schema.object(
+                  properties: {
+                    'test_name': Schema.string(),
+                    'value': Schema.string(),
+                    'unit': Schema.string(nullable: true),
+                    'is_abnormal': Schema.boolean(),
+                  },
+                ),
+              ),
+              'linked_procedures': Schema.array(
+                items: Schema.object(
+                  properties: {'procedure_name': Schema.string()},
+                ),
+              ),
+              'reasoning': Schema.string(),
+            },
+          ),
+        ),
+        'unlinked_data': Schema.object(
           properties: {
-            'sbp': Schema.integer(nullable: true),
-            'dbp': Schema.integer(nullable: true),
-            'pulse': Schema.integer(nullable: true),
-            'spo2': Schema.integer(nullable: true),
-            'temp_f': Schema.number(nullable: true),
+            'medications': Schema.array(
+              items: Schema.object(
+                properties: {
+                  'name': Schema.string(),
+                  'dose': Schema.string(nullable: true),
+                  'frequency': Schema.string(nullable: true),
+                  'route': Schema.string(nullable: true),
+                  'duration': Schema.string(nullable: true),
+                },
+              ),
+            ),
+            'investigations': Schema.array(
+              items: Schema.object(
+                properties: {
+                  'test_name': Schema.string(),
+                  'value': Schema.string(),
+                  'unit': Schema.string(nullable: true),
+                  'is_abnormal': Schema.boolean(),
+                },
+              ),
+            ),
+            'procedures': Schema.array(
+              items: Schema.object(
+                properties: {'procedure_name': Schema.string()},
+              ),
+            ),
           },
         ),
-        'medications_ordered': Schema.array(
-          items: Schema.object(
-            properties: {
-              'drug_name': Schema.string(),
-              'dosage': Schema.string(nullable: true),
-              'frequency': Schema.string(nullable: true),
-            },
-          ),
-        ),
-        'lab_results': Schema.array(
-          items: Schema.object(
-            properties: {
-              'test_name': Schema.string(),
-              'value': Schema.string(),
-              'unit': Schema.string(nullable: true),
-              'is_abnormal': Schema.boolean(),
-            },
-          ),
-        ),
-        // ---- Sprint 17: ClinCom semantic layer ---------------------------
-        // The date the document was WRITTEN, never today's date. Required by
-        // the prompt contract so a back-dated report keeps its true date.
-        'document_date': Schema.string(nullable: true),
-        'is_date_assumed': Schema.boolean(),
         // Resolved from bed/ward number via the appended active census JSON.
         'inferred_patient_id': Schema.string(nullable: true),
         'chief_complaints': Schema.array(items: Schema.string()),
-        'diagnoses': Schema.array(items: Schema.string()),
-        'planned_investigations': Schema.array(items: Schema.string()),
         // Source authority, drives semantic merging: a formal Scanned Document
         // report outranks a hastily jotted Ward Round Note for the same test.
         'source_authority': Schema.string(
@@ -496,6 +630,7 @@ class DocumentAiService {
               'One of: Ward Round Note, Scanned Document, Typed Note, Unknown.',
         ),
         'clinical_summary': Schema.string(),
+        'conclusion': Schema.string(),
       },
     );
 

@@ -18,6 +18,7 @@ import '../database/daos/cdss_dao.dart';
 import '../database/local_database.dart';
 import '../models/ai_extraction_result.dart';
 import '../models/document_task.dart';
+import '../services/clincom_audit_service.dart';
 import '../services/app_updater_service.dart';
 import '../services/extraction_pipeline_service.dart';
 import '../sync/catalog_sync_service.dart';
@@ -157,9 +158,18 @@ final documentAiServiceProvider = Provider<DocumentAiService>((ref) {
   return DocumentAiService(apiKey: apiKey);
 });
 
+final clinComAuditServiceProvider = Provider<ClinComAuditService>(
+  (ref) => ClinComAuditService(
+    clinicalDao: ref.watch(clinicalDaoProvider),
+    aiService: ref.watch(documentAiServiceProvider),
+  ),
+);
+
 final extractionPipelineProvider = Provider<ExtractionPipelineService>((ref) {
   final service = ExtractionPipelineService(
     ref.watch(documentAiServiceProvider),
+    historicalAssociationsLoader: () =>
+        ref.read(clinicalDaoProvider).getTopProblemAssociations(limit: 50),
   );
   ref.onDispose(service.close);
   return service;
@@ -252,7 +262,10 @@ class BatchExtractionNotifier extends Notifier<List<DocumentTask>> {
   /// capture. It is snapshotted onto each task rather than read later, so the
   /// prompt reflects who was actually on the ward when the page was scanned.
   void addFiles(List<File> files, {String? activeCensusJson}) {
-    final seen = <String>{for (final task in state) task.originalFile.path};
+    final seen = <String>{
+      for (final task in state)
+        if (task.originalFile case final file?) file.path,
+    };
     final newTasks = <DocumentTask>[];
     for (final file in files) {
       if (!seen.add(file.path)) continue;
@@ -266,6 +279,24 @@ class BatchExtractionNotifier extends Notifier<List<DocumentTask>> {
     }
     if (newTasks.isEmpty) return;
     state = [...state, ...newTasks];
+    _kick();
+  }
+
+  /// Enqueues clinician-pasted text for direct text-only ClinCom extraction.
+  void addText(String rawText, {String? activeCensusJson}) {
+    if (rawText.trim().isEmpty) {
+      throw ArgumentError.value(rawText, 'rawText', 'Text cannot be empty');
+    }
+    state = [
+      ...state,
+      DocumentTask(
+        id: _ids.v4(),
+        isTextInput: true,
+        rawOcrText: rawText,
+        source: ExtractionSource.text,
+        activeCensusJson: activeCensusJson,
+      ),
+    ];
     _kick();
   }
 
@@ -332,7 +363,10 @@ class BatchExtractionNotifier extends Notifier<List<DocumentTask>> {
             (r) => jsonEncode(<String, Object?>{
               'patient_id': r.patient.id,
               'name': r.patient.fullName,
-              'date_of_birth': r.patient.dateOfBirth?.toIso8601String().split('T').first,
+              'date_of_birth': r.patient.dateOfBirth
+                  ?.toIso8601String()
+                  .split('T')
+                  .first,
               'gender': r.patient.gender,
               'bed': r.bedNumber,
               'ward': r.wardName,
@@ -343,7 +377,9 @@ class BatchExtractionNotifier extends Notifier<List<DocumentTask>> {
     } catch (error) {
       // Best effort: extraction must proceed without census context rather than
       // fail, since a missing census only costs patient-inference accuracy.
-      debugPrint('[ClinCom] Active census unavailable, continuing without it: $error');
+      debugPrint(
+        '[ClinCom] Active census unavailable, continuing without it: $error',
+      );
       return null;
     }
   }
@@ -351,11 +387,46 @@ class BatchExtractionNotifier extends Notifier<List<DocumentTask>> {
   Future<void> _runTask(DocumentTask task) async {
     final pipeline = ref.read(extractionPipelineProvider);
 
+    if (task.isTextInput) {
+      final rawText = task.rawOcrText ?? '';
+      _update(task.id, status: ExtractionStatus.processingAi, clearError: true);
+      try {
+        final extraction = await pipeline.processTextWithProvenance(
+          rawText,
+          activeCensusJson: task.activeCensusJson,
+        );
+        _update(
+          task.id,
+          status: ExtractionStatus.readyForReview,
+          data: extraction.result,
+          source: ExtractionSource.text,
+          rawOcrText: rawText,
+        );
+      } catch (error) {
+        _update(
+          task.id,
+          status: ExtractionStatus.error,
+          errorMessage: _describe(error),
+        );
+      }
+      return;
+    }
+
+    final image = task.originalFile;
+    if (image == null) {
+      _update(
+        task.id,
+        status: ExtractionStatus.error,
+        errorMessage: 'The image source for this document is unavailable.',
+      );
+      return;
+    }
+
     // ---- Stage 1: free on-device OCR -------------------------------------
     _update(task.id, status: ExtractionStatus.processingOcr, clearError: true);
     var rawText = '';
     try {
-      rawText = await pipeline.recognizeRawText(task.originalFile);
+      rawText = await pipeline.recognizeRawText(image);
     } catch (error) {
       _update(
         task.id,
@@ -387,7 +458,7 @@ class BatchExtractionNotifier extends Notifier<List<DocumentTask>> {
       // Sprint 17 — the census block was captured by the screen at enqueue time
       // and rides along on the task, so this notifier stays database-free.
       final extraction = await pipeline.refineWithAi(
-        task.originalFile,
+        image,
         rawText,
         activeCensusJson: task.activeCensusJson,
       );
@@ -405,7 +476,7 @@ class BatchExtractionNotifier extends Notifier<List<DocumentTask>> {
             .read(clinicalDaoProvider)
             .enqueuePendingAiExtraction(
               taskId: task.id,
-              imagePath: task.originalFile.path,
+              imagePath: image.path,
               rawOcrText: rawText,
             );
         ref
@@ -532,20 +603,18 @@ class AppStatus extends Notifier<AppStatusState> {
     // years-old scans never delays the clinician reaching the dashboard. Only
     // image *files* are touched: no database row is deleted and nothing is
     // enqueued, so this cannot interfere with the offline sync queue.
-    unawaited(
-      () async {
-        try {
-          final pruned = await StorageRetentionService(
-            ref.read(appDatabaseProvider),
-          ).pruneOldImages();
-          if (pruned > 0) {
-            debugPrint('[AppStatus] Pruned $pruned old document image(s).');
-          }
-        } catch (error) {
-          debugPrint('[AppStatus] Image retention sweep skipped: $error');
+    unawaited(() async {
+      try {
+        final pruned = await StorageRetentionService(
+          ref.read(appDatabaseProvider),
+        ).pruneOldImages();
+        if (pruned > 0) {
+          debugPrint('[AppStatus] Pruned $pruned old document image(s).');
         }
-      }(),
-    );
+      } catch (error) {
+        debugPrint('[AppStatus] Image retention sweep skipped: $error');
+      }
+    }());
     return AppStatusState(
       isOnline: ref.watch(connectivityProvider).asData?.value ?? false,
       syncStatus: SyncStatus.idle,

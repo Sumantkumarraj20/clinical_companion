@@ -25,7 +25,7 @@ class KnowledgeHubScreen extends ConsumerStatefulWidget {
 
 class _KnowledgeHubScreenState extends ConsumerState<KnowledgeHubScreen>
     with SingleTickerProviderStateMixin {
-  late final TabController _tabs = TabController(length: 2, vsync: this);
+  late final TabController _tabs = TabController(length: 3, vsync: this);
 
   @override
   void dispose() {
@@ -49,12 +49,13 @@ class _KnowledgeHubScreenState extends ConsumerState<KnowledgeHubScreen>
               icon: Icon(Icons.menu_book_outlined),
               text: 'Clinical Guidelines',
             ),
+            Tab(icon: Icon(Icons.visibility_outlined), text: 'Blind Spots'),
           ],
         ),
       ),
       body: TabBarView(
         controller: _tabs,
-        children: const [_ReflectionsTab(), _GuidelinesTab()],
+        children: const [_ReflectionsTab(), _GuidelinesTab(), _BlindSpotsTab()],
       ),
     );
   }
@@ -90,6 +91,74 @@ class _ReflectionsTab extends ConsumerWidget {
       },
     );
   }
+}
+
+class _BlindSpotsTab extends ConsumerWidget {
+  const _BlindSpotsTab();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final dao = ref.watch(clinicalDaoProvider);
+    return FutureBuilder(
+      future: dao.getFrequentAcceptedClinicalAudits(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (snapshot.hasError) {
+          return const _HubEmpty(
+            icon: Icons.error_outline,
+            title: 'Could not load audit history',
+            body: 'Accepted ClinCom suggestions are stored locally.',
+          );
+        }
+        final rows = snapshot.data ?? const [];
+        if (rows.isEmpty) {
+          return const _HubEmpty(
+            icon: Icons.visibility_outlined,
+            title: 'No patterns yet',
+            body:
+                'Accepted chart-audit suggestions will appear here to guide '
+                'your future reading and exam preparation.',
+          );
+        }
+        return ListView(
+          padding: const EdgeInsets.fromLTRB(12, 16, 12, 32),
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(4, 0, 4, 12),
+              child: Text(
+                'My Clinical Blind Spots',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+            ),
+            for (final item in rows)
+              Card(
+                margin: const EdgeInsets.only(bottom: 8),
+                child: ListTile(
+                  leading: const Icon(Icons.lightbulb_outline),
+                  title: Text(item.title),
+                  subtitle: Text(
+                    '${_auditCategoryLabel(item.suggestionType)} · '
+                    'accepted ${item.acceptedCount} '
+                    '${item.acceptedCount == 1 ? 'time' : 'times'}',
+                  ),
+                  isThreeLine: true,
+                ),
+              ),
+          ],
+        );
+      },
+    );
+  }
+
+  static String _auditCategoryLabel(String type) => switch (type) {
+    'missing_investigation' => 'Missed investigations',
+    'management_suggestion' => 'Management steps',
+    'differential_diagnosis' => 'Differential diagnosis',
+    'warning' => 'Safety warnings',
+    _ => 'Clinical suggestion',
+  };
 }
 
 class _ReflectionCard extends ConsumerWidget {

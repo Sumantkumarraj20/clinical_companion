@@ -3,6 +3,55 @@ import 'package:freezed_annotation/freezed_annotation.dart';
 part 'ai_extraction_result.freezed.dart';
 part 'ai_extraction_result.g.dart';
 
+Object? _readDrugName(Map<dynamic, dynamic> json, String key) =>
+    json[key] ?? json['name'];
+
+Object? _readDosage(Map<dynamic, dynamic> json, String key) =>
+    json[key] ?? json['dose'];
+
+Map<String, dynamic> _normalizeUniversalExtraction(Map<String, dynamic> json) {
+  final normalized = Map<String, dynamic>.from(json);
+  final demographics = json['inferredPatientDemographics'];
+  if (demographics is Map) {
+    normalized['patient_identity'] = <String, dynamic>{
+      ...demographics,
+      'hospital_reg_no': demographics['mrn'] ?? demographics['hospital_reg_no'],
+    };
+  }
+
+  final details = json['encounterDetails'];
+  if (details is Map) {
+    normalized['encounter_context'] = <String, dynamic>{
+      'document_type':
+          details['type'] ?? details['document_type'] ?? 'Clinical Note',
+      'date': details['date'],
+      'department': details['department'],
+      'ward_bed': details['ward_bed'],
+    };
+    final vitals = details['vitals'];
+    if (vitals is Map) {
+      normalized['vitals'] = <String, dynamic>{
+        ...vitals,
+        'pulse': vitals['pulse'] ?? vitals['pr'],
+        'temp_f':
+            vitals['temperature_c'] ?? vitals['temp_c'] ?? vitals['temp_f'],
+      };
+    }
+  }
+
+  final pomrData = json['pomr_data'];
+  if (pomrData is List) {
+    normalized['problems'] = pomrData;
+  } else if (pomrData is Map && pomrData['problems'] is List) {
+    normalized['problems'] = pomrData['problems'];
+  }
+  final unlinkedData = json['unlinked_data'];
+  if (unlinkedData is Map) {
+    normalized['unlinked_management'] = unlinkedData;
+  }
+  return normalized;
+}
+
 @freezed
 sealed class AiLocation with _$AiLocation {
   const factory AiLocation({
@@ -24,6 +73,8 @@ sealed class AiVitals with _$AiVitals {
     @JsonKey(name: 'pulse') int? pr,
     @JsonKey(name: 'temp_f') double? temperatureC,
     int? spo2,
+    @JsonKey(name: 'respiratory_rate') int? respiratoryRate,
+    @JsonKey(name: 'map') double? meanArterialPressure,
   }) = _AiVitals;
 
   factory AiVitals.fromJson(Map<String, dynamic> json) =>
@@ -48,6 +99,13 @@ sealed class AiExtractionResult with _$AiExtractionResult {
     @JsonKey(name: 'lab_results')
     @Default(<AiLabResult>[])
     List<AiLabResult> labResults,
+    @Default(<AiProblem>[]) List<AiProblem> problems,
+    @JsonKey(name: 'unlinked_management')
+    @Default(AiUnlinkedManagement())
+    AiUnlinkedManagement unlinkedManagement,
+    @JsonKey(name: 'clinical_warnings')
+    @Default(<AiClinicalWarning>[])
+    List<AiClinicalWarning> clinicalWarnings,
     @Default('') String clinicalSummary,
 
     /// Verbatim narrative conclusion from the document — the "Conclusion",
@@ -79,12 +137,14 @@ sealed class AiExtractionResult with _$AiExtractionResult {
     /// — ClinCom is explicitly forbidden from guessing a patient.
     @JsonKey(name: 'inferred_patient_id') String? inferredPatientId,
 
-    @JsonKey(name: 'chief_complaints') @Default(<String>[])
+    @JsonKey(name: 'chief_complaints')
+    @Default(<String>[])
     List<String> chiefComplaints,
 
     @JsonKey(name: 'diagnoses') @Default(<String>[]) List<String> diagnoses,
 
-    @JsonKey(name: 'planned_investigations') @Default(<String>[])
+    @JsonKey(name: 'planned_investigations')
+    @Default(<String>[])
     List<String> plannedInvestigations,
 
     /// Provenance of this reading. Drives Sprint 17 semantic merging: a
@@ -100,9 +160,8 @@ sealed class AiExtractionResult with _$AiExtractionResult {
       diagnoses.isNotEmpty ||
       plannedInvestigations.isNotEmpty;
 
-
   factory AiExtractionResult.fromJson(Map<String, dynamic> json) =>
-      _$AiExtractionResultFromJson(json);
+      _$AiExtractionResultFromJson(_normalizeUniversalExtraction(json));
 
   String? get patientIdentifier => patientIdentity.name;
 
@@ -160,13 +219,85 @@ sealed class EncounterContext with _$EncounterContext {
 @freezed
 sealed class OrderedMedication with _$OrderedMedication {
   const factory OrderedMedication({
-    @JsonKey(name: 'drug_name') @Default('') String drugName,
-    String? dosage,
+    @JsonKey(name: 'drug_name', readValue: _readDrugName)
+    @Default('')
+    String drugName,
+    @JsonKey(readValue: _readDosage) String? dosage,
     String? frequency,
+    String? route,
+    String? duration,
   }) = _OrderedMedication;
 
   factory OrderedMedication.fromJson(Map<String, dynamic> json) =>
       _$OrderedMedicationFromJson(json);
+}
+
+@freezed
+sealed class AiProblem with _$AiProblem {
+  const factory AiProblem({
+    @Default('') String diagnosis,
+    @JsonKey(name: 'linked_medications')
+    @Default(<OrderedMedication>[])
+    List<OrderedMedication> linkedMedications,
+    @JsonKey(name: 'linked_investigations')
+    @Default(<AiInvestigation>[])
+    List<AiInvestigation> linkedInvestigations,
+    @JsonKey(name: 'linked_procedures')
+    @Default(<AiProcedure>[])
+    List<AiProcedure> linkedProcedures,
+    @Default('') String reasoning,
+  }) = _AiProblem;
+
+  factory AiProblem.fromJson(Map<String, dynamic> json) =>
+      _$AiProblemFromJson(json);
+}
+
+@freezed
+sealed class AiUnlinkedManagement with _$AiUnlinkedManagement {
+  const factory AiUnlinkedManagement({
+    @Default(<OrderedMedication>[]) List<OrderedMedication> medications,
+    @Default(<AiInvestigation>[]) List<AiInvestigation> investigations,
+    @Default(<AiProcedure>[]) List<AiProcedure> procedures,
+  }) = _AiUnlinkedManagement;
+
+  factory AiUnlinkedManagement.fromJson(Map<String, dynamic> json) =>
+      _$AiUnlinkedManagementFromJson(json);
+}
+
+@freezed
+sealed class AiClinicalWarning with _$AiClinicalWarning {
+  const factory AiClinicalWarning({
+    @JsonKey(name: 'medication') @Default('') String medication,
+    @JsonKey(name: 'condition') @Default('') String condition,
+    @JsonKey(name: 'warning') @Default('') String warning,
+    @JsonKey(name: 'dose_adjustment') String? doseAdjustment,
+  }) = _AiClinicalWarning;
+
+  factory AiClinicalWarning.fromJson(Map<String, dynamic> json) =>
+      _$AiClinicalWarningFromJson(json);
+}
+
+@freezed
+sealed class AiInvestigation with _$AiInvestigation {
+  const factory AiInvestigation({
+    @JsonKey(name: 'test_name') @Default('') String testName,
+    @Default('') String value,
+    String? unit,
+    @JsonKey(name: 'is_abnormal') @Default(false) bool isAbnormal,
+  }) = _AiInvestigation;
+
+  factory AiInvestigation.fromJson(Map<String, dynamic> json) =>
+      _$AiInvestigationFromJson(json);
+}
+
+@freezed
+sealed class AiProcedure with _$AiProcedure {
+  const factory AiProcedure({
+    @JsonKey(name: 'procedure_name') @Default('') String procedureName,
+  }) = _AiProcedure;
+
+  factory AiProcedure.fromJson(Map<String, dynamic> json) =>
+      _$AiProcedureFromJson(json);
 }
 
 @freezed

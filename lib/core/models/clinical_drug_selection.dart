@@ -106,6 +106,54 @@ class ClinicalDrugSelection {
   /// Typical course length, when the dosing matrix knows it.
   String? get duration => _firstNonEmpty([indication?.typicalDuration]);
 
+  /// Canonical problems for which the offline catalog lists this medicine.
+  List<String> get commonIndications => {
+    ..._decodeList(
+      master?.commonIndications.isNotEmpty == true
+          ? master!.commonIndications
+          : master?.problemIndications,
+    ),
+    if (indication?.clinicalIndication?.trim().isNotEmpty == true)
+      indication!.clinicalIndication!.trim(),
+  }.toList(growable: false);
+
+  /// Condition-keyed dose cautions, merged from the offline JSON and OTA
+  /// ingredient matrix. The catalog is advisory; it never changes a dose.
+  Map<String, String> get doseAdjustments {
+    final result = <String, String>{};
+    final raw = master?.doseAdjustments.trim();
+    if (raw != null && raw.isNotEmpty) {
+      try {
+        final decoded = jsonDecode(raw);
+        if (decoded is Map) {
+          for (final entry in decoded.entries) {
+            final value = entry.value.toString().trim();
+            if (value.isNotEmpty) result[entry.key.toString()] = value;
+          }
+        }
+      } on FormatException {
+        // A malformed optional catalog field must not block prescribing.
+      }
+    }
+    final renal = ingredient?.renalAdjustment?.trim();
+    if (renal != null && renal.isNotEmpty) {
+      result.putIfAbsent('Renal', () => renal);
+    }
+    final hepatic = ingredient?.hepaticRisk?.trim();
+    if (hepatic != null && hepatic.isNotEmpty) {
+      result.putIfAbsent('Hepatic', () => hepatic);
+    }
+    return result;
+  }
+
+  /// Catalog-listed adverse reactions, useful when documenting a suspected
+  /// medication-related problem.
+  List<String> get commonSideEffects => _decodeList(
+    master?.commonSideEffects.isNotEmpty == true
+        ? master!.commonSideEffects
+        : master?.prioritizedSideEffects,
+  );
+
   /// Preparation strengths available offline. `available_forms` is stored as
   /// a JSON array, not a comma-separated string.
   List<String> get availableForms => _decodeList(master?.availableForms);

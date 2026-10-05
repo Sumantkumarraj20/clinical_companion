@@ -10,10 +10,16 @@ import '../../../core/utils/datetime_utils.dart';
 /// labs are the deliberate exception: they wear the error container so they are
 /// impossible to scroll past — the single most safety-relevant signal here.
 class TimelineEventCard extends StatelessWidget {
-  const TimelineEventCard({required this.event, this.onTap, super.key});
+  const TimelineEventCard({
+    required this.event,
+    this.onTap,
+    this.onMarkAdr,
+    super.key,
+  });
 
   final TimelineEvent event;
   final VoidCallback? onTap;
+  final VoidCallback? onMarkAdr;
 
   IconData get _icon => switch (event.kind) {
     TimelineEventKind.admission => Icons.local_hospital_outlined,
@@ -145,6 +151,31 @@ class TimelineEventCard extends StatelessWidget {
                   fontWeight: FontWeight.w800,
                   color: scheme.onErrorContainer,
                 ),
+              ),
+            if (event.kind == TimelineEventKind.prescription && !event.isActive)
+              Text(
+                'DISCONTINUED',
+                style: theme.textTheme.labelSmall?.copyWith(
+                  fontWeight: FontWeight.w800,
+                  color: scheme.error,
+                ),
+              ),
+            if (event.kind == TimelineEventKind.prescription &&
+                event.isActive &&
+                onMarkAdr != null)
+              PopupMenuButton<String>(
+                tooltip: 'Prescription actions',
+                iconSize: 20,
+                padding: EdgeInsets.zero,
+                onSelected: (value) {
+                  if (value == 'adr') onMarkAdr?.call();
+                },
+                itemBuilder: (_) => const [
+                  PopupMenuItem<String>(
+                    value: 'adr',
+                    child: Text('Mark Side Effect / ADR'),
+                  ),
+                ],
               ),
           ],
         ),

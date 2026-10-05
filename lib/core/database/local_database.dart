@@ -466,6 +466,11 @@ class ClinicalDrugs extends Table {
   // JSON-encoded List<String> of prioritised side-effect problem names.
   TextColumn get prioritizedSideEffects =>
       text().withDefault(const Constant('[]'))();
+  TextColumn get commonIndications =>
+      text().withDefault(const Constant('[]'))();
+  TextColumn get doseAdjustments => text().withDefault(const Constant('{}'))();
+  TextColumn get commonSideEffects =>
+      text().withDefault(const Constant('[]'))();
   TextColumn get prescribingPearls => text().nullable()();
   // Comma-separated, e.g. 'Tablet, Syrup, Injection'.
   TextColumn get availableForms => text().nullable()();
@@ -671,7 +676,7 @@ class LearnedCatalog extends Table {
 
   TextColumn get id => text().clientDefault(() => _uuid.v4())();
   TextColumn get category =>
-      text()(); // investigation, procedure, advice, diagnosis
+      text()(); // investigation, procedure, advice, diagnosis, med_to_problem
   TextColumn get term => text()();
   IntColumn get frequency => integer().withDefault(const Constant(1))();
   DateTimeColumn get lastUsedAt => dateTime().nullable()();
@@ -823,8 +828,9 @@ class ClinicalLearningLogs extends Table {
   /// Kept apart from the prose so tags stay searchable and can cross-link into
   /// the wiki (`#hyponatremia` -> the hyponatremia guideline) without parsing
   /// free text on every read.
-  TextColumn get tags =>
-      text().map(const StringListConverter()).withDefault(const Constant('[]'))();
+  TextColumn get tags => text()
+      .map(const StringListConverter())
+      .withDefault(const Constant('[]'))();
 
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
 
@@ -837,6 +843,29 @@ class ClinicalLearningLogs extends Table {
     // duplicates.
     {id},
   ];
+}
+
+/// ClinCom chart-audit suggestions and the clinician's explicit response.
+@DataClassName('ClinicalAudit')
+@TableIndex(name: 'clinical_audits_patient_idx', columns: {#patientId})
+class ClinicalAudits extends Table {
+  @override
+  String get tableName => 'clinical_audits';
+
+  /// Clinician outcome for a generated recommendation.
+  TextColumn get id => text().clientDefault(() => _uuid.v4())();
+  TextColumn get patientId =>
+      text().references(Patients, #id, onDelete: KeyAction.cascade)();
+  TextColumn get suggestionType => text()();
+  TextColumn get title => text()();
+  TextColumn get reasoning => text()();
+  TextColumn get status => text().customConstraint(
+    "NOT NULL CHECK (status IN ('accepted', 'dismissed'))",
+  )();
+  DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
 }
 
 @DataClassName('SyncQueueEntry')
@@ -889,6 +918,7 @@ class OfflineSyncQueue extends Table {
     Brands,
     PersonalWiki,
     ClinicalLearningLogs,
+    ClinicalAudits,
     OfflineSyncQueue,
     CdssRules,
     AyushmanPackages,
@@ -910,7 +940,7 @@ class AppDatabase extends _$AppDatabase {
     : super(executor ?? openAppDatabaseExecutor());
 
   @override
-  int get schemaVersion => 28;
+  int get schemaVersion => 31;
 
   /// Tables that must exist for the drug catalog and POMR to function.
   ///
@@ -925,15 +955,6 @@ class AppDatabase extends _$AppDatabase {
   /// upgrading from one exact version and silently skips everyone else), the
   /// invariant is enforced on every open in [_ensureCatalogTables], which is
   /// idempotent and self-healing for any starting state.
-  static const _requiredTables = <String>[
-    'drug_master',
-    'clinical_drugs',
-    'active_ingredients',
-    'indications',
-    'formulations',
-    'brands',
-  ];
-
   @override
   MigrationStrategy get migration => MigrationStrategy(
     onCreate: (Migrator m) => m.createAll(),
@@ -1267,6 +1288,22 @@ class AppDatabase extends _$AppDatabase {
             await m.addColumn(clinicalEncounters, clinicalEncounters.isDraft);
           } catch (_) {}
         }
+        if (from < 29) {
+          // Sprint 17.5 — full ClinCom extraction JSON, so Edit Mode can
+          // rehydrate every semantic field, not just the summary.
+          try {
+            await m.addColumn(
+              documentRegistries,
+              documentRegistries.clincomJson,
+            );
+          } catch (_) {}
+        }
+        if (from < 30) {
+          await _ensureClinicalDrugSemanticColumns();
+        }
+        if (from < 31) {
+          await m.createTable(clinicalAudits);
+        }
         if (from < 28) {
           // Sprint 17 — provenance for semantic merging. Nullable, no default,
           // so pre-existing readings are readable and treated as unknown.
@@ -1282,10 +1319,7 @@ class AppDatabase extends _$AppDatabase {
           // default: old rows stay NULL rather than sharing a sentinel, so a
           // NULL is never mistaken for a match by findDocumentByImageHash.
           try {
-            await m.addColumn(
-              documentRegistries,
-              documentRegistries.imageHash,
-            );
+            await m.addColumn(documentRegistries, documentRegistries.imageHash);
           } catch (_) {}
         }
         if (from < 26) {
@@ -1329,8 +1363,6 @@ class AppDatabase extends _$AppDatabase {
       ).get())
         row.read<String>('name'),
     };
-    if (existing.containsAll(_requiredTables)) return;
-
     final migrator = Migrator(this);
     final tables = <TableInfo<Table, dynamic>>[
       drugs,
@@ -1350,5 +1382,43 @@ class AppDatabase extends _$AppDatabase {
         );
       }
     }
+    await _ensureClinicalDrugSemanticColumns();
+  }
+
+  Future<void> _ensureClinicalDrugSemanticColumns() async {
+    final tables = await customSelect(
+      "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'clinical_drugs'",
+    ).get();
+    if (tables.isEmpty) return;
+    final columns = <String>{
+      for (final row in await customSelect(
+        'PRAGMA table_info(clinical_drugs)',
+      ).get())
+        row.read<String>('name'),
+    };
+    for (final column in const {
+      'common_indications': "TEXT NOT NULL DEFAULT '[]'",
+      'dose_adjustments': "TEXT NOT NULL DEFAULT '{}'",
+      'common_side_effects': "TEXT NOT NULL DEFAULT '[]'",
+    }.entries) {
+      if (columns.contains(column.key)) continue;
+      await customStatement(
+        'ALTER TABLE clinical_drugs ADD COLUMN ${column.key} ${column.value}',
+      );
+    }
+    await customStatement('''
+      UPDATE clinical_drugs
+      SET common_indications = problem_indications
+      WHERE common_indications = '[]'
+        AND problem_indications IS NOT NULL
+        AND problem_indications != '[]'
+    ''');
+    await customStatement('''
+      UPDATE clinical_drugs
+      SET common_side_effects = prioritized_side_effects
+      WHERE common_side_effects = '[]'
+        AND prioritized_side_effects IS NOT NULL
+        AND prioritized_side_effects != '[]'
+    ''');
   }
 }

@@ -1,16 +1,20 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:printing/printing.dart';
 
 import '../../../core/cds/decision_support_engine.dart';
 import '../../../core/database/daos/clinical_dao.dart';
 import '../../../core/database/local_database.dart';
+import '../../../core/documents/clinical_pdf_generator.dart';
 import '../../../core/providers/app_providers.dart';
 import '../../../core/utils/datetime_utils.dart';
 import '../../ingestion/screens/adaptive_review_screen.dart';
 import '../../learning/widgets/reflection_entry_sheet.dart';
 import '../../learning/widgets/timeline_event_card.dart';
 import '../widgets/cohort_tagger.dart';
+import '../widgets/clincom_insights_panel.dart';
 import '../widgets/timeline_feed_model.dart';
 
 /// Longitudinal patient view, restructured as a Material 3 feed (Sprint 11).
@@ -42,6 +46,7 @@ class _PatientTimelineScreenState extends ConsumerState<PatientTimelineScreen> {
 
   /// Problem ids the clinician selected; empty means "show everything".
   final Set<String> _activeProblems = {};
+  int _admissionAuditRequest = 0;
 
   @override
   void initState() {
@@ -106,6 +111,81 @@ class _PatientTimelineScreenState extends ConsumerState<PatientTimelineScreen> {
     );
   }
 
+  ClinicalEncounter? _latestEncounter(PatientTimelineBundle bundle) {
+    final encounters =
+        bundle.entries
+            .where(
+              (entry) =>
+                  entry.kind == TimelineEntryKind.encounter &&
+                  entry.encounter != null,
+            )
+            .map((entry) => entry.encounter!)
+            .toList()
+          ..sort((left, right) => right.occurredAt.compareTo(left.occurredAt));
+    return encounters.isEmpty ? null : encounters.first;
+  }
+
+  Future<void> _copyClinicalNote(PatientTimelineBundle bundle) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final encounter = _latestEncounter(bundle);
+    if (encounter == null) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('No encounter is available to export.')),
+      );
+      return;
+    }
+
+    try {
+      final dao = ref.read(clinicalDaoProvider);
+      final pomr = await dao.getEncounterPomrExport(encounter.id);
+      await Clipboard.setData(
+        ClipboardData(text: pomr.toPlainText(patient: widget.patient)),
+      );
+      if (!mounted) return;
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Clinical note copied to clipboard.')),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      messenger.showSnackBar(
+        SnackBar(content: Text('Could not copy clinical note: $error')),
+      );
+    }
+  }
+
+  Future<void> _printClinicalNote(PatientTimelineBundle bundle) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final encounter = _latestEncounter(bundle);
+    if (encounter == null) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('No encounter is available to export.')),
+      );
+      return;
+    }
+
+    try {
+      final dao = ref.read(clinicalDaoProvider);
+      final pomr = await dao.getEncounterPomrExport(encounter.id);
+      final hospitalRegNo = await dao.getPatientHospitalRegNo(
+        widget.patient.id,
+      );
+      final bytes = await ClinicalPdfGenerator().generatePomrEncounter(
+        patient: widget.patient,
+        data: pomr,
+        hospitalRegNo: hospitalRegNo,
+      );
+      await Printing.layoutPdf(
+        onLayout: (_) async => Uint8List.fromList(bytes),
+        name: 'clinical-note-${widget.patient.id}.pdf',
+      );
+    } catch (error) {
+      if (!mounted) return;
+      messenger.showSnackBar(
+        SnackBar(content: Text('Could not generate clinical PDF: $error')),
+      );
+    }
+  }
+
   void _toggleProblem(String problemId) {
     setState(() {
       if (!_activeProblems.remove(problemId)) _activeProblems.add(problemId);
@@ -155,6 +235,12 @@ class _PatientTimelineScreenState extends ConsumerState<PatientTimelineScreen> {
         slivers: [
           _headerSliver(bundle),
           SliverToBoxAdapter(
+            child: ClinComInsightsPanel(
+              patientId: widget.patient.id,
+              auditRequest: _admissionAuditRequest,
+            ),
+          ),
+          SliverToBoxAdapter(
             child: _ProblemFilterRow(
               problems: bundle.problems,
               selected: _activeProblems,
@@ -189,7 +275,14 @@ class _PatientTimelineScreenState extends ConsumerState<PatientTimelineScreen> {
                     padding: const EdgeInsets.symmetric(horizontal: 12),
                     child: TimelineEventCard(
                       event: event,
-                      onTap: () => _openEvent(event),
+                      onTap: () {
+                        if (event.kind == TimelineEventKind.admission) {
+                          setState(() => _admissionAuditRequest++);
+                        } else {
+                          _openEvent(event);
+                        }
+                      },
+                      onMarkAdr: () => _markPrescriptionAdr(event),
                     ),
                   );
                 },
@@ -222,6 +315,108 @@ class _PatientTimelineScreenState extends ConsumerState<PatientTimelineScreen> {
         patient: widget.patient,
       );
       return;
+    }
+  }
+
+  Future<void> _markPrescriptionAdr(TimelineEvent event) async {
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final orderId = event.id.replaceFirst('prescription:', '');
+      final dao = ref.read(clinicalDaoProvider);
+      final order = await dao.getPrescriptionOrder(orderId);
+      if (order == null || !order.isActive) {
+        messenger.showSnackBar(
+          const SnackBar(
+            content: Text('This prescription is no longer active.'),
+          ),
+        );
+        return;
+      }
+      final catalogMatches = await ref
+          .read(pharmacopeiaDaoProvider)
+          .searchClinicalDrugs(order.drugName, limit: 5);
+      final reactions = <String>{
+        for (final match in catalogMatches) ...match.commonSideEffects,
+      }.toList(growable: false);
+      final customReaction = TextEditingController();
+      String? selectedReaction;
+      if (!mounted) {
+        customReaction.dispose();
+        return;
+      }
+      final reaction = await showDialog<String>(
+        context: context,
+        builder: (dialogContext) => StatefulBuilder(
+          builder: (context, setDialogState) => AlertDialog(
+            title: Text('Record reaction to ${order.drugName}'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (reactions.isNotEmpty)
+                  DropdownButtonFormField<String>(
+                    initialValue: selectedReaction,
+                    decoration: const InputDecoration(
+                      labelText: 'Common side effect',
+                    ),
+                    items: [
+                      for (final item in reactions)
+                        DropdownMenuItem(value: item, child: Text(item)),
+                    ],
+                    onChanged: (value) =>
+                        setDialogState(() => selectedReaction = value),
+                  ),
+                TextField(
+                  controller: customReaction,
+                  decoration: const InputDecoration(
+                    labelText: 'Or enter reaction',
+                    hintText: 'e.g. rash, nausea, nephrotoxicity',
+                  ),
+                  textCapitalization: TextCapitalization.sentences,
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: () {
+                  final value = customReaction.text.trim().isNotEmpty
+                      ? customReaction.text.trim()
+                      : selectedReaction;
+                  if (value != null && value.trim().isNotEmpty) {
+                    Navigator.pop(dialogContext, value.trim());
+                  }
+                },
+                child: const Text('Save ADR & discontinue'),
+              ),
+            ],
+          ),
+        ),
+      );
+      customReaction.dispose();
+      if (!mounted || reaction == null) return;
+      await dao.recordAdverseDrugReaction(
+        prescriptionId: orderId,
+        reaction: reaction,
+      );
+      ref.invalidate(unifiedTimelineProvider(widget.patient.id));
+      if (mounted) {
+        messenger.showSnackBar(
+          const SnackBar(
+            content: Text(
+              'ADR recorded as a problem; prescription discontinued.',
+            ),
+          ),
+        );
+      }
+    } catch (error) {
+      if (mounted) {
+        messenger.showSnackBar(
+          SnackBar(content: Text('Could not record ADR: $error')),
+        );
+      }
     }
   }
 
@@ -287,6 +482,20 @@ class _PatientTimelineScreenState extends ConsumerState<PatientTimelineScreen> {
         ),
       ),
       actions: [
+        IconButton(
+          tooltip: 'Copy clinical note',
+          icon: const Icon(Icons.content_copy_outlined),
+          onPressed: _latestEncounter(bundle) == null
+              ? null
+              : () => _copyClinicalNote(bundle),
+        ),
+        IconButton(
+          tooltip: 'Print or save clinical PDF',
+          icon: const Icon(Icons.picture_as_pdf_outlined),
+          onPressed: _latestEncounter(bundle) == null
+              ? null
+              : () => _printClinicalNote(bundle),
+        ),
         // Sprint 15 — the private learning loop, surfaced here as well as on
         // the encounter screen. A reflection is often triggered by reviewing a
         // patient's whole history, not just the encounter in front of you.

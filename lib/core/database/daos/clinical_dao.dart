@@ -5,10 +5,12 @@ import 'package:drift/drift.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../models/ai_extraction_result.dart';
+import '../../models/encounter_pomr_export.dart';
 import '../../utils/document_image_hasher.dart';
 import '../../../features/billing/services/clinical_coding_service.dart';
 import '../../services/extraction_pipeline_service.dart';
 import '../local_database.dart';
+import '../../models/clinical_insight.dart';
 import '../schema/clinical_records.dart' as clinical_records;
 import '../services/identity_resolution_service.dart';
 
@@ -73,6 +75,7 @@ class PatientCohortInputs {
     clinical_records.ClinicalObservations,
     clinical_records.Admissions,
     ClinicalLearningLogs,
+    ClinicalAudits,
   ],
 )
 class ClinicalDao extends DatabaseAccessor<AppDatabase>
@@ -99,6 +102,26 @@ class ClinicalDao extends DatabaseAccessor<AppDatabase>
     AiExtractionResult result,
     String imagePath, {
     String? patientIdOverride,
+    String? clincomJson,
+    List<String> verifiedProblemAssociations = const [],
+  }) => saveUniversalClinicalPayload(
+    result: result,
+    imagePath: imagePath,
+    patientIdOverride: patientIdOverride,
+    clincomJson: clincomJson,
+    verifiedProblemAssociations: verifiedProblemAssociations,
+  );
+
+  /// Atomically files an image- or text-originated clinical payload across
+  /// patient, registry, encounter, problems, and linked management tables.
+  Future<ClinicalEncounter> saveUniversalClinicalPayload({
+    required AiExtractionResult result,
+    String imagePath = '',
+    String? rawSourceText,
+    bool isTextInput = false,
+    String? patientIdOverride,
+    String? clincomJson,
+    List<String> verifiedProblemAssociations = const [],
   }) async {
     return transaction(() async {
       final patientId =
@@ -128,7 +151,12 @@ class ClinicalDao extends DatabaseAccessor<AppDatabase>
       // encounter was filed under `DateTime.now()` — the ingestion date.
       final occurredAt =
           _date(result.encounterContext.date) ??
-          resolveDocumentedAt(result.clinicalSummary, imagePath);
+          resolveDocumentedAt(
+            rawSourceText?.trim().isNotEmpty == true
+                ? rawSourceText!
+                : result.clinicalSummary,
+            isTextInput ? null : imagePath,
+          );
       final vitals = result.vitals;
       final encounterId = _ids.v4();
 
@@ -143,20 +171,48 @@ class ClinicalDao extends DatabaseAccessor<AppDatabase>
         requested: result.patientIdentity.hospitalId,
       );
 
+      final documentId = _ids.v4();
+      await into(documentRegistries).insert(
+        DocumentRegistriesCompanion.insert(
+          id: documentId,
+          patientId: patientId,
+          documentCategory: isTextInput
+              ? 'Text Note'
+              : result.encounterContext.documentType.trim().isEmpty
+              ? 'Clinical Document'
+              : result.encounterContext.documentType.trim(),
+          imagePath: isTextInput ? '' : imagePath,
+          rawOcrTranscript: Value(
+            rawSourceText?.trim().isNotEmpty == true
+                ? rawSourceText!
+                : result.clinicalSummary,
+          ),
+          clincomJson: Value(clincomJson),
+          confidenceScore: const Value(0.0),
+          documentedAt: occurredAt,
+        ),
+      );
+
       final encounter = ClinicalEncountersCompanion.insert(
         id: Value(encounterId),
         ownerId: defaultOwnerId,
         patientId: patientId,
         hospitalId: Value(hospitalId),
-        encounterType: Value(result.encounterContext.documentType),
+        encounterType: Value(
+          _normalizedEncounterType(result.encounterContext.documentType),
+        ),
         occurredAt: Value(occurredAt),
         sbp: Value(vitals.sbp),
         dbp: Value(vitals.dbp),
         pulse: Value(vitals.pr),
         temperatureC: Value(vitals.temperatureC),
         spo2: Value(vitals.spo2),
+        respiratoryRate: Value(vitals.respiratoryRate),
+        meanArterialPressure: Value(vitals.meanArterialPressure),
         chiefComplaints: Value(
-          result.clinicalSummary.trim().isEmpty
+          result.chiefComplaints.isNotEmpty
+              ? result.chiefComplaints.join('; ')
+              : result.clinicalSummary.trim().isEmpty
               ? null
               : result.clinicalSummary.trim(),
         ),
@@ -173,7 +229,7 @@ class ClinicalDao extends DatabaseAccessor<AppDatabase>
         dynamicData: Value(result.toJson()),
         department: Value(result.encounterContext.department),
         wardName: Value(result.encounterContext.wardBed),
-        imagePath: Value(imagePath),
+        imagePath: Value(isTextInput ? null : imagePath),
         aiSummary: Value(result.clinicalSummary),
       );
 
@@ -192,101 +248,260 @@ class ClinicalDao extends DatabaseAccessor<AppDatabase>
         clientUpdatedAt: savedEncounter.updatedAt,
       );
 
-      // STEP 1 (Sprint 14) — give the scanned page a first-class row in
-      // `document_registries`. Nothing wrote this table before, so the
-      // timeline's document cards could never appear and the tables that
-      // FK-reference it (prescriptions, microbiology, imaging) had no parent.
-      //
-      // [occurredAt] already holds the date *printed on the document*
-      // (ClinicalDateParser -> file mtime -> now), which is exactly what
-      // `documentedAt` must mean: when the care happened, not when we
-      // scanned it.
-      final documentId = _ids.v4();
-      await into(documentRegistries).insert(
-        DocumentRegistriesCompanion.insert(
-          id: documentId,
-          patientId: patientId,
-          documentCategory: result.encounterContext.documentType.trim().isEmpty
-              ? 'Clinical Document'
-              : result.encounterContext.documentType.trim(),
-          imagePath: imagePath,
-          rawOcrTranscript: Value(result.clinicalSummary),
-          confidenceScore: const Value(0.0),
-          documentedAt: occurredAt,
-        ),
+      await _persistPomrManagement(
+        result: result,
+        patientId: patientId,
+        encounterId: encounterId,
+        occurredAt: occurredAt,
       );
-
-      // Track extracted laboratory investigations
-      for (final lab in result.labResults) {
-        final orderId = _ids.v4();
-        await into(investigationOrders).insert(
-          InvestigationOrdersCompanion.insert(
-            id: Value(orderId),
-            ownerId: Value(defaultOwnerId),
-            patientId: patientId,
-            encounterId: Value(encounterId),
-            testName: lab.testName,
-            status: const Value('result_received'),
-            orderedAt: Value(occurredAt),
-            resultReceivedAt: Value(occurredAt),
-            clinicalIndication: Value(
-              lab.isAbnormal ? 'ClinCom flagged abnormal' : null,
-            ),
-          ),
-        );
-
-        final resultId = _ids.v4();
-        final numVal = double.tryParse(
-          lab.value.replaceAll(RegExp(r'[^0-9.]'), ''),
-        );
-        await into(investigationResults).insert(
-          InvestigationResultsCompanion.insert(
-            id: Value(resultId),
-            orderId: Value(orderId),
-            patientId: patientId,
-            testName: lab.testName,
-            numericValue: Value(numVal),
-            textValue: Value(lab.value),
-            unit: Value(lab.unit),
-            isAbnormal: Value(lab.isAbnormal),
-            resultDate: Value(occurredAt),
-          ),
-        );
-      }
-
-      // Track medications and synthesize baseline problem record
-      if (result.medicationsOrdered.isNotEmpty) {
-        final problemId = _ids.v4();
-        await into(patientProblems).insert(
-          PatientProblemsCompanion.insert(
-            id: Value(problemId),
-            patientId: patientId,
-            initialEncounterId: Value(encounterId),
-            problemName: 'ClinCom Active Finding',
-            currentStatus: const Value('Active'),
-            onsetDate: Value(occurredAt),
-          ),
-        );
-
-        for (final medication in result.medicationsOrdered) {
-          final medId = _ids.v4();
-          await into(prescriptionOrders).insert(
-            PrescriptionOrdersCompanion.insert(
-              id: Value(medId),
-              patientId: patientId,
-              encounterId: encounterId,
-              problemId: Value(problemId),
-              drugName: medication.drugName,
-              doseStrength: Value(medication.dosage),
-              frequency: Value(medication.frequency),
-              orderedAt: Value(occurredAt),
-            ),
-          );
-        }
+      for (final association in verifiedProblemAssociations) {
+        await recordCatalogUsage(category: 'med_to_problem', term: association);
       }
 
       return savedEncounter;
     });
+  }
+
+  String _normalizedEncounterType(String source) {
+    final value = source.trim().toUpperCase();
+    return switch (value) {
+      'OPD' || 'IPD' || 'ER' => value,
+      _ => source.trim().isEmpty ? 'Clinical Note' : source.trim(),
+    };
+  }
+
+  Future<void> _persistPomrManagement({
+    required AiExtractionResult result,
+    required String patientId,
+    required String encounterId,
+    required DateTime occurredAt,
+  }) async {
+    final problemIds = await _upsertPomrProblems(
+      result: result,
+      patientId: patientId,
+      encounterId: encounterId,
+      occurredAt: occurredAt,
+    );
+
+    final medications = <({OrderedMedication item, String? problemName})>[];
+    void addMedication(OrderedMedication item, String? problemName) {
+      if (item.drugName.trim().isEmpty) return;
+      final signature =
+          '${item.drugName.trim().toLowerCase()}|'
+          '${item.dosage?.trim().toLowerCase() ?? ''}|'
+          '${item.frequency?.trim().toLowerCase() ?? ''}|'
+          '${item.route?.trim().toLowerCase() ?? ''}|'
+          '${item.duration?.trim().toLowerCase() ?? ''}|'
+          '${problemName?.toLowerCase() ?? ''}';
+      if (medications.any((entry) {
+        final other = entry.item;
+        return '${other.drugName.trim().toLowerCase()}|'
+                '${other.dosage?.trim().toLowerCase() ?? ''}|'
+                '${other.frequency?.trim().toLowerCase() ?? ''}|'
+                '${other.route?.trim().toLowerCase() ?? ''}|'
+                '${other.duration?.trim().toLowerCase() ?? ''}|'
+                '${entry.problemName?.toLowerCase() ?? ''}' ==
+            signature;
+      })) {
+        return;
+      }
+      medications.add((item: item, problemName: problemName));
+    }
+
+    final investigations = <({AiInvestigation item, String? problemName})>[];
+    void addInvestigation(AiInvestigation item, String? problemName) {
+      if (item.testName.trim().isEmpty) return;
+      final signature =
+          '${item.testName.trim().toLowerCase()}|'
+          '${problemName?.toLowerCase() ?? ''}';
+      final existingIndex = investigations.indexWhere((entry) {
+        return '${entry.item.testName.trim().toLowerCase()}|'
+                '${entry.problemName?.toLowerCase() ?? ''}' ==
+            signature;
+      });
+      if (existingIndex == -1) {
+        investigations.add((item: item, problemName: problemName));
+      } else if (investigations[existingIndex].item.value.isEmpty &&
+          item.value.isNotEmpty) {
+        investigations[existingIndex] = (item: item, problemName: problemName);
+      }
+    }
+
+    final procedures = <({AiProcedure item, String? problemName})>[];
+    void addProcedure(AiProcedure item, String? problemName) {
+      if (item.procedureName.trim().isEmpty) return;
+      if (procedures.any(
+        (entry) =>
+            entry.item.procedureName.trim().toLowerCase() ==
+                item.procedureName.trim().toLowerCase() &&
+            entry.problemName?.toLowerCase() == problemName?.toLowerCase(),
+      )) {
+        return;
+      }
+      procedures.add((item: item, problemName: problemName));
+    }
+
+    for (final problem in result.problems) {
+      final diagnosis = problem.diagnosis.trim();
+      for (final medication in problem.linkedMedications) {
+        addMedication(medication, diagnosis);
+      }
+      for (final investigation in problem.linkedInvestigations) {
+        addInvestigation(investigation, diagnosis);
+      }
+      for (final procedure in problem.linkedProcedures) {
+        addProcedure(procedure, diagnosis);
+      }
+    }
+    for (final medication in result.unlinkedManagement.medications) {
+      addMedication(medication, null);
+    }
+    for (final investigation in result.unlinkedManagement.investigations) {
+      addInvestigation(investigation, null);
+    }
+    for (final procedure in result.unlinkedManagement.procedures) {
+      addProcedure(procedure, null);
+    }
+    if (result.problems.isEmpty) {
+      for (final medication in result.medicationsOrdered) {
+        addMedication(medication, null);
+      }
+      for (final investigation in result.plannedInvestigations) {
+        addInvestigation(AiInvestigation(testName: investigation), null);
+      }
+      for (final lab in result.labResults) {
+        addInvestigation(
+          AiInvestigation(
+            testName: lab.testName,
+            value: lab.value,
+            unit: lab.unit,
+            isAbnormal: lab.isAbnormal,
+          ),
+          null,
+        );
+      }
+    }
+
+    for (final entry in medications) {
+      final medication = entry.item;
+      await into(prescriptionOrders).insert(
+        PrescriptionOrdersCompanion.insert(
+          id: Value(_ids.v4()),
+          patientId: patientId,
+          encounterId: encounterId,
+          problemId: Value(problemIds[entry.problemName?.toLowerCase()]),
+          drugName: medication.drugName.trim(),
+          doseStrength: Value(medication.dosage),
+          route: Value(medication.route),
+          frequency: Value(medication.frequency),
+          duration: Value(medication.duration),
+          orderedAt: Value(occurredAt),
+        ),
+      );
+    }
+
+    for (final entry in investigations) {
+      final investigation = entry.item;
+      final hasValue = investigation.value.trim().isNotEmpty;
+      final orderId = _ids.v4();
+      await into(investigationOrders).insert(
+        InvestigationOrdersCompanion.insert(
+          id: Value(orderId),
+          ownerId: Value(defaultOwnerId),
+          patientId: patientId,
+          encounterId: Value(encounterId),
+          problemId: Value(problemIds[entry.problemName?.toLowerCase()]),
+          testName: investigation.testName.trim(),
+          status: Value(hasValue ? 'result_received' : 'ordered'),
+          orderedAt: Value(occurredAt),
+          resultReceivedAt: Value(hasValue ? occurredAt : null),
+          clinicalIndication: Value(entry.problemName),
+        ),
+      );
+      if (!hasValue) continue;
+
+      final numericValue = double.tryParse(
+        investigation.value.replaceAll(RegExp(r'[^0-9.]'), ''),
+      );
+      await into(investigationResults).insert(
+        InvestigationResultsCompanion.insert(
+          id: Value(_ids.v4()),
+          orderId: Value(orderId),
+          patientId: patientId,
+          testName: investigation.testName.trim(),
+          numericValue: Value(numericValue),
+          textValue: Value(investigation.value.trim()),
+          unit: Value(investigation.unit),
+          isAbnormal: Value(investigation.isAbnormal),
+          resultDate: Value(occurredAt),
+        ),
+      );
+    }
+
+    for (final entry in procedures) {
+      await into(clinicalInterventions).insert(
+        ClinicalInterventionsCompanion.insert(
+          id: Value(_ids.v4()),
+          patientId: patientId,
+          encounterId: encounterId,
+          problemId: Value(problemIds[entry.problemName?.toLowerCase()]),
+          procedureName: entry.item.procedureName.trim(),
+          performedAt: Value(occurredAt),
+        ),
+      );
+    }
+  }
+
+  Future<Map<String, String>> _upsertPomrProblems({
+    required AiExtractionResult result,
+    required String patientId,
+    required String encounterId,
+    required DateTime occurredAt,
+  }) async {
+    final diagnosisNames = <String>[];
+    for (final problem in result.problems) {
+      final diagnosis = problem.diagnosis.trim();
+      if (diagnosis.isNotEmpty &&
+          !diagnosisNames.any(
+            (existing) => existing.toLowerCase() == diagnosis.toLowerCase(),
+          )) {
+        diagnosisNames.add(diagnosis);
+      }
+    }
+    for (final diagnosis in result.diagnoses) {
+      final cleaned = diagnosis.trim();
+      if (cleaned.isNotEmpty &&
+          !diagnosisNames.any(
+            (existing) => existing.toLowerCase() == cleaned.toLowerCase(),
+          )) {
+        diagnosisNames.add(cleaned);
+      }
+    }
+
+    final problemIds = <String, String>{};
+    for (final diagnosis in diagnosisNames) {
+      final existing =
+          await (select(patientProblems)..where(
+                (row) =>
+                    row.patientId.equals(patientId) &
+                    row.problemName.lower().equals(diagnosis.toLowerCase()),
+              ))
+              .get();
+      final problem = existing.isNotEmpty
+          ? existing.first
+          : await insertPatientProblem(
+              PatientProblemsCompanion.insert(
+                id: Value(_ids.v4()),
+                patientId: patientId,
+                initialEncounterId: Value(encounterId),
+                problemName: diagnosis,
+                currentStatus: const Value('Active'),
+                onsetDate: Value(occurredAt),
+              ),
+            );
+      problemIds[diagnosis.toLowerCase()] = problem.id;
+    }
+    return problemIds;
   }
 
   // =========================================================================
@@ -449,30 +664,479 @@ class ClinicalDao extends DatabaseAccessor<AppDatabase>
   Future<bool> applyDocumentEdits({
     required String documentId,
     required DateTime documentedAt,
+    AiExtractionResult? extraction,
     String? rawOcrTranscript,
     String? documentCategory,
+    String? clincomJson,
+    List<String> verifiedProblemAssociations = const [],
   }) async {
-    final existing = await (select(
-      documentRegistries,
-    )..where((row) => row.id.equals(documentId))).getSingleOrNull();
-    if (existing == null) return false;
+    return transaction(() async {
+      final existing = await (select(
+        documentRegistries,
+      )..where((row) => row.id.equals(documentId))).getSingleOrNull();
+      if (existing == null) return false;
 
-    await (update(
-      documentRegistries,
-    )..where((row) => row.id.equals(documentId))).write(
-      DocumentRegistriesCompanion(
-        // `documentedAt` is the whole point: correcting a document must move
-        // its clinical date, never re-date it to "now".
-        documentedAt: Value(documentedAt),
-        rawOcrTranscript: rawOcrTranscript == null
-            ? const Value.absent()
-            : Value(rawOcrTranscript),
-        documentCategory: documentCategory == null
-            ? const Value.absent()
-            : Value(documentCategory),
-      ),
+      await (update(
+        documentRegistries,
+      )..where((row) => row.id.equals(documentId))).write(
+        DocumentRegistriesCompanion(
+          documentedAt: Value(documentedAt),
+          rawOcrTranscript: rawOcrTranscript == null
+              ? const Value.absent()
+              : Value(rawOcrTranscript),
+          documentCategory: documentCategory == null
+              ? const Value.absent()
+              : Value(documentCategory),
+          clincomJson: clincomJson == null
+              ? const Value.absent()
+              : Value(clincomJson),
+        ),
+      );
+      if (extraction != null) {
+        final encounter =
+            await (select(clinicalEncounters)
+                  ..where(
+                    (row) =>
+                        row.patientId.equals(existing.patientId) &
+                        row.imagePath.equals(existing.imagePath),
+                  )
+                  ..limit(1))
+                .getSingleOrNull();
+        if (encounter != null) {
+          await _updatePomrLinksForEncounter(
+            extraction: extraction,
+            patientId: existing.patientId,
+            encounterId: encounter.id,
+            occurredAt: documentedAt,
+          );
+        }
+      }
+      for (final association in verifiedProblemAssociations) {
+        await recordCatalogUsage(category: 'med_to_problem', term: association);
+      }
+      return true;
+    });
+  }
+
+  Future<void> _updatePomrLinksForEncounter({
+    required AiExtractionResult extraction,
+    required String patientId,
+    required String encounterId,
+    required DateTime occurredAt,
+  }) async {
+    final problemIds = await _upsertPomrProblems(
+      result: extraction,
+      patientId: patientId,
+      encounterId: encounterId,
+      occurredAt: occurredAt,
     );
-    return true;
+    final medicationLinks = <String, String?>{};
+    final medications = <String, OrderedMedication>{};
+    String medicationKey(OrderedMedication medication) =>
+        '${medication.drugName.trim().toLowerCase()}|'
+        '${medication.dosage?.trim().toLowerCase() ?? ''}|'
+        '${medication.frequency?.trim().toLowerCase() ?? ''}|'
+        '${medication.route?.trim().toLowerCase() ?? ''}|'
+        '${medication.duration?.trim().toLowerCase() ?? ''}';
+    void addMedication(OrderedMedication medication, String? problemName) {
+      if (medication.drugName.trim().isEmpty) return;
+      final key = medicationKey(medication);
+      medicationLinks[key] = problemName;
+      medications[key] = medication;
+    }
+
+    final investigationLinks = <String, String?>{};
+    final investigations = <String, AiInvestigation>{};
+    void addInvestigation(AiInvestigation investigation, String? problemName) {
+      if (investigation.testName.trim().isEmpty) return;
+      final key = investigation.testName.trim().toLowerCase();
+      investigationLinks[key] = problemName;
+      investigations[key] = investigation;
+    }
+
+    final procedureLinks = <String, String?>{};
+    final procedureNames = <String, AiProcedure>{};
+    void addProcedure(AiProcedure procedure, String? problemName) {
+      if (procedure.procedureName.trim().isEmpty) return;
+      final key = procedure.procedureName.trim().toLowerCase();
+      procedureLinks[key] = problemName;
+      procedureNames[key] = procedure;
+    }
+
+    for (final problem in extraction.problems) {
+      final diagnosis = problem.diagnosis.trim();
+      for (final medication in problem.linkedMedications) {
+        addMedication(medication, diagnosis);
+      }
+      for (final investigation in problem.linkedInvestigations) {
+        addInvestigation(investigation, diagnosis);
+      }
+      for (final procedure in problem.linkedProcedures) {
+        addProcedure(procedure, diagnosis);
+      }
+    }
+    for (final medication in extraction.unlinkedManagement.medications) {
+      addMedication(medication, null);
+    }
+    for (final investigation in extraction.unlinkedManagement.investigations) {
+      addInvestigation(investigation, null);
+    }
+    for (final procedure in extraction.unlinkedManagement.procedures) {
+      addProcedure(procedure, null);
+    }
+    if (extraction.problems.isEmpty) {
+      for (final medication in extraction.medicationsOrdered) {
+        addMedication(medication, null);
+      }
+      for (final investigation in extraction.plannedInvestigations) {
+        addInvestigation(AiInvestigation(testName: investigation), null);
+      }
+      for (final lab in extraction.labResults) {
+        addInvestigation(
+          AiInvestigation(
+            testName: lab.testName,
+            value: lab.value,
+            unit: lab.unit,
+            isAbnormal: lab.isAbnormal,
+          ),
+          null,
+        );
+      }
+    }
+
+    final savedMedicationKeys = <String>{};
+    final existingMedications = await (select(
+      prescriptionOrders,
+    )..where((row) => row.encounterId.equals(encounterId))).get();
+    for (final row in existingMedications) {
+      final medication = OrderedMedication(
+        drugName: row.drugName,
+        dosage: row.doseStrength,
+        frequency: row.frequency,
+        route: row.route,
+        duration: row.duration,
+      );
+      final key = medicationKey(medication);
+      if (!medicationLinks.containsKey(key)) {
+        await (update(prescriptionOrders)
+              ..where((item) => item.id.equals(row.id)))
+            .write(const PrescriptionOrdersCompanion(isActive: Value(false)));
+        continue;
+      }
+      savedMedicationKeys.add(key);
+      await (update(
+        prescriptionOrders,
+      )..where((item) => item.id.equals(row.id))).write(
+        PrescriptionOrdersCompanion(
+          problemId: Value(problemIds[medicationLinks[key]?.toLowerCase()]),
+          doseStrength: Value(medications[key]!.dosage),
+          route: Value(medications[key]!.route),
+          frequency: Value(medications[key]!.frequency),
+          duration: Value(medications[key]!.duration),
+          isActive: const Value(true),
+        ),
+      );
+    }
+    for (final entry in medications.entries) {
+      if (savedMedicationKeys.contains(entry.key)) continue;
+      final medication = entry.value;
+      await into(prescriptionOrders).insert(
+        PrescriptionOrdersCompanion.insert(
+          id: Value(_ids.v4()),
+          patientId: patientId,
+          encounterId: encounterId,
+          problemId: Value(
+            problemIds[medicationLinks[entry.key]?.toLowerCase()],
+          ),
+          drugName: medication.drugName.trim(),
+          doseStrength: Value(medication.dosage),
+          route: Value(medication.route),
+          frequency: Value(medication.frequency),
+          duration: Value(medication.duration),
+          orderedAt: Value(occurredAt),
+        ),
+      );
+    }
+
+    final savedInvestigationNames = <String>{};
+    final existingOrders = await (select(
+      investigationOrders,
+    )..where((row) => row.encounterId.equals(encounterId))).get();
+    for (final row in existingOrders) {
+      final key = row.testName.trim().toLowerCase();
+      if (!investigationLinks.containsKey(key)) {
+        await (update(
+          investigationOrders,
+        )..where((item) => item.id.equals(row.id))).write(
+          const InvestigationOrdersCompanion(status: Value('cancelled')),
+        );
+        continue;
+      }
+      savedInvestigationNames.add(key);
+      final problemName = investigationLinks[key];
+      await (update(
+        investigationOrders,
+      )..where((item) => item.id.equals(row.id))).write(
+        InvestigationOrdersCompanion(
+          problemId: Value(problemIds[problemName?.toLowerCase()]),
+          clinicalIndication: Value(problemName),
+        ),
+      );
+    }
+    for (final entry in investigations.entries) {
+      if (savedInvestigationNames.contains(entry.key)) continue;
+      final investigation = entry.value;
+      final hasValue = investigation.value.trim().isNotEmpty;
+      final orderId = _ids.v4();
+      final problemName = investigationLinks[entry.key];
+      await into(investigationOrders).insert(
+        InvestigationOrdersCompanion.insert(
+          id: Value(orderId),
+          ownerId: Value(defaultOwnerId),
+          patientId: patientId,
+          encounterId: Value(encounterId),
+          problemId: Value(problemIds[problemName?.toLowerCase()]),
+          testName: investigation.testName.trim(),
+          status: Value(hasValue ? 'result_received' : 'ordered'),
+          orderedAt: Value(occurredAt),
+          resultReceivedAt: Value(hasValue ? occurredAt : null),
+          clinicalIndication: Value(problemName),
+        ),
+      );
+      if (hasValue) {
+        await into(investigationResults).insert(
+          InvestigationResultsCompanion.insert(
+            id: Value(_ids.v4()),
+            orderId: Value(orderId),
+            patientId: patientId,
+            testName: investigation.testName.trim(),
+            numericValue: Value(
+              double.tryParse(
+                investigation.value.replaceAll(RegExp(r'[^0-9.]'), ''),
+              ),
+            ),
+            textValue: Value(investigation.value.trim()),
+            unit: Value(investigation.unit),
+            isAbnormal: Value(investigation.isAbnormal),
+            resultDate: Value(occurredAt),
+          ),
+        );
+      }
+    }
+
+    final savedProcedureNames = <String>{};
+    final existingProcedures = await (select(
+      clinicalInterventions,
+    )..where((row) => row.encounterId.equals(encounterId))).get();
+    for (final row in existingProcedures) {
+      final key = row.procedureName.trim().toLowerCase();
+      if (!procedureLinks.containsKey(key)) {
+        await (delete(
+          clinicalInterventions,
+        )..where((item) => item.id.equals(row.id))).go();
+        continue;
+      }
+      savedProcedureNames.add(key);
+      final problemName = procedureLinks[key];
+      await (update(
+        clinicalInterventions,
+      )..where((item) => item.id.equals(row.id))).write(
+        ClinicalInterventionsCompanion(
+          problemId: Value(problemIds[problemName?.toLowerCase()]),
+        ),
+      );
+    }
+    for (final entry in procedureNames.entries) {
+      if (savedProcedureNames.contains(entry.key)) continue;
+      final problemName = procedureLinks[entry.key];
+      await into(clinicalInterventions).insert(
+        ClinicalInterventionsCompanion.insert(
+          id: Value(_ids.v4()),
+          patientId: patientId,
+          encounterId: encounterId,
+          problemId: Value(problemIds[problemName?.toLowerCase()]),
+          procedureName: entry.value.procedureName.trim(),
+          performedAt: Value(occurredAt),
+        ),
+      );
+    }
+  }
+
+  /// Rebuilds management links from the normalized encounter rows. The saved
+  /// ClinCom JSON remains the source for narrative fields and reasoning; the
+  /// foreign-key columns are authoritative for problem assignments.
+  Future<AiExtractionResult> hydratePomrForDocument({
+    required DocumentRegistry document,
+    required AiExtractionResult extraction,
+  }) async {
+    final encounter =
+        await (select(clinicalEncounters)
+              ..where(
+                (row) =>
+                    row.patientId.equals(document.patientId) &
+                    row.imagePath.equals(document.imagePath),
+              )
+              ..limit(1))
+            .getSingleOrNull();
+    if (encounter == null) return extraction;
+
+    final prescriptions =
+        await (select(prescriptionOrders)..where(
+              (row) =>
+                  row.encounterId.equals(encounter.id) &
+                  row.isActive.equals(true),
+            ))
+            .get();
+    final orders =
+        await (select(investigationOrders)..where(
+              (row) =>
+                  row.encounterId.equals(encounter.id) &
+                  row.status.isNotIn(const ['cancelled']),
+            ))
+            .get();
+    final procedures = await (select(
+      clinicalInterventions,
+    )..where((row) => row.encounterId.equals(encounter.id))).get();
+    if (prescriptions.isEmpty && orders.isEmpty && procedures.isEmpty) {
+      return extraction;
+    }
+
+    final patientProblems = await (select(
+      this.patientProblems,
+    )..where((row) => row.patientId.equals(document.patientId))).get();
+    final problemNamesById = {
+      for (final problem in patientProblems) problem.id: problem.problemName,
+    };
+    final problemData = <String, AiProblem>{
+      for (final problem in extraction.problems)
+        problem.diagnosis.trim().toLowerCase(): problem,
+    };
+    for (final diagnosis in extraction.diagnoses) {
+      final clean = diagnosis.trim();
+      if (clean.isNotEmpty) {
+        problemData.putIfAbsent(
+          clean.toLowerCase(),
+          () => AiProblem(diagnosis: clean),
+        );
+      }
+    }
+
+    final medicationsByProblem = <String, List<OrderedMedication>>{};
+    final investigationsByProblem = <String, List<AiInvestigation>>{};
+    final proceduresByProblem = <String, List<AiProcedure>>{};
+    final unlinkedMedications = <OrderedMedication>[];
+    final unlinkedInvestigations = <AiInvestigation>[];
+    final unlinkedProcedures = <AiProcedure>[];
+    String? linkedProblemName(String? problemId) {
+      if (problemId == null) return null;
+      final name = problemNamesById[problemId];
+      if (name == null) {
+        throw StateError(
+          'Encounter management references missing patient problem $problemId.',
+        );
+      }
+      problemData.putIfAbsent(
+        name.toLowerCase(),
+        () => AiProblem(diagnosis: name),
+      );
+      return name;
+    }
+
+    for (final prescription in prescriptions) {
+      final medication = OrderedMedication(
+        drugName: prescription.drugName,
+        dosage: prescription.doseStrength,
+        frequency: prescription.frequency,
+      );
+      final problemName = linkedProblemName(prescription.problemId);
+      if (problemName == null) {
+        unlinkedMedications.add(medication);
+      } else {
+        (medicationsByProblem[problemName.toLowerCase()] ??= []).add(
+          medication,
+        );
+      }
+    }
+
+    final results = await (select(
+      investigationResults,
+    )..where((row) => row.patientId.equals(document.patientId))).get();
+    final resultsByOrder = <String, InvestigationResult>{};
+    for (final result in results) {
+      final orderId = result.orderId;
+      if (orderId != null) resultsByOrder.putIfAbsent(orderId, () => result);
+    }
+    for (final order in orders) {
+      final result = resultsByOrder[order.id];
+      final investigation = AiInvestigation(
+        testName: order.testName,
+        value: result?.textValue ?? result?.numericValue?.toString() ?? '',
+        unit: result?.unit,
+        isAbnormal: result?.isAbnormal ?? false,
+      );
+      final problemName = linkedProblemName(order.problemId);
+      if (problemName == null) {
+        unlinkedInvestigations.add(investigation);
+      } else {
+        (investigationsByProblem[problemName.toLowerCase()] ??= []).add(
+          investigation,
+        );
+      }
+    }
+
+    for (final intervention in procedures) {
+      final procedure = AiProcedure(procedureName: intervention.procedureName);
+      final problemName = linkedProblemName(intervention.problemId);
+      if (problemName == null) {
+        unlinkedProcedures.add(procedure);
+      } else {
+        (proceduresByProblem[problemName.toLowerCase()] ??= []).add(procedure);
+      }
+    }
+
+    final hydratedProblems = [
+      for (final entry in problemData.entries)
+        entry.value.copyWith(
+          linkedMedications:
+              medicationsByProblem[entry.key] ?? const <OrderedMedication>[],
+          linkedInvestigations:
+              investigationsByProblem[entry.key] ?? const <AiInvestigation>[],
+          linkedProcedures:
+              proceduresByProblem[entry.key] ?? const <AiProcedure>[],
+        ),
+    ];
+    final flattenedInvestigations = [
+      for (final values in investigationsByProblem.values) ...values,
+      ...unlinkedInvestigations,
+    ];
+    final flattenedMedications = [
+      for (final values in medicationsByProblem.values) ...values,
+      ...unlinkedMedications,
+    ];
+    return extraction.copyWith(
+      problems: hydratedProblems,
+      unlinkedManagement: AiUnlinkedManagement(
+        medications: unlinkedMedications,
+        investigations: unlinkedInvestigations,
+        procedures: unlinkedProcedures,
+      ),
+      medicationsOrdered: flattenedMedications,
+      labResults: [
+        for (final investigation in flattenedInvestigations)
+          if (investigation.value.isNotEmpty)
+            AiLabResult(
+              testName: investigation.testName,
+              value: investigation.value,
+              unit: investigation.unit,
+              isAbnormal: investigation.isAbnormal,
+            ),
+      ],
+      plannedInvestigations: [
+        for (final investigation in flattenedInvestigations)
+          investigation.testName,
+      ],
+      diagnoses: [for (final problem in hydratedProblems) problem.diagnosis],
+    );
   }
 
   Future<void> upsertPatientHospitalIdentifier({
@@ -1020,10 +1684,9 @@ class ClinicalDao extends DatabaseAccessor<AppDatabase>
   /// document as a duplicate.
   Future<DocumentRegistry?> findDocumentByImageHash(String? hash) async {
     if (hash == null || hash.trim().isEmpty) return null;
-    return (select(documentRegistries)..where(
-          (row) => row.imageHash.equals(hash.trim()),
-        ))
-        .getSingleOrNull();
+    return (select(
+      documentRegistries,
+    )..where((row) => row.imageHash.equals(hash.trim()))).getSingleOrNull();
   }
 
   /// Finds a document by the image path it was captured from.
@@ -1077,7 +1740,8 @@ class ClinicalDao extends DatabaseAccessor<AppDatabase>
   ///
   /// Returns the row that now holds the value, and whether it was updated in
   /// place (so callers can enqueue the right sync operation).
-  Future<({InvestigationResult result, bool merged})> upsertInvestigationResult({
+  Future<({InvestigationResult result, bool merged})>
+  upsertInvestigationResult({
     required String patientId,
     required String testName,
     required DateTime resultDate,
@@ -1172,14 +1836,12 @@ class ClinicalDao extends DatabaseAccessor<AppDatabase>
 
   /// Reads the image bytes of an image document, for retention pruning.
   Future<void> attachImageHash(String documentId, String hash) async {
-    await (update(
-      documentRegistries,
-    )..where((row) => row.id.equals(documentId))).write(
-      DocumentRegistriesCompanion(imageHash: Value(hash.trim())),
-    );
+    await (update(documentRegistries)
+          ..where((row) => row.id.equals(documentId)))
+        .write(DocumentRegistriesCompanion(imageHash: Value(hash.trim())));
   }
 
-Future<int> countReflectionsForPatient(
+  Future<int> countReflectionsForPatient(
     String patientId, {
     String? ownerId,
   }) async {
@@ -1311,7 +1973,8 @@ Future<int> countReflectionsForPatient(
             if (row.doseStrength?.trim().isNotEmpty == true) row.doseStrength,
             if (row.frequency?.trim().isNotEmpty == true) row.frequency,
           ].whereType<String>().join(' · '),
-          detail: row.dosageForm,
+          detail: row.specialInstructions ?? row.dosageForm,
+          isActive: row.isActive,
         ),
       );
     }
@@ -1544,6 +2207,101 @@ Future<int> countReflectionsForPatient(
         .get();
   }
 
+  Future<EncounterPomrExport> getEncounterPomrExport(String encounterId) async {
+    final encounter = await (select(
+      clinicalEncounters,
+    )..where((row) => row.id.equals(encounterId))).getSingle();
+    final prescriptions = await (select(
+      prescriptionOrders,
+    )..where((row) => row.encounterId.equals(encounterId))).get();
+    final investigationOrders = await (select(
+      this.investigationOrders,
+    )..where((row) => row.encounterId.equals(encounterId))).get();
+    final interventions = await (select(
+      clinicalInterventions,
+    )..where((row) => row.encounterId.equals(encounterId))).get();
+    final problems = await (select(
+      patientProblems,
+    )..where((row) => row.patientId.equals(encounter.patientId))).get();
+
+    final ordersById = {
+      for (final order in investigationOrders) order.id: order,
+    };
+    final results = ordersById.isEmpty
+        ? <InvestigationResult>[]
+        : await (select(
+            investigationResults,
+          )..where((row) => row.orderId.isIn(ordersById.keys))).get();
+    final resultsByOrder = <String, List<InvestigationResult>>{};
+    for (final result in results) {
+      final orderId = result.orderId;
+      if (orderId != null) {
+        resultsByOrder.putIfAbsent(orderId, () => []).add(result);
+      }
+    }
+
+    final problemById = {for (final problem in problems) problem.id: problem};
+    final problemIds = <String>{
+      for (final order in prescriptions)
+        if (order.problemId != null) order.problemId!,
+      for (final order in investigationOrders)
+        if (order.problemId != null) order.problemId!,
+      for (final intervention in interventions)
+        if (intervention.problemId != null) intervention.problemId!,
+      for (final problem in problems)
+        if (problem.initialEncounterId == encounterId) problem.id,
+    };
+    final sections = <EncounterProblemSection>[];
+    for (final problemId in problemIds) {
+      final problem = problemById[problemId];
+      if (problem == null) continue;
+      sections.add(
+        EncounterProblemSection(
+          problem: problem,
+          prescriptions: prescriptions
+              .where((order) => order.problemId == problemId)
+              .toList(),
+          investigations: investigationOrders
+              .where((order) => order.problemId == problemId)
+              .map(
+                (order) => EncounterInvestigation(
+                  order: order,
+                  results: resultsByOrder[order.id] ?? const [],
+                ),
+              )
+              .toList(),
+          interventions: interventions
+              .where((row) => row.problemId == problemId)
+              .toList(),
+        ),
+      );
+    }
+    sections.sort(
+      (left, right) =>
+          left.problem.problemName.compareTo(right.problem.problemName),
+    );
+
+    return EncounterPomrExport(
+      encounter: encounter,
+      problems: sections,
+      unlinkedPrescriptions: prescriptions
+          .where((order) => order.problemId == null)
+          .toList(),
+      unlinkedInvestigations: investigationOrders
+          .where((order) => order.problemId == null)
+          .map(
+            (order) => EncounterInvestigation(
+              order: order,
+              results: resultsByOrder[order.id] ?? const [],
+            ),
+          )
+          .toList(),
+      unlinkedInterventions: interventions
+          .where((row) => row.problemId == null)
+          .toList(),
+    );
+  }
+
   Future<ClinicalEncounter> insertClinicalEncounter(
     ClinicalEncountersCompanion values,
   ) async {
@@ -1669,6 +2427,260 @@ Future<int> countReflectionsForPatient(
               ),
             ]))
           .watch();
+
+  Future<List<PatientProblem>> getPatientProblems(String patientId) =>
+      (select(patientProblems)
+            ..where((row) => row.patientId.equals(patientId))
+            ..orderBy([
+              (row) => OrderingTerm(
+                expression: row.updatedAt,
+                mode: OrderingMode.desc,
+              ),
+            ]))
+          .get();
+
+  /// Builds a bounded, de-identified-from-demographics summary of the
+  /// patient's active problems, current prescriptions, and recent results.
+  Future<String> buildClinicalAuditSummary(String patientId) async {
+    final problems =
+        await (select(patientProblems)
+              ..where(
+                (row) =>
+                    row.patientId.equals(patientId) &
+                    row.currentStatus.equals('Active'),
+              )
+              ..orderBy([(row) => OrderingTerm.asc(row.problemName)]))
+            .get();
+    final prescriptions =
+        await (select(prescriptionOrders)
+              ..where(
+                (row) =>
+                    row.patientId.equals(patientId) & row.isActive.equals(true),
+              )
+              ..orderBy([
+                (row) => OrderingTerm(
+                  expression: row.orderedAt,
+                  mode: OrderingMode.desc,
+                ),
+              ])
+              ..limit(100))
+            .get();
+    final activeOrders =
+        await (select(investigationOrders)
+              ..where(
+                (row) =>
+                    row.patientId.equals(patientId) &
+                    row.status.isIn(const ['ordered', 'sample_sent']),
+              )
+              ..orderBy([
+                (row) => OrderingTerm(
+                  expression: row.orderedAt,
+                  mode: OrderingMode.desc,
+                ),
+              ])
+              ..limit(100))
+            .get();
+    final results =
+        await (select(investigationResults)
+              ..where((row) => row.patientId.equals(patientId))
+              ..orderBy([
+                (row) => OrderingTerm(
+                  expression: row.resultDate,
+                  mode: OrderingMode.desc,
+                ),
+              ])
+              ..limit(100))
+            .get();
+
+    return [
+      'ACTIVE PROBLEMS:',
+      if (problems.isEmpty) '- None recorded',
+      for (final problem in problems) '- ${problem.problemName}',
+      '',
+      'ACTIVE PRESCRIPTIONS:',
+      if (prescriptions.isEmpty) '- None recorded',
+      for (final order in prescriptions)
+        '- ${order.drugName}'
+            '${_auditDetail(order.doseStrength)}'
+            '${_auditDetail(order.route)}'
+            '${_auditDetail(order.frequency)}',
+      '',
+      'ACTIVE INVESTIGATION ORDERS:',
+      if (activeOrders.isEmpty) '- None recorded',
+      for (final order in activeOrders) '- ${order.testName}',
+      '',
+      'RECENT INVESTIGATION RESULTS:',
+      if (results.isEmpty) '- None recorded',
+      for (final result in results)
+        '- ${result.testName}: '
+            '${result.textValue ?? result.numericValue?.toString() ?? 'No value'}'
+            '${_auditDetail(result.unit)}'
+            '${result.isAbnormal ? ' (abnormal)' : ''}',
+    ].join('\n');
+  }
+
+  static String _auditDetail(String? value) =>
+      value == null || value.trim().isEmpty ? '' : ' · ${value.trim()}';
+
+  Future<ClinicalAudit> recordClinicalAudit({
+    required String patientId,
+    required String suggestionType,
+    required String title,
+    required String reasoning,
+    required String status,
+  }) async {
+    if (!const {'accepted', 'dismissed'}.contains(status)) {
+      throw ArgumentError.value(status, 'status');
+    }
+    final id = _ids.v4();
+    await into(clinicalAudits).insert(
+      ClinicalAuditsCompanion.insert(
+        id: Value(id),
+        patientId: patientId,
+        suggestionType: suggestionType,
+        title: title,
+        reasoning: reasoning,
+        status: status,
+      ),
+    );
+    return (select(
+      clinicalAudits,
+    )..where((row) => row.id.equals(id))).getSingle();
+  }
+
+  Future<void> updateClinicalAuditStatus({
+    required String auditId,
+    required String status,
+  }) async {
+    if (!const {'accepted', 'dismissed'}.contains(status)) {
+      throw ArgumentError.value(status, 'status');
+    }
+    final changed =
+        await (update(clinicalAudits)..where((row) => row.id.equals(auditId)))
+            .write(ClinicalAuditsCompanion(status: Value(status)));
+    if (changed == 0) {
+      throw StateError('Clinical audit $auditId was not found');
+    }
+  }
+
+  Future<List<ClinicalBlindSpot>> getFrequentAcceptedClinicalAudits({
+    int limit = 8,
+  }) async {
+    final rows = await customSelect(
+      '''
+      SELECT title, suggestion_type, COUNT(*) AS accepted_count
+      FROM clinical_audits
+      WHERE status = 'accepted'
+      GROUP BY lower(title), suggestion_type
+      ORDER BY accepted_count DESC, lower(title) ASC
+      LIMIT ?
+      ''',
+      variables: [Variable.withInt(limit.clamp(1, 50))],
+    ).get();
+    return [
+      for (final row in rows)
+        ClinicalBlindSpot(
+          title: row.read<String>('title'),
+          suggestionType: row.read<String>('suggestion_type'),
+          acceptedCount: row.read<int>('accepted_count'),
+        ),
+    ];
+  }
+
+  Future<PrescriptionOrder?> getPrescriptionOrder(String orderId) => (select(
+    prescriptionOrders,
+  )..where((row) => row.id.equals(orderId))).getSingleOrNull();
+
+  /// Atomically records a medication reaction as a POMR problem and
+  /// discontinues the implicated prescription with the reaction retained in
+  /// its instructions for audit and synchronization.
+  Future<String> recordAdverseDrugReaction({
+    required String prescriptionId,
+    required String reaction,
+  }) async {
+    final description = reaction.trim();
+    if (description.isEmpty) {
+      throw ArgumentError.value(reaction, 'reaction', 'Reaction is required');
+    }
+    return transaction(() async {
+      final order = await (select(
+        prescriptionOrders,
+      )..where((row) => row.id.equals(prescriptionId))).getSingleOrNull();
+      if (order == null) {
+        throw StateError('Prescription $prescriptionId was not found');
+      }
+      final problemName = '${order.drugName}-associated $description';
+      final existing =
+          await (select(patientProblems)..where(
+                (row) =>
+                    row.patientId.equals(order.patientId) &
+                    row.problemName.equals(problemName) &
+                    row.currentStatus.equals('Active'),
+              ))
+              .getSingleOrNull();
+      final problemId = existing?.id ?? _ids.v4();
+      if (existing == null) {
+        await into(patientProblems).insert(
+          PatientProblemsCompanion.insert(
+            id: Value(problemId),
+            patientId: order.patientId,
+            initialEncounterId: Value(order.encounterId),
+            problemName: problemName,
+            currentStatus: const Value('Active'),
+            onsetDate: Value(DateTime.now().toUtc()),
+          ),
+        );
+      }
+
+      final now = DateTime.now().toUtc();
+      final adrInstruction = 'Discontinued due to suspected ADR: $description';
+      final previousInstructions = order.specialInstructions?.trim();
+      final savedInstructions =
+          previousInstructions == null || previousInstructions.isEmpty
+          ? adrInstruction
+          : '$previousInstructions\n$adrInstruction';
+      await (update(
+        prescriptionOrders,
+      )..where((row) => row.id.equals(prescriptionId))).write(
+        PrescriptionOrdersCompanion(
+          isActive: const Value(false),
+          specialInstructions: Value(savedInstructions),
+        ),
+      );
+      final patient = await (select(
+        patients,
+      )..where((row) => row.id.equals(order.patientId))).getSingleOrNull();
+      final ownerId = patient?.ownerId ?? defaultOwnerId;
+      await _enqueue(
+        ownerId: ownerId,
+        entityType: 'patient_problems',
+        entityId: problemId,
+        operation: existing == null ? 'insert' : 'update',
+        payload: {
+          'id': problemId,
+          'patient_id': order.patientId,
+          'initial_encounter_id': order.encounterId,
+          'problem_name': problemName,
+          'current_status': 'Active',
+          'onset_date': now.toIso8601String(),
+        },
+        clientUpdatedAt: now,
+      );
+      await _enqueue(
+        ownerId: ownerId,
+        entityType: 'prescription_orders',
+        entityId: prescriptionId,
+        operation: 'update',
+        payload: {
+          'id': prescriptionId,
+          'is_active': false,
+          'special_instructions': savedInstructions,
+        },
+        clientUpdatedAt: now,
+      );
+      return problemId;
+    });
+  }
 
   /// All currently active prescription orders for a patient (continuous
   /// orders review in IPD mode). Ordered newest-first.
@@ -2576,6 +3588,28 @@ Future<int> countReflectionsForPatient(
     return rows.map((r) => r.term).toList(growable: false);
   }
 
+  /// Returns the most frequent clinician-verified medication/problem links.
+  Future<List<String>> getTopProblemAssociations({int limit = 50}) async {
+    final rows =
+        await (select(learnedCatalog)
+              ..where((row) => row.category.equals('med_to_problem'))
+              ..orderBy([
+                (row) => OrderingTerm(
+                  expression: row.frequency,
+                  mode: OrderingMode.desc,
+                ),
+                (row) => OrderingTerm(
+                  expression: row.lastUsedAt,
+                  mode: OrderingMode.desc,
+                ),
+              ])
+              ..limit(limit))
+            .get();
+    return rows
+        .map((row) => '${row.term} (frequency: ${row.frequency})')
+        .toList(growable: false);
+  }
+
   /// Increments the frequency counter or inserts a newly used clinical term.
   Future<void> recordCatalogUsage({
     required String category,
@@ -2835,6 +3869,7 @@ class TimelineEvent {
     this.subtitle,
     this.detail,
     this.isAbnormal = false,
+    this.isActive = true,
     this.wardName,
     this.bedNumber,
     this.hospitalId,
@@ -2854,6 +3889,7 @@ class TimelineEvent {
   /// Only ever true for [TimelineEventKind.labResult]. Surfaced prominently so
   /// an abnormal value is not scrolled past.
   final bool isAbnormal;
+  final bool isActive;
 
   final String? wardName;
   final String? bedNumber;
@@ -2865,5 +3901,3 @@ class TimelineEvent {
   /// Set for [TimelineEventKind.document] so the card can open the scan.
   final String? imagePath;
 }
-
-

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -11,9 +12,11 @@ import 'package:image_picker/image_picker.dart';
 import '../../../core/database/daos/clinical_dao.dart';
 import '../../../core/database/local_database.dart';
 import '../../../core/models/ai_extraction_result.dart';
+import '../../../core/models/clinical_drug_selection.dart';
 import '../../../core/models/document_task.dart';
 import '../../../core/providers/app_providers.dart';
 import '../../../core/utils/datetime_utils.dart';
+import '../../../core/widgets/smart_drug_autocomplete.dart';
 import '../../patients/screens/hospital_picker_field.dart';
 import '../widgets/full_screen_image_viewer.dart';
 
@@ -86,6 +89,7 @@ class _AdaptiveReviewScreenState extends ConsumerState<AdaptiveReviewScreen> {
   final Map<String, String?> _linkedPatientId = {};
 
   late final Stream<List<Patient>> _patients;
+  List<PatientProblem> _knownActiveProblems = const [];
 
   int _index = 0;
   bool _saving = false;
@@ -95,10 +99,27 @@ class _AdaptiveReviewScreenState extends ConsumerState<AdaptiveReviewScreen> {
   void initState() {
     super.initState();
     _patients = ref.read(clinicalDaoProvider).watchAllPatients();
+    final patient = widget.patient;
+    if (patient != null) {
+      unawaited(
+        ref.read(clinicalDaoProvider).getPatientProblems(patient.id).then((
+          problems,
+        ) {
+          if (!mounted) return;
+          setState(() {
+            _knownActiveProblems = problems
+                .where((problem) => problem.currentStatus == 'Active')
+                .toList(growable: false);
+          });
+        }),
+      );
+    }
     if (widget.editDocument != null) {
       // Edit Mode: put the saved document into the work queue as a single
       // ready-for-review page so the existing review UI drives it unchanged.
-      WidgetsBinding.instance.addPostFrameCallback((_) => _seedEditTask());
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => unawaited(_seedEditTask()),
+      );
     }
   }
 
@@ -108,20 +129,72 @@ class _AdaptiveReviewScreenState extends ConsumerState<AdaptiveReviewScreen> {
   /// clinician sees the values that were originally extracted, rather than an
   /// empty form. `documentedAt` is preserved: correcting a document must not
   /// silently re-date it to today.
-  void _seedEditTask() {
+  Future<void> _seedEditTask() async {
     final document = widget.editDocument;
     if (document == null) return;
 
     final transcript = document.rawOcrTranscript.trim();
-    final extraction = AiExtractionResult(
-      // The stored category is the closest thing to a document type we keep,
-      // and re-seeding the date keeps Edit Mode from re-dating the record.
-      encounterContext: EncounterContext(
-        documentType: document.documentCategory,
+
+    // Sprint 17.5 — restore the FULL extraction when one was stored, so Edit
+    // Mode rehydrates complaints, diagnoses, ordered investigations, vitals,
+    // labs and meds instead of showing an almost-empty shell a year later.
+    // Pre-17.5 rows have no JSON and degrade to the previous summary-only form.
+    AiExtractionResult? stored;
+    final json = document.clincomJson?.trim() ?? '';
+    if (json.isNotEmpty) {
+      try {
+        stored = AiExtractionResult.fromJson(
+          jsonDecode(json) as Map<String, dynamic>,
+        );
+      } catch (error) {
+        debugPrint(
+          '[ClinCom] Stored extraction unreadable, falling back: $error',
+        );
+      }
+    }
+
+    final extraction =
+        stored ??
+        AiExtractionResult(
+          // The stored category is the closest thing to a document type we
+          // keep, and re-seeding the date keeps Edit Mode from re-dating the
+          // record.
+          encounterContext: EncounterContext(
+            documentType: document.documentCategory,
+            date: document.documentedAt.toIso8601String(),
+          ),
+          clinicalSummary: transcript,
+        );
+
+    // The stored date always wins: correcting a document must never re-date
+    // it, and the JSON must not be able to drift the encounter either.
+    var rehydrated = extraction.copyWith(
+      encounterContext: extraction.encounterContext.copyWith(
+        documentType: extraction.encounterContext.documentType.trim().isEmpty
+            ? document.documentCategory
+            : extraction.encounterContext.documentType,
         date: document.documentedAt.toIso8601String(),
       ),
-      clinicalSummary: transcript,
+      clinicalSummary: extraction.clinicalSummary.trim().isEmpty
+          ? transcript
+          : extraction.clinicalSummary,
     );
+    try {
+      rehydrated = await ref
+          .read(clinicalDaoProvider)
+          .hydratePomrForDocument(document: document, extraction: rehydrated);
+    } catch (error) {
+      debugPrint('[ClinCom] Could not hydrate POMR links from SQLite: $error');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Could not load problem links: $error'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+    if (!mounted) return;
 
     ref
         .read(batchExtractionProvider.notifier)
@@ -132,7 +205,7 @@ class _AdaptiveReviewScreenState extends ConsumerState<AdaptiveReviewScreen> {
             status: ExtractionStatus.readyForReview,
             source: ExtractionSource.local,
             rawOcrText: transcript.isEmpty ? null : transcript,
-            extractedData: extraction,
+            extractedData: rehydrated,
           ),
           // The document's own date wins over "now" — the whole point of Edit
           // Mode is that saving does not re-date the record.
@@ -169,7 +242,10 @@ class _AdaptiveReviewScreenState extends ConsumerState<AdaptiveReviewScreen> {
     final editor = _editors[task.id];
     if (editor == null) return;
 
-    final linkedId = _linkedPatientId[task.id] ?? widget.patient?.id;
+    final linkedId =
+        _linkedPatientId[task.id] ??
+        widget.patient?.id ??
+        extraction.inferredPatientId;
     if (linkedId == null && editor.name.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -185,6 +261,7 @@ class _AdaptiveReviewScreenState extends ConsumerState<AdaptiveReviewScreen> {
     setState(() => _saving = true);
     try {
       final dao = ref.read(clinicalDaoProvider);
+      final reviewed = editor.toResult(extraction);
 
       // Sprint 14.5 — Edit Mode updates the stored document in place.
       // `processAiExtraction` is deliberately idempotent and would return the
@@ -195,9 +272,14 @@ class _AdaptiveReviewScreenState extends ConsumerState<AdaptiveReviewScreen> {
         final applied = await dao.applyDocumentEdits(
           documentId: editingDocument.id,
           documentedAt: editor.documentedAt.toUtc(),
+          extraction: reviewed,
           rawOcrTranscript: editor.conclusion.text.trim().isEmpty
               ? editingDocument.rawOcrTranscript
               : editor.conclusion.text.trim(),
+          // Sprint 17.5 — persist the corrections, or reopening the document
+          // would resurrect the stale semantic fields.
+          clincomJson: jsonEncode(reviewed.toJson()),
+          verifiedProblemAssociations: editor.verifiedProblemAssociations,
         );
         if (!mounted) return;
         if (!applied) {
@@ -216,10 +298,15 @@ class _AdaptiveReviewScreenState extends ConsumerState<AdaptiveReviewScreen> {
         return;
       }
 
-      await dao.processAiExtraction(
-        editor.toResult(extraction),
-        task.originalFile.path,
+      await dao.saveUniversalClinicalPayload(
+        result: reviewed,
+        imagePath: task.originalFile?.path ?? '',
+        rawSourceText: task.rawOcrText,
+        isTextInput: task.isTextInput,
         patientIdOverride: linkedId,
+        // Sprint 17.5 — persist the reviewed form so Edit Mode can rebuild it.
+        clincomJson: jsonEncode(reviewed.toJson()),
+        verifiedProblemAssociations: editor.verifiedProblemAssociations,
       );
 
       // Sprint 17 — stamp the dedup key AFTER the save, and never await it.
@@ -228,7 +315,10 @@ class _AdaptiveReviewScreenState extends ConsumerState<AdaptiveReviewScreen> {
       // gated on hashing bytes. Hashing runs on a background isolate; if the
       // clinician backgrounds the app first, the worst case is that this one
       // page is not content-deduplicated next time — never a lost record.
-      unawaited(_stampImageHash(dao, task.originalFile));
+      final originalFile = task.originalFile;
+      if (!task.isTextInput && originalFile != null) {
+        unawaited(_stampImageHash(dao, originalFile));
+      }
 
       if (!mounted) return;
       _savedCount++;
@@ -441,7 +531,7 @@ class _AdaptiveReviewScreenState extends ConsumerState<AdaptiveReviewScreen> {
       appBar: AppBar(
         title: Text(
           tasks.length == 1
-              ? 'Review document'
+              ? (current.isTextInput ? 'Review pasted text' : 'Review document')
               : 'Review ${tasks.length} pages',
         ),
         actions: [
@@ -491,7 +581,9 @@ class _AdaptiveReviewScreenState extends ConsumerState<AdaptiveReviewScreen> {
         label: Text(
           _saving
               ? 'Saving…'
-              : (_index == tasks.length - 1 ? 'Save document' : 'Save & Next'),
+              : (_index == tasks.length - 1
+                    ? (current.isTextInput ? 'Save note' : 'Save document')
+                    : 'Save & Next'),
         ),
       ),
     );
@@ -620,14 +712,14 @@ class _AdaptiveReviewScreenState extends ConsumerState<AdaptiveReviewScreen> {
       ),
       ExtractionStatus.processingOcr => (
         'Extracting text locally…',
-        'Running on-device OCR and matching labs, vitals and medications. '
-            'Free, offline — nothing leaves this phone.',
+        'Running on-device OCR and matching labs, vitals and medications.',
       ),
       ExtractionStatus.processingAiFallback ||
       ExtractionStatus.processingAi => (
         'Normalizing with Cloud AI…',
-        'The local read was messy, so ClinCom is cleaning and structuring '
-            'this page now.',
+        task.isTextInput
+            ? 'Sending pasted text directly to ClinCom. OCR is not used.'
+            : 'ClinCom is cleaning and structuring this page now.',
       ),
       _ => ('Working…', ''),
     };
@@ -638,7 +730,10 @@ class _AdaptiveReviewScreenState extends ConsumerState<AdaptiveReviewScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            _thumb(task.originalFile, height: 160),
+            if (task.originalFile case final image?)
+              _thumb(image, height: 160)
+            else
+              _textSourcePreview(task, height: 160),
             const SizedBox(height: 28),
             const CircularProgressIndicator(),
             const SizedBox(height: 20),
@@ -666,7 +761,10 @@ class _AdaptiveReviewScreenState extends ConsumerState<AdaptiveReviewScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            _thumb(task.originalFile, height: 140),
+            if (task.originalFile case final image?)
+              _thumb(image, height: 140)
+            else
+              _textSourcePreview(task, height: 140),
             const SizedBox(height: 20),
             const Icon(Icons.error_outline, size: 48, color: Colors.red),
             const SizedBox(height: 12),
@@ -714,16 +812,30 @@ class _AdaptiveReviewScreenState extends ConsumerState<AdaptiveReviewScreen> {
   Widget _editorPane(DocumentTask task) {
     final editor = _editorFor(task);
 
+    // ---- Sprint 17.5 — the fluid form -----------------------------------
+    // Every block below is OPTIONAL and renders only when ClinCom actually
+    // found data for it, so a bare prescription never shows an empty Vitals
+    // table or a blank Diagnoses card the clinician has to dismiss.
+    final blocks = <Widget?>[
+      _provenanceBanner(task),
+      ..._identitySection(task, editor),
+
+      // Time-based grouping: the clinician's anchor for everything below is
+      // WHEN this document was written, not when it was scanned.
+      _documentDateHeader(editor),
+
+      ..._complaintsSection(editor),
+      ..._problemOrientedSection(editor),
+      ..._vitalsSection(editor),
+      _summarySection(editor),
+      _transcriptSection(task),
+    ];
+
     final form = ListView(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 96),
       children: [
-        _provenanceBanner(task),
-        ..._identitySection(task, editor),
-        ..._vitalsSection(editor),
-        ..._labsSection(editor),
-        ..._medicationsSection(editor),
-        _summarySection(editor),
-        _transcriptSection(task),
+        for (final block in blocks)
+          if (block != null) block,
       ],
     );
 
@@ -733,22 +845,25 @@ class _AdaptiveReviewScreenState extends ConsumerState<AdaptiveReviewScreen> {
         // Kept as a plain widget so it can be dropped into either a Row
         // (wrapped in Expanded) or a fixed-height Column without nesting an
         // Expanded inside another Expanded/SizedBox.
-        final imagePane = InkWell(
-          onTap: () => _openFullImage(task.originalFile),
-          child: Container(
-            width: double.infinity,
-            color: Theme.of(context).colorScheme.surfaceContainerHighest,
-            alignment: Alignment.center,
-            padding: const EdgeInsets.all(8),
-            child: _thumb(task.originalFile, fit: BoxFit.contain),
-          ),
-        );
+        final image = task.originalFile;
+        final sourcePane = image == null
+            ? _textSourcePreview(task)
+            : InkWell(
+                onTap: () => _openFullImage(image),
+                child: Container(
+                  width: double.infinity,
+                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                  alignment: Alignment.center,
+                  padding: const EdgeInsets.all(8),
+                  child: _thumb(image, fit: BoxFit.contain),
+                ),
+              );
 
         if (wide) {
           return Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Expanded(child: imagePane),
+              Expanded(child: sourcePane),
               const VerticalDivider(width: 1),
               Expanded(child: form),
             ],
@@ -756,7 +871,7 @@ class _AdaptiveReviewScreenState extends ConsumerState<AdaptiveReviewScreen> {
         }
         return Column(
           children: [
-            SizedBox(height: 190, child: imagePane),
+            SizedBox(height: 190, child: sourcePane),
             const Divider(height: 1),
             Expanded(child: form),
           ],
@@ -775,6 +890,38 @@ class _AdaptiveReviewScreenState extends ConsumerState<AdaptiveReviewScreen> {
         width: double.infinity,
         fit: fit,
         errorBuilder: (_, __, ___) => _thumbPlaceholder(height),
+      ),
+    );
+  }
+
+  Widget _textSourcePreview(DocumentTask task, {double? height}) {
+    final text = task.rawOcrText ?? '';
+    return Container(
+      height: height,
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: SingleChildScrollView(
+        child: ExpansionTile(
+          leading: const Icon(Icons.text_snippet_outlined),
+          title: const Text('Original Raw Text'),
+          subtitle: Text(
+            text.trim().isEmpty
+                ? 'No text available'
+                : '${text.length} characters',
+          ),
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              child: SelectableText(
+                text,
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -827,6 +974,13 @@ class _AdaptiveReviewScreenState extends ConsumerState<AdaptiveReviewScreen> {
         Colors.purple.shade50,
         Colors.purple.shade900,
         Colors.purple.shade700,
+      ),
+      ExtractionSource.text => (
+        'ClinCom processed pasted text directly. No image or OCR was used.',
+        Icons.content_paste_go_outlined,
+        Colors.blue.shade50,
+        Colors.blue.shade900,
+        Colors.blue.shade700,
       ),
       ExtractionSource.unknown => (
         'Extraction source unknown — verify fields before saving.',
@@ -941,7 +1095,9 @@ class _AdaptiveReviewScreenState extends ConsumerState<AdaptiveReviewScreen> {
           stream: _patients,
           builder: (context, snapshot) {
             final patients = snapshot.data ?? const <Patient>[];
-            final current = _linkedPatientId[task.id];
+            final current =
+                _linkedPatientId[task.id] ??
+                task.extractedData?.inferredPatientId;
             final initial = patients.any((p) => p.id == current)
                 ? current
                 : null;
@@ -1044,7 +1200,459 @@ class _AdaptiveReviewScreenState extends ConsumerState<AdaptiveReviewScreen> {
     ];
   }
 
+  /// Sprint 17.5 — formats a clinical timestamp for display.
+  ///
+  /// Local rather than via `intl` so this stays inside the existing dependency
+  /// set. UTC is converted to local first, so the clinician always sees their
+  /// own wall-clock time.
+  static String _formatStamp(DateTime value) {
+    const months = <String>[
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+    final local = value.toLocal();
+    final hour = local.hour % 12 == 0 ? 12 : local.hour % 12;
+    final minute = local.minute.toString().padLeft(2, '0');
+    final suffix = local.hour < 12 ? 'AM' : 'PM';
+    return '${local.day} ${months[local.month - 1]} ${local.year}, '
+        '$hour:$minute $suffix';
+  }
+
+  /// Sprint 17.5 — the time anchor for every clinical block below it.
+  ///
+  /// A clinician reading a flowsheet needs to know WHICH moment these values
+  /// belong to. It shows the document's own written date (never the scan time),
+  /// so a back-dated report correctly stays in the past.
+  Widget _documentDateHeader(_TaskEditor editor) {
+    final stamp = _formatStamp(editor.documentedAt);
+    return Padding(
+      padding: const EdgeInsets.only(top: 4, bottom: 10),
+      child: Row(
+        children: [
+          Icon(
+            Icons.event_available,
+            size: 18,
+            color: Theme.of(context).colorScheme.primary,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'Findings recorded on $stamp',
+              style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                color: Theme.of(context).colorScheme.primary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Renders [values] as editable chips with an add control.
+  ///
+  /// Shared by complaints, diagnoses and investigations so all three behave
+  /// identically: tap to edit in place, X to delete, and the whole section
+  /// collapses once the last chip is removed.
+  List<Widget> _chipSection({
+    required String title,
+    required String hint,
+    required List<String> Function() read,
+    required void Function(List<String>) write,
+    required IconData icon,
+  }) {
+    final values = read();
+    return [
+      Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Row(
+            children: [
+              Icon(
+                icon,
+                size: 18,
+                color: Theme.of(context).colorScheme.primary,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                '$title (${values.length})',
+                style: Theme.of(
+                  context,
+                ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
+              ),
+            ],
+          ),
+          TextButton.icon(
+            icon: const Icon(Icons.add, size: 16),
+            label: const Text('Add'),
+            onPressed: () => setState(() => write([...values, ''])),
+          ),
+        ],
+      ),
+      if (values.isEmpty)
+        Text(
+          'ClinCom found no $hint on this page.',
+          style: Theme.of(
+            context,
+          ).textTheme.bodySmall?.copyWith(color: Colors.grey),
+        )
+      else
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (var i = 0; i < values.length; i++)
+              _EditableChip(
+                key: ValueKey('$title-$i'),
+                initialValue: values[i],
+                onChanged: (text) => setState(() {
+                  final next = [...read()];
+                  next[i] = text;
+                  write(next);
+                }),
+                onRemove: () => setState(() {
+                  final next = [...read()]..removeAt(i);
+                  write(next);
+                }),
+              ),
+          ],
+        ),
+      const SizedBox(height: 14),
+    ];
+  }
+
+  List<Widget> _complaintsSection(_TaskEditor editor) {
+    // Only render when the page actually carried complaints.
+    if (editor.complaints.isEmpty) return const [];
+    return _chipSection(
+      title: 'Chief complaints',
+      hint: 'chief complaints',
+      icon: Icons.healing_outlined,
+      read: () => editor.complaints,
+      write: (next) => editor.complaints = next,
+    );
+  }
+
+  List<Widget> _problemOrientedSection(_TaskEditor editor) {
+    return [
+      Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            'Problems & linked management',
+            style: Theme.of(
+              context,
+            ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
+          ),
+          TextButton.icon(
+            icon: const Icon(Icons.add, size: 16),
+            label: const Text('Add problem'),
+            onPressed: () =>
+                setState(() => editor.problems.add(_EditableProblem.empty())),
+          ),
+        ],
+      ),
+      for (var i = 0; i < editor.problems.length; i++) _problemCard(editor, i),
+      _unlinkedManagementCard(editor),
+      const SizedBox(height: 18),
+    ];
+  }
+
+  Widget _problemCard(_TaskEditor editor, int index) {
+    final problem = editor.problems[index];
+    final diagnosis = problem.name.text.trim();
+    final meds = [
+      for (var i = 0; i < editor.meds.length; i++)
+        if (editor.problemNameFor(editor.meds[i].problemName) == diagnosis) i,
+    ];
+    final labs = [
+      for (var i = 0; i < editor.labs.length; i++)
+        if (editor.problemNameFor(editor.labs[i].problemName) == diagnosis) i,
+    ];
+    final procedures = [
+      for (var i = 0; i < editor.procedures.length; i++)
+        if (editor.problemNameFor(editor.procedures[i].problemName) ==
+            diagnosis)
+          i,
+    ];
+    final colors = Theme.of(context).colorScheme;
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      clipBehavior: Clip.antiAlias,
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.local_hospital_outlined, color: colors.primary),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: TextField(
+                    controller: problem.name,
+                    onChanged: (value) => setState(() {
+                      problem.linkAliases.add(
+                        problem.lastName.trim().toLowerCase(),
+                      );
+                      problem.lastName = value.trim();
+                    }),
+                    decoration: const InputDecoration(
+                      labelText: 'Problem / diagnosis',
+                      isDense: true,
+                      border: InputBorder.none,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Remove problem and detach its management',
+                  icon: const Icon(Icons.close),
+                  onPressed: () => setState(() {
+                    final removedName = problem.name.text.trim();
+                    for (final item in editor.meds) {
+                      if (editor.problemNameFor(item.problemName) ==
+                          removedName) {
+                        item.problemName = null;
+                        item.linkVerified = true;
+                      }
+                    }
+                    for (final item in editor.labs) {
+                      if (editor.problemNameFor(item.problemName) ==
+                          removedName) {
+                        item.problemName = null;
+                        item.linkVerified = true;
+                      }
+                    }
+                    for (final item in editor.procedures) {
+                      if (editor.problemNameFor(item.problemName) ==
+                          removedName) {
+                        item.problemName = null;
+                        item.linkVerified = true;
+                      }
+                    }
+                    problem.dispose();
+                    editor.problems.removeAt(index);
+                  }),
+                ),
+              ],
+            ),
+            TextField(
+              controller: problem.reasoning,
+              minLines: 1,
+              maxLines: 3,
+              decoration: const InputDecoration(
+                labelText: 'Clinical rationale',
+                isDense: true,
+                border: InputBorder.none,
+              ),
+            ),
+            const Divider(height: 20),
+            _managementGroupTitle(
+              'Medications',
+              meds.length,
+              onAdd: () => setState(
+                () => editor.meds.add(
+                  _EditableMedication.empty(problemName: diagnosis),
+                ),
+              ),
+            ),
+            if (meds.isEmpty)
+              _emptyManagementLabel('No medications linked to this problem.')
+            else
+              for (final itemIndex in meds)
+                _medicationEditor(editor, itemIndex),
+            _managementGroupTitle(
+              'Investigations / labs',
+              labs.length,
+              onAdd: () => setState(
+                () =>
+                    editor.labs.add(_EditableLab.empty(problemName: diagnosis)),
+              ),
+            ),
+            if (labs.isEmpty)
+              _emptyManagementLabel('No investigations linked to this problem.')
+            else
+              for (final itemIndex in labs) _labEditor(editor, itemIndex),
+            _managementGroupTitle(
+              'Procedures',
+              procedures.length,
+              onAdd: () => setState(
+                () => editor.procedures.add(
+                  _EditableProcedure.empty(problemName: diagnosis),
+                ),
+              ),
+            ),
+            if (procedures.isEmpty)
+              _emptyManagementLabel('No procedures linked to this problem.')
+            else
+              for (final itemIndex in procedures)
+                _procedureEditor(editor, itemIndex),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _unlinkedManagementCard(_TaskEditor editor) {
+    final meds = [
+      for (var i = 0; i < editor.meds.length; i++)
+        if (editor.problemNameFor(editor.meds[i].problemName) == null) i,
+    ];
+    final labs = [
+      for (var i = 0; i < editor.labs.length; i++)
+        if (editor.problemNameFor(editor.labs[i].problemName) == null) i,
+    ];
+    final procedures = [
+      for (var i = 0; i < editor.procedures.length; i++)
+        if (editor.problemNameFor(editor.procedures[i].problemName) == null) i,
+    ];
+    final colors = Theme.of(context).colorScheme;
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      color: colors.surfaceContainerLow,
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              'Unlinked management',
+              style: Theme.of(
+                context,
+              ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            _managementGroupTitle(
+              'Medications',
+              meds.length,
+              onAdd: () =>
+                  setState(() => editor.meds.add(_EditableMedication.empty())),
+            ),
+            if (meds.isEmpty)
+              _emptyManagementLabel('No unlinked medications.')
+            else
+              for (final itemIndex in meds)
+                _medicationEditor(editor, itemIndex),
+            _managementGroupTitle(
+              'Investigations / labs',
+              labs.length,
+              onAdd: () =>
+                  setState(() => editor.labs.add(_EditableLab.empty())),
+            ),
+            if (labs.isEmpty)
+              _emptyManagementLabel('No unlinked investigations.')
+            else
+              for (final itemIndex in labs) _labEditor(editor, itemIndex),
+            _managementGroupTitle(
+              'Procedures',
+              procedures.length,
+              onAdd: () => setState(
+                () => editor.procedures.add(_EditableProcedure.empty()),
+              ),
+            ),
+            if (procedures.isEmpty)
+              _emptyManagementLabel('No unlinked procedures.')
+            else
+              for (final itemIndex in procedures)
+                _procedureEditor(editor, itemIndex),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _managementGroupTitle(
+    String title,
+    int count, {
+    required VoidCallback onAdd,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 8, bottom: 4),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              '$title ($count)',
+              style: Theme.of(
+                context,
+              ).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w600),
+            ),
+          ),
+          IconButton(
+            visualDensity: VisualDensity.compact,
+            tooltip: 'Add $title',
+            onPressed: onAdd,
+            icon: const Icon(Icons.add_circle_outline, size: 20),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _emptyManagementLabel(String text) => Padding(
+    padding: const EdgeInsets.only(bottom: 6),
+    child: Text(
+      text,
+      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+        color: Theme.of(context).colorScheme.onSurfaceVariant,
+      ),
+    ),
+  );
+
+  Widget _linkageDropdown(
+    _TaskEditor editor, {
+    required String? linkedProblem,
+    required ValueChanged<String?> onChanged,
+  }) {
+    final problemNames = editor.problemNames;
+    final selected = editor.problemNameFor(linkedProblem);
+    final value = selected != null && problemNames.contains(selected)
+        ? selected
+        : '';
+    return Padding(
+      padding: const EdgeInsets.only(left: 8, right: 8, bottom: 8),
+      child: Row(
+        children: [
+          Text('Linked to:', style: Theme.of(context).textTheme.labelSmall),
+          const SizedBox(width: 8),
+          Expanded(
+            child: DropdownButton<String>(
+              value: value,
+              isExpanded: true,
+              isDense: true,
+              underline: const SizedBox.shrink(),
+              items: [
+                const DropdownMenuItem(
+                  value: '',
+                  child: Text('Unlinked management'),
+                ),
+                for (final name in problemNames)
+                  DropdownMenuItem(value: name, child: Text(name)),
+              ],
+              onChanged: (next) =>
+                  onChanged(next == null || next.isEmpty ? null : next),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   List<Widget> _vitalsSection(_TaskEditor editor) {
+    // Sprint 17.5 — collapse entirely when the document carried no vitals.
+    if (editor.hasNoVitals) return const [];
     return [
       _sectionTitle('Vitals'),
       Row(
@@ -1073,6 +1681,27 @@ class _AdaptiveReviewScreenState extends ConsumerState<AdaptiveReviewScreen> {
           ),
         ],
       ),
+      const SizedBox(height: 10),
+      Row(
+        children: [
+          Expanded(
+            child: _numberField(
+              'Respiratory rate',
+              editor.respiratoryRate,
+              suffix: '/min',
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: _numberField(
+              'Mean arterial pressure',
+              editor.meanArterialPressure,
+              suffix: 'mmHg',
+              decimal: true,
+            ),
+          ),
+        ],
+      ),
       const SizedBox(height: 18),
     ];
   }
@@ -1096,44 +1725,6 @@ class _AdaptiveReviewScreenState extends ConsumerState<AdaptiveReviewScreen> {
     );
   }
 
-  List<Widget> _labsSection(_TaskEditor editor) {
-    return [
-      Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(
-            'Lab results (${editor.labs.length})',
-            style: Theme.of(
-              context,
-            ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
-          ),
-          TextButton.icon(
-            icon: const Icon(Icons.add, size: 16),
-            label: const Text('Add test'),
-            onPressed: () =>
-                setState(() => editor.labs.add(_EditableLab.empty())),
-          ),
-        ],
-      ),
-      if (editor.labs.isEmpty)
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surfaceContainerHighest,
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: const Text(
-            'No laboratory values on this page.',
-            style: TextStyle(color: Colors.grey, fontSize: 13),
-          ),
-        )
-      else
-        for (var i = 0; i < editor.labs.length; i++) _labEditor(editor, i),
-      const SizedBox(height: 18),
-    ];
-  }
-
   Widget _labEditor(_TaskEditor editor, int index) {
     final lab = editor.labs[index];
     return Card(
@@ -1147,100 +1738,78 @@ class _AdaptiveReviewScreenState extends ConsumerState<AdaptiveReviewScreen> {
       ),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(10, 8, 4, 8),
-        child: Row(
+        child: Column(
           children: [
-            Expanded(
-              flex: 3,
-              child: TextField(
-                controller: lab.testName,
-                decoration: const InputDecoration(
-                  labelText: 'Test',
-                  isDense: true,
-                  border: InputBorder.none,
+            Row(
+              children: [
+                Expanded(
+                  flex: 3,
+                  child: TextField(
+                    controller: lab.testName,
+                    decoration: const InputDecoration(
+                      labelText: 'Test',
+                      isDense: true,
+                      border: InputBorder.none,
+                    ),
+                  ),
                 ),
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              flex: 2,
-              child: TextField(
-                controller: lab.value,
-                decoration: const InputDecoration(
-                  labelText: 'Value',
-                  isDense: true,
-                  border: InputBorder.none,
+                const SizedBox(width: 8),
+                Expanded(
+                  flex: 2,
+                  child: TextField(
+                    controller: lab.value,
+                    decoration: const InputDecoration(
+                      labelText: 'Value',
+                      isDense: true,
+                      border: InputBorder.none,
+                    ),
+                  ),
                 ),
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              flex: 2,
-              child: TextField(
-                controller: lab.unit,
-                decoration: const InputDecoration(
-                  labelText: 'Unit',
-                  isDense: true,
-                  border: InputBorder.none,
+                const SizedBox(width: 8),
+                Expanded(
+                  flex: 2,
+                  child: TextField(
+                    controller: lab.unit,
+                    decoration: const InputDecoration(
+                      labelText: 'Unit',
+                      isDense: true,
+                      border: InputBorder.none,
+                    ),
+                  ),
                 ),
-              ),
+                IconButton(
+                  icon: Icon(
+                    lab.isAbnormal ? Icons.flag : Icons.outlined_flag,
+                    color: lab.isAbnormal ? Colors.red : Colors.grey,
+                    size: 20,
+                  ),
+                  tooltip: lab.isAbnormal
+                      ? 'Flagged abnormal'
+                      : 'Mark abnormal',
+                  onPressed: () =>
+                      setState(() => lab.isAbnormal = !lab.isAbnormal),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close, size: 18, color: Colors.grey),
+                  tooltip: 'Delete test',
+                  onPressed: () => setState(() {
+                    editor.labs.removeAt(index).dispose();
+                  }),
+                ),
+              ],
             ),
-            IconButton(
-              icon: Icon(
-                lab.isAbnormal ? Icons.flag : Icons.outlined_flag,
-                color: lab.isAbnormal ? Colors.red : Colors.grey,
-                size: 20,
-              ),
-              tooltip: lab.isAbnormal ? 'Flagged abnormal' : 'Mark abnormal',
-              onPressed: () => setState(() => lab.isAbnormal = !lab.isAbnormal),
-            ),
-            IconButton(
-              icon: const Icon(Icons.close, size: 18, color: Colors.grey),
-              tooltip: 'Delete test',
-              onPressed: () => setState(() => editor.labs.removeAt(index)),
+            _linkageDropdown(
+              editor,
+              linkedProblem: lab.problemName,
+              onChanged: (value) => setState(() {
+                lab.problemName = value;
+                lab.linkVerified = true;
+              }),
             ),
           ],
         ),
       ),
     );
-  }
-
-  List<Widget> _medicationsSection(_TaskEditor editor) {
-    return [
-      Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(
-            'Medications (${editor.meds.length})',
-            style: Theme.of(
-              context,
-            ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
-          ),
-          TextButton.icon(
-            icon: const Icon(Icons.add, size: 16),
-            label: const Text('Add drug'),
-            onPressed: () =>
-                setState(() => editor.meds.add(_EditableMedication.empty())),
-          ),
-        ],
-      ),
-      if (editor.meds.isEmpty)
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surfaceContainerHighest,
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: const Text(
-            'No medications ordered on this page.',
-            style: TextStyle(color: Colors.grey, fontSize: 13),
-          ),
-        )
-      else
-        for (var i = 0; i < editor.meds.length; i++)
-          _medicationEditor(editor, i),
-      const SizedBox(height: 18),
-    ];
   }
 
   Widget _medicationEditor(_TaskEditor editor, int index) {
@@ -1256,49 +1825,241 @@ class _AdaptiveReviewScreenState extends ConsumerState<AdaptiveReviewScreen> {
       ),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(10, 8, 4, 8),
-        child: Row(
+        child: Column(
           children: [
-            Expanded(
-              flex: 4,
-              child: TextField(
-                controller: med.drugName,
-                decoration: const InputDecoration(
-                  labelText: 'Drug name',
-                  isDense: true,
-                  border: InputBorder.none,
+            Row(
+              children: [
+                Expanded(
+                  flex: 4,
+                  child: SmartDrugAutocomplete(
+                    controller: med.drugName,
+                    labelText: 'Drug name',
+                    onSelected: (selection) =>
+                        _onCatalogDrugSelected(editor, med, selection),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  flex: 2,
+                  child: TextField(
+                    controller: med.dosage,
+                    decoration: const InputDecoration(
+                      labelText: 'Dose',
+                      hintText: '500mg',
+                      isDense: true,
+                      border: InputBorder.none,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  flex: 2,
+                  child: TextField(
+                    controller: med.frequency,
+                    decoration: const InputDecoration(
+                      labelText: 'Freq',
+                      hintText: 'TID',
+                      isDense: true,
+                      border: InputBorder.none,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close, size: 18, color: Colors.grey),
+                  tooltip: 'Delete drug',
+                  onPressed: () => setState(() {
+                    editor.meds.removeAt(index).dispose();
+                  }),
+                ),
+              ],
+            ),
+            _linkageDropdown(
+              editor,
+              linkedProblem: med.problemName,
+              onChanged: (value) => setState(() {
+                med.problemName = value;
+                med.linkVerified = true;
+              }),
+            ),
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: med.route,
+                    decoration: const InputDecoration(
+                      labelText: 'Route',
+                      hintText: 'Oral',
+                      isDense: true,
+                      border: InputBorder.none,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: TextField(
+                    controller: med.duration,
+                    decoration: const InputDecoration(
+                      labelText: 'Duration',
+                      hintText: '5 days',
+                      isDense: true,
+                      border: InputBorder.none,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            for (final warning in _doseAdjustmentWarnings(med.selectedDrug))
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: Chip(
+                    avatar: const Icon(Icons.warning_amber, size: 18),
+                    label: Text(warning, style: const TextStyle(fontSize: 12)),
+                    visualDensity: VisualDensity.compact,
+                    backgroundColor: Theme.of(
+                      context,
+                    ).colorScheme.tertiaryContainer,
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              flex: 2,
-              child: TextField(
-                controller: med.dosage,
-                decoration: const InputDecoration(
-                  labelText: 'Dose',
-                  hintText: '500mg',
-                  isDense: true,
-                  border: InputBorder.none,
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _onCatalogDrugSelected(
+    _TaskEditor editor,
+    _EditableMedication medication,
+    ClinicalDrugSelection selection,
+  ) {
+    setState(() {
+      medication.selectedDrug = selection;
+      medication.drugName.text = selection.molecule;
+      if (medication.dosage.text.trim().isEmpty) {
+        medication.dosage.text = selection.standardDosage ?? '';
+      }
+      if (medication.route.text.trim().isEmpty) {
+        medication.route.text = selection.route ?? '';
+      }
+      if (medication.duration.text.trim().isEmpty) {
+        medication.duration.text = selection.duration ?? '';
+      }
+
+      final activeNames = _knownActiveProblems.map(
+        (problem) => problem.problemName,
+      );
+      final candidates = selection.commonIndications;
+      for (final problemName in activeNames) {
+        if (candidates.any(
+          (indication) => _sameClinicalTerm(indication, problemName),
+        )) {
+          final existingProblem = editor.problems
+              .where(
+                (problem) => _sameClinicalTerm(problem.name.text, problemName),
+              )
+              .firstOrNull;
+          final linkedProblem =
+              existingProblem ??
+              _EditableProblem(name: problemName, reasoning: '');
+          if (existingProblem == null) {
+            editor.problems.add(linkedProblem);
+          }
+          medication.problemName = linkedProblem.name.text;
+          medication.linkVerified = false;
+          break;
+        }
+      }
+    });
+  }
+
+  List<String> _doseAdjustmentWarnings(ClinicalDrugSelection? selection) {
+    if (selection == null) return const [];
+    final problems = _knownActiveProblems
+        .map((problem) => problem.problemName.toLowerCase())
+        .toList(growable: false);
+    final warnings = <String>[];
+    for (final entry in selection.doseAdjustments.entries) {
+      final condition = entry.key.toLowerCase();
+      final isRenal =
+          condition.contains('renal') || condition.contains('kidney');
+      final isHepatic =
+          condition.contains('hepatic') || condition.contains('liver');
+      final matchingProblem = problems.any((problem) {
+        if (isRenal) {
+          return problem.contains('renal') ||
+              problem.contains('kidney') ||
+              problem.contains('ckd') ||
+              problem.contains('nephro');
+        }
+        if (isHepatic) {
+          return problem.contains('hepatic') ||
+              problem.contains('liver') ||
+              problem.contains('cirrhosis');
+        }
+        return problem.contains(condition);
+      });
+      if (matchingProblem) {
+        final label = isRenal
+            ? 'Renal Adjustment Required'
+            : isHepatic
+            ? 'Hepatic Adjustment Required'
+            : '${entry.key} Adjustment Required';
+        warnings.add('$label: ${entry.value}');
+      }
+    }
+    return warnings;
+  }
+
+  static bool _sameClinicalTerm(String left, String right) {
+    String normalize(String value) =>
+        value.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
+    final a = normalize(left);
+    final b = normalize(right);
+    return a.isNotEmpty &&
+        b.isNotEmpty &&
+        (a == b || a.startsWith(b) || b.startsWith(a));
+  }
+
+  Widget _procedureEditor(_TaskEditor editor, int index) {
+    final procedure = editor.procedures[index];
+    return Card(
+      elevation: 0,
+      margin: const EdgeInsets.only(bottom: 8),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(10, 4, 4, 4),
+        child: Column(
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: procedure.name,
+                    decoration: const InputDecoration(
+                      labelText: 'Procedure',
+                      isDense: true,
+                      border: InputBorder.none,
+                    ),
+                  ),
                 ),
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              flex: 2,
-              child: TextField(
-                controller: med.frequency,
-                decoration: const InputDecoration(
-                  labelText: 'Freq',
-                  hintText: 'TID',
-                  isDense: true,
-                  border: InputBorder.none,
+                IconButton(
+                  tooltip: 'Delete procedure',
+                  icon: const Icon(Icons.close, size: 18),
+                  onPressed: () => setState(
+                    () => editor.procedures.removeAt(index).dispose(),
+                  ),
                 ),
-              ),
+              ],
             ),
-            IconButton(
-              icon: const Icon(Icons.close, size: 18, color: Colors.grey),
-              tooltip: 'Delete drug',
-              onPressed: () => setState(() => editor.meds.removeAt(index)),
+            _linkageDropdown(
+              editor,
+              linkedProblem: procedure.problemName,
+              onChanged: (value) => setState(() {
+                procedure.problemName = value;
+                procedure.linkVerified = true;
+              }),
             ),
           ],
         ),
@@ -1310,6 +2071,30 @@ class _AdaptiveReviewScreenState extends ConsumerState<AdaptiveReviewScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        if (editor.clinicalWarnings.isNotEmpty) ...[
+          _sectionTitle('Medication safety warnings'),
+          for (final warning in editor.clinicalWarnings)
+            Card(
+              color: Theme.of(context).colorScheme.errorContainer,
+              child: ListTile(
+                dense: true,
+                leading: const Icon(Icons.warning_amber),
+                title: Text(
+                  warning.medication.isEmpty
+                      ? warning.warning
+                      : '${warning.medication}: ${warning.warning}',
+                ),
+                subtitle: Text(
+                  [
+                    if (warning.condition.isNotEmpty) warning.condition,
+                    if (warning.doseAdjustment?.isNotEmpty == true)
+                      warning.doseAdjustment!,
+                  ].join(' · '),
+                ),
+              ),
+            ),
+          const SizedBox(height: 12),
+        ],
         _sectionTitle('Clinical summary'),
         TextField(
           controller: editor.summary,
@@ -1413,7 +2198,9 @@ class _AdaptiveReviewScreenState extends ConsumerState<AdaptiveReviewScreen> {
 
   Widget _transcriptSection(DocumentTask task) {
     final transcript = (task.rawOcrText ?? '').trim();
-    if (transcript.isEmpty) return const SizedBox.shrink();
+    if (transcript.isEmpty || task.isTextInput) {
+      return const SizedBox.shrink();
+    }
     return ExpansionTile(
       tilePadding: EdgeInsets.zero,
       title: Text(
@@ -1450,6 +2237,7 @@ class _TaskEditor {
     String? rawTranscript,
     DateTime? documentedAt,
   }) {
+    clinicalWarnings = seed.clinicalWarnings;
     final identity = seed.patientIdentity;
     name = TextEditingController(text: identity.name ?? '');
     age = TextEditingController(text: identity.age?.toString() ?? '');
@@ -1471,6 +2259,12 @@ class _TaskEditor {
     pulse = TextEditingController(text: vitals.pr?.toString() ?? '');
     spo2 = TextEditingController(text: vitals.spo2?.toString() ?? '');
     temp = TextEditingController(text: vitals.temperatureC?.toString() ?? '');
+    respiratoryRate = TextEditingController(
+      text: vitals.respiratoryRate?.toString() ?? '',
+    );
+    meanArterialPressure = TextEditingController(
+      text: vitals.meanArterialPressure?.toString() ?? '',
+    );
 
     summary = TextEditingController(text: seed.clinicalSummary);
     // Sprint 14.5 — the pathologist's/radiologist's closing narrative is the
@@ -1486,13 +2280,219 @@ class _TaskEditor {
     final seedDate =
         documentedAt ?? DateTimeUtils.parseToUtc(seed.encounterContext.date);
     this.documentedAt = seedDate ?? DateTime.now().toUtc();
-    labs = [for (final lab in seed.labResults) _EditableLab.from(lab)];
-    meds = [
-      for (final medication in seed.medicationsOrdered)
-        _EditableMedication.from(medication),
-    ];
     transcript = rawTranscript ?? '';
+
+    complaints = [...seed.chiefComplaints];
+    problems = [];
+    labs = [];
+    meds = [];
+    procedures = [];
+
+    for (final item in seed.problems) {
+      final diagnosis = item.diagnosis.trim();
+      if (diagnosis.isEmpty) continue;
+      _addProblem(diagnosis, item.reasoning);
+      for (final medication in item.linkedMedications) {
+        _addMedication(medication, diagnosis);
+      }
+      for (final investigation in item.linkedInvestigations) {
+        _addInvestigation(investigation, diagnosis);
+      }
+      for (final procedure in item.linkedProcedures) {
+        _addProcedure(procedure, diagnosis);
+      }
+    }
+    for (final medication in seed.unlinkedManagement.medications) {
+      _addMedication(medication, null);
+    }
+    for (final investigation in seed.unlinkedManagement.investigations) {
+      _addInvestigation(investigation, null);
+    }
+    for (final procedure in seed.unlinkedManagement.procedures) {
+      _addProcedure(procedure, null);
+    }
+
+    for (final diagnosis in seed.diagnoses) {
+      _addProblem(diagnosis, '');
+    }
+    for (final lab in seed.labResults) {
+      _addLabResult(lab, null);
+    }
+    for (final investigation in seed.plannedInvestigations) {
+      if (!labs.any(
+        (lab) =>
+            lab.testName.text.trim().toLowerCase() ==
+            investigation.trim().toLowerCase(),
+      )) {
+        _addInvestigation(AiInvestigation(testName: investigation), null);
+      }
+    }
+    for (final medication in seed.medicationsOrdered) {
+      if (!meds.any(
+        (existing) =>
+            existing.drugName.text.trim().toLowerCase() ==
+                medication.drugName.trim().toLowerCase() &&
+            existing.dosage.text.trim().toLowerCase() ==
+                medication.dosage?.trim().toLowerCase() &&
+            existing.frequency.text.trim().toLowerCase() ==
+                medication.frequency?.trim().toLowerCase(),
+      )) {
+        _addMedication(medication, null);
+      }
+    }
   }
+
+  late List<String> complaints;
+  late final List<_EditableProblem> problems;
+  late final List<_EditableLab> labs;
+  late final List<_EditableMedication> meds;
+  late final List<_EditableProcedure> procedures;
+
+  List<String> get problemNames {
+    final names = <String>[];
+    for (final problem in problems) {
+      final name = problem.name.text.trim();
+      if (name.isNotEmpty &&
+          !names.any(
+            (existing) => existing.toLowerCase() == name.toLowerCase(),
+          )) {
+        names.add(name);
+      }
+    }
+    return names;
+  }
+
+  String? problemNameFor(String? name) {
+    final linkedName = name?.trim();
+    if (linkedName == null || linkedName.isEmpty) return null;
+    for (final problem in problems) {
+      if (problem.linkAliases.contains(linkedName.toLowerCase())) {
+        final current = problem.name.text.trim();
+        return current.isEmpty ? null : current;
+      }
+    }
+    return null;
+  }
+
+  List<String> get verifiedProblemAssociations => meds
+      .where((medication) => medication.linkVerified)
+      .map((medication) {
+        final problemName = problemNameFor(medication.problemName);
+        final drugName = medication.drugName.text.trim();
+        if (problemName == null || drugName.isEmpty) return null;
+        return '$drugName:$problemName';
+      })
+      .whereType<String>()
+      .toSet()
+      .toList(growable: false);
+
+  void _addProblem(String name, String reasoning) {
+    final cleaned = name.trim();
+    if (cleaned.isEmpty ||
+        problems.any(
+          (problem) =>
+              problem.name.text.trim().toLowerCase() == cleaned.toLowerCase(),
+        )) {
+      return;
+    }
+    problems.add(_EditableProblem(name: cleaned, reasoning: reasoning));
+  }
+
+  void _addMedication(OrderedMedication medication, String? problemName) {
+    final normalized = medication.drugName.trim().toLowerCase();
+    if (normalized.isEmpty ||
+        meds.any(
+          (existing) =>
+              existing.drugName.text.trim().toLowerCase() == normalized &&
+              existing.problemName?.toLowerCase() == problemName?.toLowerCase(),
+        )) {
+      return;
+    }
+    meds.add(_EditableMedication.from(medication, problemName: problemName));
+  }
+
+  void _addInvestigation(AiInvestigation investigation, String? problemName) {
+    final normalized = investigation.testName.trim().toLowerCase();
+    if (normalized.isEmpty) return;
+    final existing = labs.where(
+      (lab) =>
+          lab.testName.text.trim().toLowerCase() == normalized &&
+          lab.problemName?.toLowerCase() == problemName?.toLowerCase(),
+    );
+    if (existing.isNotEmpty) {
+      final lab = existing.first;
+      if (lab.value.text.trim().isEmpty && investigation.value.isNotEmpty) {
+        lab.value.text = investigation.value;
+        lab.unit.text = investigation.unit ?? '';
+        lab.isAbnormal = investigation.isAbnormal;
+      }
+      return;
+    }
+    labs.add(
+      _EditableLab.fromInvestigation(investigation, problemName: problemName),
+    );
+  }
+
+  void _addLabResult(AiLabResult lab, String? problemName) {
+    final matching = labs.where(
+      (existing) =>
+          existing.testName.text.trim().toLowerCase() ==
+          lab.testName.trim().toLowerCase(),
+    );
+    if (matching.isNotEmpty) {
+      final existing = matching.firstWhere(
+        (item) => item.value.text.trim().isEmpty,
+        orElse: () => matching.first,
+      );
+      if (existing.value.text.trim().isEmpty) {
+        existing.value.text = lab.value;
+        existing.unit.text = lab.unit ?? '';
+        existing.isAbnormal = lab.isAbnormal;
+      }
+      return;
+    }
+    _addInvestigation(
+      AiInvestigation(
+        testName: lab.testName,
+        value: lab.value,
+        unit: lab.unit,
+        isAbnormal: lab.isAbnormal,
+      ),
+      problemName,
+    );
+  }
+
+  void _addProcedure(AiProcedure procedure, String? problemName) {
+    final normalized = procedure.procedureName.trim().toLowerCase();
+    if (normalized.isEmpty ||
+        procedures.any(
+          (existing) =>
+              existing.name.text.trim().toLowerCase() == normalized &&
+              existing.problemName?.toLowerCase() == problemName?.toLowerCase(),
+        )) {
+      return;
+    }
+    procedures.add(
+      _EditableProcedure(
+        name: procedure.procedureName,
+        problemName: problemName,
+      ),
+    );
+  }
+
+  /// Sprint 17.5 — true when the document carried no vitals at all, so the
+  /// Vitals block collapses instead of showing an empty table of dashes.
+  ///
+  /// Reads the *seeded* controllers, not the typed text: a clinician who
+  /// blanks a field is still inside a section that already exists.
+  bool get hasNoVitals =>
+      sbp.text.trim().isEmpty &&
+      dbp.text.trim().isEmpty &&
+      pulse.text.trim().isEmpty &&
+      spo2.text.trim().isEmpty &&
+      temp.text.trim().isEmpty &&
+      respiratoryRate.text.trim().isEmpty &&
+      meanArterialPressure.text.trim().isEmpty;
 
   late final TextEditingController name;
   late final TextEditingController age;
@@ -1504,6 +2504,8 @@ class _TaskEditor {
   late final TextEditingController pulse;
   late final TextEditingController spo2;
   late final TextEditingController temp;
+  late final TextEditingController respiratoryRate;
+  late final TextEditingController meanArterialPressure;
   late final TextEditingController summary;
 
   /// Sprint 14.5 — the report's closing narrative ("Conclusion" / "Impression"
@@ -1518,9 +2520,8 @@ class _TaskEditor {
   /// Sprint 15 — facility chosen during review; null means "use the patient's
   /// primary facility".
   String? hospitalId;
-  late final List<_EditableLab> labs;
-  late final List<_EditableMedication> meds;
   late final String transcript;
+  late final List<AiClinicalWarning> clinicalWarnings;
 
   static String? emptyToNull(String value) {
     final trimmed = value.trim();
@@ -1538,6 +2539,8 @@ class _TaskEditor {
     pulse.dispose();
     spo2.dispose();
     temp.dispose();
+    respiratoryRate.dispose();
+    meanArterialPressure.dispose();
     summary.dispose();
     conclusion.dispose();
     for (final lab in labs) {
@@ -1546,11 +2549,94 @@ class _TaskEditor {
     for (final medication in meds) {
       medication.dispose();
     }
+    for (final problem in problems) {
+      problem.dispose();
+    }
+    for (final procedure in procedures) {
+      procedure.dispose();
+    }
   }
 
   /// Reads the validated controller values back into an [AiExtractionResult]
   /// ready for `ClinicalDao.processAiExtraction`.
   AiExtractionResult toResult(AiExtractionResult base) {
+    final cleanProblems = <_EditableProblem>[
+      for (final problem in problems)
+        if (problem.name.text.trim().isNotEmpty) problem,
+    ];
+    final currentProblemName = <String, String>{};
+    for (final problem in cleanProblems) {
+      for (final alias in problem.linkAliases) {
+        currentProblemName[alias] = problem.name.text.trim();
+      }
+    }
+    String? resolved(String? oldName) {
+      if (oldName == null) return null;
+      return currentProblemName[oldName.trim().toLowerCase()] ??
+          (problemNames.any(
+                (name) => name.toLowerCase() == oldName.trim().toLowerCase(),
+              )
+              ? oldName.trim()
+              : null);
+    }
+
+    final resultMeds = [
+      for (final medication in meds)
+        if (medication.drugName.text.trim().isNotEmpty)
+          OrderedMedication(
+            drugName: medication.drugName.text.trim(),
+            dosage: emptyToNull(medication.dosage.text),
+            frequency: emptyToNull(medication.frequency.text),
+            route: emptyToNull(medication.route.text),
+            duration: emptyToNull(medication.duration.text),
+          ),
+    ];
+    final resultLabs = [
+      for (final lab in labs)
+        if (lab.testName.text.trim().isNotEmpty)
+          AiLabResult(
+            testName: lab.testName.text.trim(),
+            value: lab.value.text.trim(),
+            unit: emptyToNull(lab.unit.text),
+            isAbnormal: lab.isAbnormal,
+          ),
+    ];
+    final structuredProblems = [
+      for (final problem in cleanProblems)
+        AiProblem(
+          diagnosis: problem.name.text.trim(),
+          reasoning: problem.reasoning.text.trim(),
+          linkedMedications: [
+            for (final medication in meds)
+              if (medication.drugName.text.trim().isNotEmpty &&
+                  resolved(medication.problemName) == problem.name.text.trim())
+                OrderedMedication(
+                  drugName: medication.drugName.text.trim(),
+                  dosage: emptyToNull(medication.dosage.text),
+                  frequency: emptyToNull(medication.frequency.text),
+                  route: emptyToNull(medication.route.text),
+                  duration: emptyToNull(medication.duration.text),
+                ),
+          ],
+          linkedInvestigations: [
+            for (final lab in labs)
+              if (lab.testName.text.trim().isNotEmpty &&
+                  resolved(lab.problemName) == problem.name.text.trim())
+                AiInvestigation(
+                  testName: lab.testName.text.trim(),
+                  value: lab.value.text.trim(),
+                  unit: emptyToNull(lab.unit.text),
+                  isAbnormal: lab.isAbnormal,
+                ),
+          ],
+          linkedProcedures: [
+            for (final procedure in procedures)
+              if (resolved(procedure.problemName) == problem.name.text.trim())
+                AiProcedure(procedureName: procedure.name.text.trim()),
+          ],
+        ),
+    ];
+
     return base.copyWith(
       patientIdentity: base.patientIdentity.copyWith(
         name: emptyToNull(name.text),
@@ -1574,30 +2660,123 @@ class _TaskEditor {
         pr: int.tryParse(pulse.text.trim()),
         spo2: int.tryParse(spo2.text.trim()),
         temperatureC: double.tryParse(temp.text.trim()),
+        respiratoryRate: int.tryParse(respiratoryRate.text.trim()),
+        meanArterialPressure: double.tryParse(meanArterialPressure.text.trim()),
       ),
-      labResults: [
-        for (final lab in labs)
-          if (lab.testName.text.trim().isNotEmpty)
-            AiLabResult(
-              testName: lab.testName.text.trim(),
-              value: lab.value.text.trim(),
-              unit: emptyToNull(lab.unit.text),
-              isAbnormal: lab.isAbnormal,
-            ),
-      ],
-      medicationsOrdered: [
-        for (final medication in meds)
-          if (medication.drugName.text.trim().isNotEmpty)
-            OrderedMedication(
-              drugName: medication.drugName.text.trim(),
-              dosage: emptyToNull(medication.dosage.text),
-              frequency: emptyToNull(medication.frequency.text),
-            ),
-      ],
+      labResults: resultLabs,
+      medicationsOrdered: resultMeds,
+      problems: structuredProblems,
+      unlinkedManagement: AiUnlinkedManagement(
+        medications: [
+          for (final medication in meds)
+            if (medication.drugName.text.trim().isNotEmpty &&
+                resolved(medication.problemName) == null)
+              OrderedMedication(
+                drugName: medication.drugName.text.trim(),
+                dosage: emptyToNull(medication.dosage.text),
+                frequency: emptyToNull(medication.frequency.text),
+                route: emptyToNull(medication.route.text),
+                duration: emptyToNull(medication.duration.text),
+              ),
+        ],
+        investigations: [
+          for (final lab in labs)
+            if (lab.testName.text.trim().isNotEmpty &&
+                resolved(lab.problemName) == null)
+              AiInvestigation(
+                testName: lab.testName.text.trim(),
+                value: lab.value.text.trim(),
+                unit: emptyToNull(lab.unit.text),
+                isAbnormal: lab.isAbnormal,
+              ),
+        ],
+        procedures: [
+          for (final procedure in procedures)
+            if (resolved(procedure.problemName) == null &&
+                procedure.name.text.trim().isNotEmpty)
+              AiProcedure(procedureName: procedure.name.text.trim()),
+        ],
+      ),
       clinicalSummary: summary.text.trim(),
       // Sprint 14.5 — carry the clinician-verified clinical timestamp and the
       // report's conclusion through to persistence.
       conclusion: conclusion.text.trim(),
+      // Sprint 17.5 — the editable semantic layer round-trips back out, minus
+      // any row the clinician blanked out.
+      chiefComplaints: _cleaned(complaints),
+      diagnoses: [
+        for (final problem in cleanProblems) problem.name.text.trim(),
+      ],
+      plannedInvestigations: [
+        for (final lab in labs)
+          if (lab.testName.text.trim().isNotEmpty) lab.testName.text.trim(),
+      ],
+    );
+  }
+
+  /// Drops blank rows so removing a chip actually removes the data, instead of
+  /// persisting an empty string that would re-render as an empty section.
+  static List<String> _cleaned(List<String> values) => values
+      .map((v) => v.trim())
+      .where((v) => v.isNotEmpty)
+      .toList(growable: false);
+}
+
+/// Sprint 17.5 — a single editable chip used for chief complaints, diagnoses
+/// and ordered investigations.
+///
+/// Edits are committed through [onChanged] rather than held locally, so the
+/// parent owns the authoritative list and a rebuild (e.g. removing the last
+/// chip, which collapses the whole section) can never disagree with the field.
+class _EditableChip extends StatefulWidget {
+  const _EditableChip({
+    super.key,
+    required this.initialValue,
+    required this.onChanged,
+    required this.onRemove,
+  });
+
+  final String initialValue;
+  final ValueChanged<String> onChanged;
+  final VoidCallback onRemove;
+
+  @override
+  State<_EditableChip> createState() => _EditableChipState();
+}
+
+class _EditableChipState extends State<_EditableChip> {
+  late final TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.initialValue);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return InputChip(
+      label: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 260),
+        child: TextField(
+          controller: _controller,
+          onChanged: widget.onChanged,
+          style: Theme.of(context).textTheme.bodyMedium,
+          decoration: const InputDecoration(
+            isDense: true,
+            border: InputBorder.none,
+            contentPadding: EdgeInsets.zero,
+          ),
+        ),
+      ),
+      onDeleted: widget.onRemove,
+      deleteIcon: const Icon(Icons.close, size: 16),
     );
   }
 }
@@ -1608,26 +2787,34 @@ class _EditableLab {
     required this.value,
     required this.unit,
     required this.isAbnormal,
+    this.problemName,
   });
 
-  factory _EditableLab.from(AiLabResult lab) => _EditableLab(
+  factory _EditableLab.fromInvestigation(
+    AiInvestigation lab, {
+    String? problemName,
+  }) => _EditableLab(
     testName: TextEditingController(text: lab.testName),
     value: TextEditingController(text: lab.value),
     unit: TextEditingController(text: lab.unit ?? ''),
     isAbnormal: lab.isAbnormal,
+    problemName: problemName,
   );
 
-  factory _EditableLab.empty() => _EditableLab(
+  factory _EditableLab.empty({String? problemName}) => _EditableLab(
     testName: TextEditingController(),
     value: TextEditingController(),
     unit: TextEditingController(),
     isAbnormal: false,
+    problemName: problemName,
   );
 
   final TextEditingController testName;
   final TextEditingController value;
   final TextEditingController unit;
   bool isAbnormal;
+  String? problemName;
+  bool linkVerified = false;
 
   void dispose() {
     testName.dispose();
@@ -1641,28 +2828,84 @@ class _EditableMedication {
     required this.drugName,
     required this.dosage,
     required this.frequency,
+    required this.route,
+    required this.duration,
+    this.problemName,
   });
 
-  factory _EditableMedication.from(OrderedMedication medication) =>
-      _EditableMedication(
-        drugName: TextEditingController(text: medication.drugName),
-        dosage: TextEditingController(text: medication.dosage ?? ''),
-        frequency: TextEditingController(text: medication.frequency ?? ''),
-      );
-
-  factory _EditableMedication.empty() => _EditableMedication(
-    drugName: TextEditingController(),
-    dosage: TextEditingController(),
-    frequency: TextEditingController(),
+  factory _EditableMedication.from(
+    OrderedMedication medication, {
+    String? problemName,
+  }) => _EditableMedication(
+    drugName: TextEditingController(text: medication.drugName),
+    dosage: TextEditingController(text: medication.dosage ?? ''),
+    frequency: TextEditingController(text: medication.frequency ?? ''),
+    route: TextEditingController(text: medication.route ?? ''),
+    duration: TextEditingController(text: medication.duration ?? ''),
+    problemName: problemName,
   );
+
+  factory _EditableMedication.empty({String? problemName}) {
+    final medication = _EditableMedication(
+      drugName: TextEditingController(),
+      dosage: TextEditingController(),
+      frequency: TextEditingController(),
+      route: TextEditingController(),
+      duration: TextEditingController(),
+      problemName: problemName,
+    );
+    medication.linkVerified = problemName != null;
+    return medication;
+  }
 
   final TextEditingController drugName;
   final TextEditingController dosage;
   final TextEditingController frequency;
+  final TextEditingController route;
+  final TextEditingController duration;
+  String? problemName;
+  ClinicalDrugSelection? selectedDrug;
+  bool linkVerified = false;
 
   void dispose() {
     drugName.dispose();
     dosage.dispose();
     frequency.dispose();
+    route.dispose();
+    duration.dispose();
   }
+}
+
+class _EditableProblem {
+  _EditableProblem({required String name, required String reasoning})
+    : lastName = name,
+      name = TextEditingController(text: name),
+      reasoning = TextEditingController(text: reasoning),
+      linkAliases = {name.trim().toLowerCase()};
+
+  factory _EditableProblem.empty() => _EditableProblem(name: '', reasoning: '');
+
+  String lastName;
+  final TextEditingController name;
+  final TextEditingController reasoning;
+  final Set<String> linkAliases;
+
+  void dispose() {
+    name.dispose();
+    reasoning.dispose();
+  }
+}
+
+class _EditableProcedure {
+  _EditableProcedure({required String name, this.problemName})
+    : name = TextEditingController(text: name);
+
+  factory _EditableProcedure.empty({String? problemName}) =>
+      _EditableProcedure(name: '', problemName: problemName);
+
+  final TextEditingController name;
+  String? problemName;
+  bool linkVerified = false;
+
+  void dispose() => name.dispose();
 }

@@ -76,8 +76,7 @@ void main() {
     );
   }
 
-  test('downloads the APK and opens it with the platform installer',
-      () async {
+  test('downloads the APK and opens it with the platform installer', () async {
     final server = _FakeReleaseServer(List.filled(8192, 65));
     await server.start();
     addTearDown(server.stop);
@@ -126,10 +125,27 @@ void main() {
     expect(totals.every((total) => total == 4096), isTrue);
   });
 
-  test('a stale partial APK is removed before downloading again', () async {
-    final stale = File('${tempDir.path}/update.apk')
+  test('a cached APK is opened without downloading it again', () async {
+    final cached = File('${tempDir.path}/update.apk')
       ..writeAsBytesSync(List.filled(10, 0));
+    final opened = <String>[];
 
+    await managerFor(
+      opener: (path) async {
+        opened.add(path);
+        return OpenResult();
+      },
+    ).downloadAndInstall(
+      apkUrl: 'http://127.0.0.1:1/update.apk',
+      onProgress: (_) {},
+    );
+
+    expect(opened, [cached.path]);
+    expect(cached.lengthSync(), 10);
+  });
+
+  test('an empty partial APK is cleared before downloading again', () async {
+    final partial = File('${tempDir.path}/update.apk')..writeAsBytesSync([]);
     final server = _FakeReleaseServer(List.filled(2048, 7));
     await server.start();
     addTearDown(server.stop);
@@ -139,26 +155,63 @@ void main() {
       onProgress: (_) {},
     );
 
-    expect(stale.lengthSync(), 2048, reason: 'stale file was replaced');
+    expect(partial.lengthSync(), 2048, reason: 'partial file was replaced');
   });
 
-  test('an HTTP error is surfaced as an http failure, not a silent no-op',
-      () async {
-    final server = _FakeReleaseServer(const [], statusCode: 404);
-    await server.start();
-    addTearDown(server.stop);
+  test(
+    'a failed cached install clears the APK so the next attempt downloads',
+    () async {
+      final cached = File('${tempDir.path}/update.apk')
+        ..writeAsBytesSync(List.filled(10, 0));
 
-    await expectLater(
-      managerFor().downloadAndInstall(
+      await expectLater(
+        managerFor(
+          opener: (_) async => OpenResult(
+            type: ResultType.noAppToOpen,
+            message: 'corrupted APK',
+          ),
+        ).downloadAndInstall(
+          apkUrl: 'http://127.0.0.1:1/update.apk',
+          onProgress: (_) {},
+        ),
+        throwsA(isA<InAppUpdateException>()),
+      );
+      expect(cached.existsSync(), isFalse);
+
+      final server = _FakeReleaseServer(List.filled(2048, 7));
+      await server.start();
+      addTearDown(server.stop);
+
+      await managerFor().downloadAndInstall(
         apkUrl: server.uri!.toString(),
         onProgress: (_) {},
-      ),
-      throwsA(
-        isA<InAppUpdateException>()
-            .having((e) => e.kind, 'kind', InAppUpdateErrorKind.http),
-      ),
-    );
-  });
+      );
+      expect(cached.lengthSync(), 2048);
+    },
+  );
+
+  test(
+    'an HTTP error is surfaced as an http failure, not a silent no-op',
+    () async {
+      final server = _FakeReleaseServer(const [], statusCode: 404);
+      await server.start();
+      addTearDown(server.stop);
+
+      await expectLater(
+        managerFor().downloadAndInstall(
+          apkUrl: server.uri!.toString(),
+          onProgress: (_) {},
+        ),
+        throwsA(
+          isA<InAppUpdateException>().having(
+            (e) => e.kind,
+            'kind',
+            InAppUpdateErrorKind.http,
+          ),
+        ),
+      );
+    },
+  );
 
   test('an unreachable host is surfaced as a network failure', () async {
     // Port 1 on loopback refuses connections.
@@ -168,42 +221,50 @@ void main() {
         onProgress: (_) {},
       ),
       throwsA(
-        isA<InAppUpdateException>()
-            .having((e) => e.kind, 'kind', InAppUpdateErrorKind.network),
+        isA<InAppUpdateException>().having(
+          (e) => e.kind,
+          'kind',
+          InAppUpdateErrorKind.network,
+        ),
       ),
     );
   });
 
-  test('a refused installer is reported instead of pretending to succeed',
-      () async {
-    final server = _FakeReleaseServer(List.filled(128, 3));
-    await server.start();
-    addTearDown(server.stop);
+  test(
+    'a refused installer is reported instead of pretending to succeed',
+    () async {
+      final server = _FakeReleaseServer(List.filled(128, 3));
+      await server.start();
+      addTearDown(server.stop);
 
-    await expectLater(
-      managerFor(
-        opener: (path) async =>
-            OpenResult(type: ResultType.noAppToOpen, message: 'no app'),
-      ).downloadAndInstall(
-        apkUrl: server.uri!.toString(),
-        onProgress: (_) {},
-      ),
-      throwsA(
-        isA<InAppUpdateException>()
-            .having((e) => e.kind, 'kind', InAppUpdateErrorKind.install),
-      ),
-    );
-  });
+      await expectLater(
+        managerFor(
+          opener: (path) async =>
+              OpenResult(type: ResultType.noAppToOpen, message: 'no app'),
+        ).downloadAndInstall(
+          apkUrl: server.uri!.toString(),
+          onProgress: (_) {},
+        ),
+        throwsA(
+          isA<InAppUpdateException>().having(
+            (e) => e.kind,
+            'kind',
+            InAppUpdateErrorKind.install,
+          ),
+        ),
+      );
+    },
+  );
 
   test('a malformed URL is rejected before any network call', () async {
     await expectLater(
-      managerFor().downloadAndInstall(
-        apkUrl: 'not a url',
-        onProgress: (_) {},
-      ),
+      managerFor().downloadAndInstall(apkUrl: 'not a url', onProgress: (_) {}),
       throwsA(
-        isA<InAppUpdateException>()
-            .having((e) => e.kind, 'kind', InAppUpdateErrorKind.http),
+        isA<InAppUpdateException>().having(
+          (e) => e.kind,
+          'kind',
+          InAppUpdateErrorKind.http,
+        ),
       ),
     );
   });

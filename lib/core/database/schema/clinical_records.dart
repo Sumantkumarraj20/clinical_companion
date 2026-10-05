@@ -21,6 +21,17 @@ class DocumentRegistries extends Table {
   /// an older backup), so a null hash must never be treated as a match — see
   /// `ClinicalDao.findDocumentByImageHash`.
   TextColumn get imageHash => text().nullable()();
+
+  /// Sprint 17.5 — the full ClinCom extraction as JSON, so Edit Mode can
+  /// rehydrate the *entire* review form (complaints, diagnoses, ordered
+  /// investigations, vitals, labs, meds) rather than just the summary.
+  ///
+  /// This is what makes the 1-year retention lifecycle fully editable: without
+  /// it, opening a document a year later shows an almost-empty form and the
+  /// clinician would have to re-scan a page that is still perfectly valid.
+  /// Null on documents stored before Sprint 17.5; those degrade gracefully to
+  /// the previous summary-only behaviour.
+  TextColumn get clincomJson => text().nullable()();
   RealColumn get confidenceScore => real().withDefault(const Constant(0.0))();
   DateTimeColumn get documentedAt => dateTime()();
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();

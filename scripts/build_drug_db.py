@@ -51,7 +51,12 @@ def build_sqlite(data_dict):
             insert_query = f'INSERT INTO "{table_name}" VALUES ({placeholders})'
             
             for row in rows:
-                values = [str(row.get(col, "")) for col in columns]
+                values = [
+                    json.dumps(row.get(col), ensure_ascii=False)
+                    if isinstance(row.get(col), (dict, list))
+                    else str(row.get(col, ""))
+                    for col in columns
+                ]
                 cursor.execute(insert_query, values)
                 
         conn.commit()

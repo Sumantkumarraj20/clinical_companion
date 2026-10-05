@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:clinical_companion/core/ai/document_ai_service.dart';
@@ -569,6 +570,122 @@ void main() {
       // ...SQLite is untouched until the clinician taps "Save document".
       expect(await db.select(db.documentRegistries).get(), isEmpty);
       expect(await db.select(db.clinicalEncounters).get(), isEmpty);
+    });
+  });
+
+  group('Sprint 17.5 — Edit Mode hydration (the 1-year lifecycle)', () {
+    test('a saved extraction round-trips every semantic field', () async {
+      final db = await _db();
+      final dao = ClinicalDao(db);
+      final patientId = await _seedPatient(db, 'Asha Rao');
+
+      // Exactly what the review screen persists after a clinician reviews it.
+      final reviewed = AiExtractionResult(
+        patientIdentity: PatientIdentity(name: 'Asha Rao', age: 45),
+        encounterContext: EncounterContext(
+          documentType: 'Lab Report',
+          date: '2024-03-12',
+        ),
+        chiefComplaints: const ['Fever for 3 days', 'Rash on trunk'],
+        diagnoses: const ['Enteric Fever'],
+        plannedInvestigations: const ['Blood Culture', 'Widal Test'],
+        labResults: const [
+          AiLabResult(testName: 'Haemoglobin', value: '11.4', unit: 'g/dL'),
+        ],
+        clinicalSummary: 'Enteric fever workup.',
+      );
+
+      await dao.processAiExtraction(
+        reviewed,
+        '/itest/rehydrate.jpg',
+        patientIdOverride: patientId,
+        clincomJson: jsonEncode(reviewed.toJson()),
+      );
+
+      // Reopen it the way editExisting() does, a year later.
+      final document = await dao.findDocumentByImagePath('/itest/rehydrate.jpg');
+      expect(document, isNotNull);
+      expect(document!.clincomJson, isNotNull,
+          reason: 'The extraction JSON must be stored, or the form reopens empty.');
+
+      final restored = AiExtractionResult.fromJson(
+        jsonDecode(document.clincomJson!) as Map<String, dynamic>,
+      );
+
+      // Every section the clinician reviewed must come back, not just summary.
+      expect(restored.chiefComplaints, ['Fever for 3 days', 'Rash on trunk']);
+      expect(restored.diagnoses, ['Enteric Fever']);
+      expect(restored.plannedInvestigations, ['Blood Culture', 'Widal Test']);
+      expect(restored.labResults.single.testName, 'Haemoglobin');
+      expect(restored.clinicalSummary, 'Enteric fever workup.');
+    });
+
+    test('a legacy document with no stored JSON still opens safely', () async {
+      final db = await _db();
+      final dao = ClinicalDao(db);
+      final patientId = await _seedPatient(db, 'Legacy Patient');
+
+      // A pre-Sprint-17.5 row: no clincomJson at all.
+      await db.into(db.documentRegistries).insert(
+        DocumentRegistriesCompanion.insert(
+          id: 'legacy-doc',
+          patientId: patientId,
+          documentCategory: 'Lab Report',
+          imagePath: '/legacy/old.jpg',
+          rawOcrTranscript: const Value('Old CBC panel'),
+          documentedAt: DateTime.utc(2023),
+        ),
+      );
+
+      final document = await dao.findDocumentByImagePath('/legacy/old.jpg');
+      expect(document, isNotNull);
+      // Null JSON must degrade, not throw — the screen catches and falls back.
+      expect(document!.clincomJson, isNull);
+    });
+
+    test('a corrupt stored JSON does not break opening the document', () {
+      // The screen catches this and falls back to the summary-only form, so a
+      // truncated write can never make a document permanently unopenable.
+      expect(() => AiExtractionResult.fromJson(
+        jsonDecode('{not valid json') as Map<String, dynamic>,
+      ), throwsA(isA<FormatException>()));
+    });
+
+    test('applyDocumentEdits refreshes the stored JSON', () async {
+      final db = await _db();
+      final dao = ClinicalDao(db);
+      final patientId = await _seedPatient(db, 'Asha Rao');
+
+      await dao.processAiExtraction(
+        const AiExtractionResult(
+          encounterContext: EncounterContext(documentType: 'Lab Report'),
+          diagnoses: <String>['Provisional'],
+          clinicalSummary: 'First pass',
+        ),
+        '/itest/edit.jpg',
+        patientIdOverride: patientId,
+        clincomJson: '{"diagnoses":["Provisional"]}',
+      );
+
+      final corrected = const AiExtractionResult(
+        encounterContext: EncounterContext(documentType: 'Lab Report'),
+        diagnoses: <String>['Enteric Fever (confirmed)'],
+        clinicalSummary: 'Corrected',
+      );
+
+      final applied = await dao.applyDocumentEdits(
+        documentId: (await dao.findDocumentByImagePath('/itest/edit.jpg'))!.id,
+        documentedAt: DateTime.utc(2024, 3, 12),
+        clincomJson: jsonEncode(corrected.toJson()),
+      );
+      expect(applied, isTrue);
+
+      final after = await dao.findDocumentByImagePath('/itest/edit.jpg');
+      final restored = AiExtractionResult.fromJson(
+        jsonDecode(after!.clincomJson!) as Map<String, dynamic>,
+      );
+      // Reopening must show the CORRECTION, not resurrect the stale value.
+      expect(restored.diagnoses, ['Enteric Fever (confirmed)']);
     });
   });
 }

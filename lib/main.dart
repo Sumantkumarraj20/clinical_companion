@@ -90,7 +90,7 @@ class ClinicalCompanionApp extends ConsumerWidget {
     final router = ref.watch(appRouterProvider);
 
     return MaterialApp.router(
-      title: 'Clinical Companion',
+      title: 'ClinCom',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         useMaterial3: true,

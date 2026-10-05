@@ -49,6 +49,9 @@ jobs:
       - name: Generate Clinical SQLite Database
         run: python scripts/build_drug_db.py
 
+      # Sprint 17.6 — the same keystore that every earlier release used. It MUST
+      # be stable: a different key produces an APK Android refuses to install
+      # over the existing app ("package conflicts with an existing package").
       - name: Decode and Setup Keystore
         run: |
           echo "${{ secrets.RELEASE_KEYSTORE }}" | base64 --decode --ignore-garbage > release.keystore
@@ -56,13 +59,14 @@ jobs:
       - name: Build Release APK
         run: flutter build apk --release
         env:
-          SIGNING_KEY_PATH: ../release.keystore
-          SIGNING_KEY_ALIAS: release
+          SIGNING_KEY_PATH: release.keystore
+          SIGNING_KEY_ALIAS: ${{ vars.RELEASE_KEY_ALIAS || 'release' }}
           SIGNING_KEY_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          name: Clinical Companion ${{ github.ref_name }}
+          name: ClinCom ${{ github.ref_name }}
           generate_release_notes: true
-          files: build/app/outputs/flutter-apk/app-release.apk
+          # Renamed by build.gradle.kts to ClinCom-<version>-release.apk.
+          files: build/app/outputs/flutter-apk/ClinCom-*-release.apk

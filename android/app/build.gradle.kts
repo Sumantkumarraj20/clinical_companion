@@ -15,7 +15,11 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
+        // NOTE: `com.example.clinical_companion` is intentionally left as-is.
+        // Clinicians already have this app installed under this id; changing it
+        // would make every upgrade impossible, because Android treats a new
+        // applicationId as a different app and refuses to replace the old one
+        // ("package conflicts with an existing package").
         applicationId = "com.example.clinical_companion"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
@@ -29,11 +33,60 @@ android {
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        // Sprint 17.6 — ONE stable signing key for every release build.
+        //
+        // Release builds used to be signed with the machine-local Android DEBUG
+        // key. Debug keys are generated per machine, so an APK built on a
+        // laptop and one built in CI are signed with DIFFERENT keys, and
+        // Android refuses to install one over the other ("package conflicts
+        // with an existing package").
+        //
+        // Credentials come from android/key.properties (git-ignored) or from
+        // the SIGNING_* env vars CI injects.
+        create("release") {
+            val props = java.util.Properties()
+            val propsFile = rootProject.file("key.properties")
+            if (propsFile.exists()) {
+                propsFile.inputStream().use { props.load(it) }
+            }
+
+            fun setting(name: String, env: String): String? =
+                props.getProperty(name) ?: System.getenv(env)
+
+            val storePath = setting("storeFile", "SIGNING_KEY_PATH")
+            val storePassword = setting("storePassword", "SIGNING_KEY_PASSWORD")
+            val keyAlias = setting("keyAlias", "SIGNING_KEY_ALIAS")
+            val keyPassword = setting("keyPassword", "SIGNING_KEY_PASSWORD")
+
+            if (storePath != null &&
+                storePassword != null &&
+                keyAlias != null &&
+                keyPassword != null
+            ) {
+                storeFile = file(storePath)
+                storePassword = storePassword
+                keyAlias = keyAlias
+                keyPassword = keyPassword
+            } else {
+                // FAIL LOUDLY. Silently falling back to the debug key is what
+                // produced un-upgradeable APKs: the build "succeeded" and the
+                // clinician's next install broke.
+                logger.error(
+                    "ClinCom release signing is not configured. Create " +
+                        "android/key.properties (see android/key.properties.example) " +
+                        "or set SIGNING_KEY_PATH / SIGNING_KEY_ALIAS / " +
+                        "SIGNING_KEY_PASSWORD."
+                )
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            // Signed with the shared release key so every build can upgrade the
+            // previously installed one.
+            signingConfig = signingConfigs.getByName("release")
             // ML Kit + R8: keep shrinking enabled but apply our keep rules so
             // missing vision_text_common sub-modules don't fail assembleRelease.
             isMinifyEnabled = true
@@ -51,4 +104,18 @@ kotlin {
 
 flutter {
     source = "../.."
+}
+
+// Sprint 17.6 — release APKs are published as "ClinCom-<version>.apk" so a
+// clinician can tell two downloaded builds apart at a glance, and so the
+// in-app updater's asset link is unambiguous.
+//
+// The version is read from pubspec.yaml (flutter.versionName), so bumping the
+// version there is enough.
+android.applicationVariants.all {
+    outputs.all {
+        val output = this as com.android.build.gradle.internal.tasks.BaseVariantOutputImpl
+        output.outputFileName =
+            "ClinCom-${variant.versionName}-${variant.buildType.name}.apk"
+    }
 }

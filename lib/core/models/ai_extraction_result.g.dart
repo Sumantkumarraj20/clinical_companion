@@ -27,6 +27,8 @@ _AiVitals _$AiVitalsFromJson(Map<String, dynamic> json) => _AiVitals(
   pr: (json['pulse'] as num?)?.toInt(),
   temperatureC: (json['temp_f'] as num?)?.toDouble(),
   spo2: (json['spo2'] as num?)?.toInt(),
+  respiratoryRate: (json['respiratory_rate'] as num?)?.toInt(),
+  meanArterialPressure: (json['map'] as num?)?.toDouble(),
 );
 
 Map<String, dynamic> _$AiVitalsToJson(_AiVitals instance) => <String, dynamic>{
@@ -35,6 +37,8 @@ Map<String, dynamic> _$AiVitalsToJson(_AiVitals instance) => <String, dynamic>{
   'pulse': instance.pr,
   'temp_f': instance.temperatureC,
   'spo2': instance.spo2,
+  'respiratory_rate': instance.respiratoryRate,
+  'map': instance.meanArterialPressure,
 };
 
 _AiExtractionResult _$AiExtractionResultFromJson(
@@ -63,6 +67,21 @@ _AiExtractionResult _$AiExtractionResultFromJson(
           ?.map((e) => AiLabResult.fromJson(e as Map<String, dynamic>))
           .toList() ??
       const <AiLabResult>[],
+  problems:
+      (json['problems'] as List<dynamic>?)
+          ?.map((e) => AiProblem.fromJson(e as Map<String, dynamic>))
+          .toList() ??
+      const <AiProblem>[],
+  unlinkedManagement: json['unlinked_management'] == null
+      ? const AiUnlinkedManagement()
+      : AiUnlinkedManagement.fromJson(
+          json['unlinked_management'] as Map<String, dynamic>,
+        ),
+  clinicalWarnings:
+      (json['clinical_warnings'] as List<dynamic>?)
+          ?.map((e) => AiClinicalWarning.fromJson(e as Map<String, dynamic>))
+          .toList() ??
+      const <AiClinicalWarning>[],
   clinicalSummary: json['clinicalSummary'] as String? ?? '',
   conclusion: json['conclusion'] as String? ?? '',
   documentDate: json['document_date'] as String? ?? '',
@@ -91,6 +110,9 @@ Map<String, dynamic> _$AiExtractionResultToJson(_AiExtractionResult instance) =>
       'vitals': instance.vitals,
       'medications_ordered': instance.medicationsOrdered,
       'lab_results': instance.labResults,
+      'problems': instance.problems,
+      'unlinked_management': instance.unlinkedManagement,
+      'clinical_warnings': instance.clinicalWarnings,
       'clinicalSummary': instance.clinicalSummary,
       'conclusion': instance.conclusion,
       'document_date': instance.documentDate,
@@ -138,9 +160,11 @@ Map<String, dynamic> _$EncounterContextToJson(_EncounterContext instance) =>
 
 _OrderedMedication _$OrderedMedicationFromJson(Map<String, dynamic> json) =>
     _OrderedMedication(
-      drugName: json['drug_name'] as String? ?? '',
-      dosage: json['dosage'] as String?,
+      drugName: _readDrugName(json, 'drug_name') as String? ?? '',
+      dosage: _readDosage(json, 'dosage') as String?,
       frequency: json['frequency'] as String?,
+      route: json['route'] as String?,
+      duration: json['duration'] as String?,
     );
 
 Map<String, dynamic> _$OrderedMedicationToJson(_OrderedMedication instance) =>
@@ -148,7 +172,104 @@ Map<String, dynamic> _$OrderedMedicationToJson(_OrderedMedication instance) =>
       'drug_name': instance.drugName,
       'dosage': instance.dosage,
       'frequency': instance.frequency,
+      'route': instance.route,
+      'duration': instance.duration,
     };
+
+_AiProblem _$AiProblemFromJson(Map<String, dynamic> json) => _AiProblem(
+  diagnosis: json['diagnosis'] as String? ?? '',
+  linkedMedications:
+      (json['linked_medications'] as List<dynamic>?)
+          ?.map((e) => OrderedMedication.fromJson(e as Map<String, dynamic>))
+          .toList() ??
+      const <OrderedMedication>[],
+  linkedInvestigations:
+      (json['linked_investigations'] as List<dynamic>?)
+          ?.map((e) => AiInvestigation.fromJson(e as Map<String, dynamic>))
+          .toList() ??
+      const <AiInvestigation>[],
+  linkedProcedures:
+      (json['linked_procedures'] as List<dynamic>?)
+          ?.map((e) => AiProcedure.fromJson(e as Map<String, dynamic>))
+          .toList() ??
+      const <AiProcedure>[],
+  reasoning: json['reasoning'] as String? ?? '',
+);
+
+Map<String, dynamic> _$AiProblemToJson(_AiProblem instance) =>
+    <String, dynamic>{
+      'diagnosis': instance.diagnosis,
+      'linked_medications': instance.linkedMedications,
+      'linked_investigations': instance.linkedInvestigations,
+      'linked_procedures': instance.linkedProcedures,
+      'reasoning': instance.reasoning,
+    };
+
+_AiUnlinkedManagement _$AiUnlinkedManagementFromJson(
+  Map<String, dynamic> json,
+) => _AiUnlinkedManagement(
+  medications:
+      (json['medications'] as List<dynamic>?)
+          ?.map((e) => OrderedMedication.fromJson(e as Map<String, dynamic>))
+          .toList() ??
+      const <OrderedMedication>[],
+  investigations:
+      (json['investigations'] as List<dynamic>?)
+          ?.map((e) => AiInvestigation.fromJson(e as Map<String, dynamic>))
+          .toList() ??
+      const <AiInvestigation>[],
+  procedures:
+      (json['procedures'] as List<dynamic>?)
+          ?.map((e) => AiProcedure.fromJson(e as Map<String, dynamic>))
+          .toList() ??
+      const <AiProcedure>[],
+);
+
+Map<String, dynamic> _$AiUnlinkedManagementToJson(
+  _AiUnlinkedManagement instance,
+) => <String, dynamic>{
+  'medications': instance.medications,
+  'investigations': instance.investigations,
+  'procedures': instance.procedures,
+};
+
+_AiClinicalWarning _$AiClinicalWarningFromJson(Map<String, dynamic> json) =>
+    _AiClinicalWarning(
+      medication: json['medication'] as String? ?? '',
+      condition: json['condition'] as String? ?? '',
+      warning: json['warning'] as String? ?? '',
+      doseAdjustment: json['dose_adjustment'] as String?,
+    );
+
+Map<String, dynamic> _$AiClinicalWarningToJson(_AiClinicalWarning instance) =>
+    <String, dynamic>{
+      'medication': instance.medication,
+      'condition': instance.condition,
+      'warning': instance.warning,
+      'dose_adjustment': instance.doseAdjustment,
+    };
+
+_AiInvestigation _$AiInvestigationFromJson(Map<String, dynamic> json) =>
+    _AiInvestigation(
+      testName: json['test_name'] as String? ?? '',
+      value: json['value'] as String? ?? '',
+      unit: json['unit'] as String?,
+      isAbnormal: json['is_abnormal'] as bool? ?? false,
+    );
+
+Map<String, dynamic> _$AiInvestigationToJson(_AiInvestigation instance) =>
+    <String, dynamic>{
+      'test_name': instance.testName,
+      'value': instance.value,
+      'unit': instance.unit,
+      'is_abnormal': instance.isAbnormal,
+    };
+
+_AiProcedure _$AiProcedureFromJson(Map<String, dynamic> json) =>
+    _AiProcedure(procedureName: json['procedure_name'] as String? ?? '');
+
+Map<String, dynamic> _$AiProcedureToJson(_AiProcedure instance) =>
+    <String, dynamic>{'procedure_name': instance.procedureName};
 
 _AiLabResult _$AiLabResultFromJson(Map<String, dynamic> json) => _AiLabResult(
   testName: json['test_name'] as String? ?? '',

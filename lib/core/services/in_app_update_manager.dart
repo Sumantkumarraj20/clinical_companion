@@ -53,9 +53,9 @@ class InAppUpdateManager {
     Future<Directory> Function()? directoryProvider,
     Future<OpenResult> Function(String path)? opener,
     this.fileName = 'update.apk',
-  })  : _dio = dio ?? Dio(),
-        _directoryProvider = directoryProvider ?? getTemporaryDirectory,
-        _opener = opener ?? OpenFilex.open;
+  }) : _dio = dio ?? Dio(),
+       _directoryProvider = directoryProvider ?? getTemporaryDirectory,
+       _opener = opener ?? OpenFilex.open;
 
   final Dio _dio;
   final Future<Directory> Function() _directoryProvider;
@@ -95,42 +95,44 @@ class InAppUpdateManager {
 
     final directory = await _directoryProvider();
     final savePath = p.join(directory.path, fileName);
-
-    // A previous attempt may have left a truncated APK. Removing it first
-    // means we can never "install" a half-written file.
     final target = File(savePath);
-    if (target.existsSync()) {
-      try {
-        target.deleteSync();
-      } catch (error) {
-        throw InAppUpdateException(
-          InAppUpdateErrorKind.corrupt,
-          'Could not clear the previous update download.',
-          cause: error,
-        );
-      }
-    }
 
     onProgress(0);
 
     _cancelToken = CancelToken();
     try {
-      await _dio.download(
-        apkUrl,
-        savePath,
-        cancelToken: _cancelToken,
-        // A corrupt transfer must never survive: deleteOnError removes the
-        // partial file so a later retry starts clean.
-        deleteOnError: true,
-        onReceiveProgress: (received, total) {
-          // GitHub release assets always send Content-Length; when they do
-          // not, stay indeterminate rather than reporting a bogus fraction.
-          if (total > 0) {
-            onProgress((received / total).clamp(0.0, 1.0));
-            onBytes?.call(received, total);
+      if (target.existsSync() && target.lengthSync() > 0) {
+        onProgress(1);
+      } else {
+        if (target.existsSync()) {
+          try {
+            target.deleteSync();
+          } catch (error) {
+            throw InAppUpdateException(
+              InAppUpdateErrorKind.corrupt,
+              'Could not clear the previous update download.',
+              cause: error,
+            );
           }
-        },
-      );
+        }
+
+        await _dio.download(
+          apkUrl,
+          savePath,
+          cancelToken: _cancelToken,
+          // A corrupt transfer must never survive: deleteOnError removes the
+          // partial file so a later retry starts clean.
+          deleteOnError: true,
+          onReceiveProgress: (received, total) {
+            // GitHub release assets always send Content-Length; when they do
+            // not, stay indeterminate rather than reporting a bogus fraction.
+            if (total > 0) {
+              onProgress((received / total).clamp(0.0, 1.0));
+              onBytes?.call(received, total);
+            }
+          },
+        );
+      }
 
       final downloaded = File(savePath);
       if (!downloaded.existsSync() || downloaded.lengthSync() == 0) {
@@ -147,7 +149,7 @@ class InAppUpdateManager {
         throw InAppUpdateException(
           InAppUpdateErrorKind.install,
           'Android could not open the installer. You may need to allow '
-              '"Install unknown apps" for Clinical Companion.',
+          '"Install unknown apps" for ClinCom.',
           cause: result.message,
         );
       }
@@ -204,23 +206,23 @@ InAppUpdateException toExceptionForTesting(DioException error) =>
 
 /// Classifies a transport failure into an actionable, user-facing message.
 InAppUpdateException mapDioError(DioException error) {
-    final status = error.response?.statusCode;
-    if (status != null) {
-      return InAppUpdateException(
-        InAppUpdateErrorKind.http,
-        'The server returned HTTP $status instead of an APK.',
-        cause: error,
-      );
-    }
-    if (error.type == DioExceptionType.cancel) {
-      return const InAppUpdateException(
-        InAppUpdateErrorKind.network,
-        'The update download was cancelled.',
-      );
-    }
+  final status = error.response?.statusCode;
+  if (status != null) {
     return InAppUpdateException(
-      InAppUpdateErrorKind.network,
-      'Could not reach the update server. Check your connection and try again.',
+      InAppUpdateErrorKind.http,
+      'The server returned HTTP $status instead of an APK.',
       cause: error,
     );
   }
+  if (error.type == DioExceptionType.cancel) {
+    return const InAppUpdateException(
+      InAppUpdateErrorKind.network,
+      'The update download was cancelled.',
+    );
+  }
+  return InAppUpdateException(
+    InAppUpdateErrorKind.network,
+    'Could not reach the update server. Check your connection and try again.',
+    cause: error,
+  );
+}

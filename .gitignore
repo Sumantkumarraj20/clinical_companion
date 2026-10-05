@@ -48,8 +48,20 @@ app.*.map.json
 # Widget Preview related
 .widget_preview/
 scripts/all_medicine_databased.csv
-assets/clinical_drugs.sqlite
 scripts/HBP 2022 Tier 2 (SHA Bihar).xlsx
-assets/clinical_drugs.sqlite*.xlsx
-assets/clinical_drugs.sqlite
+
+
+# ---- Secrets: signing keys, credentials, env files -----------------------
+# An Android signing keystore was committed in 4fa488d and must never be
+# re-added. Supply it to CI via GitHub Secrets instead (see
+# .github/workflows/build_release.yml).
 keystore_base64.txt
+*.keystore
+*.jks
+key.properties
+android/key.properties
+.env
+.env.*
+!.env.example
+*.p12
+*.pem

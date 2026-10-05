@@ -62,6 +62,9 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
+  # Sprint 17.5 — real-device / live-Supabase verification suite.
+  integration_test:
+    sdk: flutter
   build_runner: ^2.16.0
   drift_dev: ^2.34.5
   riverpod_generator: ^4.0.8
@@ -76,10 +79,18 @@ flutter:
     - assets/pmjay_hbp.sqlite
 
 flutter_launcher_icons:
+  # Sprint 17.6 — the ClinCom icon on every desktop AND mobile platform.
   android: "launcher_icon"
   ios: true
   image_path: "assets/icon/app_icon.png"
-  
-  # Optional: Configure Android Adaptive Icons (Required for Android 8.0+)
-  adaptive_icon_background: "#00695C"
+
+  # NOTE: flutter_launcher_icons 0.14.x has no `linux:` generator, and an
+  # unrecognised key makes the tool fall back to defaults and fail. The Linux
+  # icon is therefore written directly — see linux/runner/ClinCom icons.
+
+  # Android adaptive icon: flat background + ClinCom mark as the foreground.
+  # The background MUST be flat — Android applies its own mask, so a
+  # full-bleed foreground renders as an oversized, blurry glyph.
+  adaptive_icon_background: "#0d6b61"
   adaptive_icon_foreground: "assets/icon/app_icon.png"
+  min_sdk_android: 21

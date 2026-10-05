@@ -19,13 +19,17 @@ enum ExtractionSource {
 
   /// Escalated to ClinCom.
   ai,
+
+  /// Clinician-pasted text sent directly to ClinCom without OCR.
+  text,
   unknown,
 }
 
 class DocumentTask {
   DocumentTask({
     required this.id,
-    required this.originalFile,
+    this.originalFile,
+    this.isTextInput = false,
     this.status = ExtractionStatus.pending,
     this.extractedData,
     this.source = ExtractionSource.unknown,
@@ -35,7 +39,8 @@ class DocumentTask {
   });
 
   final String id;
-  final File originalFile;
+  final File? originalFile;
+  final bool isTextInput;
   final ExtractionStatus status;
   final AiExtractionResult? extractedData;
   final ExtractionSource source;
@@ -76,6 +81,8 @@ class DocumentTask {
     return DocumentTask(
       id: id,
       originalFile: originalFile,
+      isTextInput: isTextInput,
+      activeCensusJson: activeCensusJson,
       status: status ?? this.status,
       extractedData: clearExtractedData
           ? null

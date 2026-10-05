@@ -68,7 +68,7 @@ class DatabaseBackupService {
       const required = {'patients', 'clinical_encounters'};
       final missing = required.difference(tables);
       if (missing.isNotEmpty) {
-        return 'That file is not a Clinical Companion backup — it is missing: '
+        return 'That file is not a ClinCom backup — it is missing: '
             '${missing.join(', ')}.';
       }
       return null;

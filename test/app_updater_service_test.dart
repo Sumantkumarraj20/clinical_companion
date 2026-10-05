@@ -8,47 +8,46 @@ import 'package:package_info_plus/package_info_plus.dart';
 
 void main() {
   PackageInfo localInfo(String version) => PackageInfo(
-        appName: 'Clinical Companion',
-        packageName: 'com.clinical.companion',
-        version: version,
-        buildNumber: '1',
-      );
+    appName: 'Clinical Companion',
+    packageName: 'com.clinical.companion',
+    version: version,
+    buildNumber: '1',
+  );
 
   String releaseJson({
     String tag = 'v2.0.0',
     List<Map<String, dynamic>>? assets,
   }) => jsonEncode({
-        'tag_name': tag,
-        'name': 'Clinical Companion $tag',
-        'assets': assets ??
-            [
-              {
-                'name': 'app-release.apk',
-                'browser_download_url':
-                    'https://github.com/Sumantkumarraj20/clinical_companion/'
-                        'releases/download/v2.0.0/app-release.apk',
-              },
-              {
-                'name': 'debug.zip',
-                'browser_download_url':
-                    'https://example.com/debug.zip',
-              },
-            ],
-      });
+    'tag_name': tag,
+    'name': 'Clinical Companion $tag',
+    'assets':
+        assets ??
+        [
+          {
+            'name': 'app-release.apk',
+            'browser_download_url':
+                'https://github.com/Sumantkumarraj20/clinical_companion/'
+                'releases/download/v2.0.0/app-release.apk',
+          },
+          {
+            'name': 'debug.zip',
+            'browser_download_url': 'https://example.com/debug.zip',
+          },
+        ],
+  });
 
   AppUpdaterService serviceWith({
     required http.Client client,
     String version = '1.0.0',
     String? releasesUrl,
   }) => AppUpdaterService(
-        httpClient: client,
-        packageInfoLoader: () async => localInfo(version),
-        releasesUrl: releasesUrl ?? AppUpdaterService.defaultReleasesUrl,
-      );
+    httpClient: client,
+    packageInfoLoader: () async => localInfo(version),
+    releasesUrl: releasesUrl ?? AppUpdaterService.defaultReleasesUrl,
+  );
 
   group('checkForUpdate', () {
-    test('returns the APK browser_download_url when remote is newer',
-        () async {
+    test('returns the APK browser_download_url when remote is newer', () async {
       final requested = <http.Request>[];
       final service = serviceWith(
         version: '1.0.4',
@@ -69,11 +68,30 @@ void main() {
         'https://github.com/Sumantkumarraj20/clinical_companion/'
         'releases/download/v2.0.0/app-release.apk',
       );
-      expect(requested.single.url.toString(),
-          AppUpdaterService.defaultReleasesUrl);
       expect(
-          requested.single.headers['Accept'], 'application/vnd.github+json');
+        requested.single.url.toString(),
+        AppUpdaterService.defaultReleasesUrl,
+      );
+      expect(requested.single.headers['Accept'], 'application/vnd.github+json');
     });
+
+    test(
+      'provides normalized local and remote versions for the banner',
+      () async {
+        final service = serviceWith(
+          version: '  v1.0.4  ',
+          client: MockClient(
+            (_) async => http.Response(releaseJson(tag: ' v1.0.5 '), 200),
+          ),
+        );
+
+        final update = await service.checkForUpdateInfo();
+
+        expect(update?.localVersion, '1.0.4');
+        expect(update?.remoteVersion, '1.0.5');
+        expect(update?.apkUrl, contains('.apk'));
+      },
+    );
 
     test('returns null when installed version matches the release', () async {
       final service = serviceWith(
@@ -85,19 +103,20 @@ void main() {
       expect(await service.checkForUpdate(), isNull);
     });
 
-    test('returns null when the installed version is ahead of the release',
-        () async {
-      final service = serviceWith(
-        version: '1.1.0',
-        client: MockClient(
-          (_) async => http.Response(releaseJson(tag: 'v1.0.9'), 200),
-        ),
-      );
-      expect(await service.checkForUpdate(), isNull);
-    });
+    test(
+      'returns null when the installed version is ahead of the release',
+      () async {
+        final service = serviceWith(
+          version: '1.1.0',
+          client: MockClient(
+            (_) async => http.Response(releaseJson(tag: 'v1.0.9'), 200),
+          ),
+        );
+        expect(await service.checkForUpdate(), isNull);
+      },
+    );
 
-    test('handles network errors silently (offline stays invisible)',
-        () async {
+    test('handles network errors silently (offline stays invisible)', () async {
       final offline = serviceWith(
         client: MockClient(
           (_) async => throw http.ClientException('Socket unreachable'),

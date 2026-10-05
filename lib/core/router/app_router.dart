@@ -25,6 +25,7 @@ import '../../features/admin/screens/data_management_screen.dart';
 import '../../features/settings/screens/configuration_screen.dart';
 import '../../features/bedside/screens/manual_entry_screen.dart';
 import '../../features/ingestion/screens/adaptive_review_screen.dart';
+import '../../features/ingestion/screens/text_ingestion_screen.dart';
 
 final appRouterProvider = Provider<GoRouter>((ref) {
   final configuration = ref.watch(appConfigurationProvider);
@@ -105,6 +106,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: '/smart-capture',
             builder: (context, state) => const SmartCaptureScreen(),
+          ),
+          GoRoute(
+            path: '/text-ingestion',
+            builder: (context, state) => const TextIngestionScreen(),
           ),
           GoRoute(
             path: '/adaptive-review',

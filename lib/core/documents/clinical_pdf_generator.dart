@@ -2,6 +2,7 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 
 import '../database/local_database.dart';
+import '../models/encounter_pomr_export.dart';
 import '../utils/datetime_utils.dart';
 
 class ClinicalPdfGenerator {
@@ -193,7 +194,7 @@ class ClinicalPdfGenerator {
                   ),
                   pw.SizedBox(height: 3),
                   pw.Text(
-                    'Clinical Companion',
+                    'ClinCom',
                     style: const pw.TextStyle(
                       fontSize: 8,
                       color: PdfColors.grey600,
@@ -250,7 +251,7 @@ class ClinicalPdfGenerator {
             crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
               pw.Text(
-                'Generated via Clinical Companion Offline Store',
+                'Generated via ClinCom Offline Store',
                 style: const pw.TextStyle(
                   fontSize: 8,
                   color: PdfColors.grey600,
@@ -724,6 +725,176 @@ class ClinicalPdfGenerator {
       ],
 
       _doctorSignature(),
+    ],
+  );
+
+  Future<List<int>> generatePomrEncounter({
+    required Patient patient,
+    required EncounterPomrExport data,
+    String? hospitalRegNo,
+    String? hospitalName,
+  }) {
+    final encounter = data.encounter;
+    final vitals = [
+      if (encounter.sbp != null || encounter.dbp != null)
+        'BP ${encounter.sbp ?? '--'}/${encounter.dbp ?? '--'} mmHg',
+      if (encounter.pulse != null) 'Pulse ${encounter.pulse} bpm',
+      if (encounter.temperatureC != null) 'Temp ${encounter.temperatureC} C',
+      if (encounter.respiratoryRate != null)
+        'RR ${encounter.respiratoryRate}/min',
+      if (encounter.spo2 != null) 'SpO2 ${encounter.spo2}%',
+      if (encounter.meanArterialPressure != null)
+        'MAP ${encounter.meanArterialPressure} mmHg',
+    ];
+    final body = <pw.Widget>[
+      _sectionTitle('Encounter'),
+      pw.Text(
+        '${encounter.encounterType} | ${encounter.occurredAt.toLocal()}',
+        style: const pw.TextStyle(fontSize: 9),
+      ),
+      _sectionTitle('Vitals'),
+      pw.Text(
+        vitals.isEmpty ? 'Not recorded' : vitals.join(' | '),
+        style: const pw.TextStyle(fontSize: 9),
+      ),
+      if (encounter.chiefComplaints?.trim().isNotEmpty == true)
+        _pomrNarrativeSection('Complaints', encounter.chiefComplaints!),
+      if (encounter.historyOfPresentIllness?.trim().isNotEmpty == true)
+        _pomrNarrativeSection('History', encounter.historyOfPresentIllness!),
+      if (encounter.examinationFindings?.trim().isNotEmpty == true)
+        _pomrNarrativeSection('Findings', encounter.examinationFindings!),
+      if (encounter.clinicalAssessment?.trim().isNotEmpty == true)
+        _pomrNarrativeSection('Assessment', encounter.clinicalAssessment!),
+      if (encounter.consultantAdvice?.trim().isNotEmpty == true)
+        _pomrNarrativeSection('Advice', encounter.consultantAdvice!),
+      for (final section in data.problems) ...[
+        _sectionTitle('Problem: ${section.problem.problemName}'),
+        if (section.problem.icd11Code?.trim().isNotEmpty == true)
+          pw.Text(
+            'Code: ${section.problem.icd11Code}',
+            style: const pw.TextStyle(fontSize: 9),
+          ),
+        if (section.prescriptions.isNotEmpty) ...[
+          pw.Text(
+            'Medications',
+            style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold),
+          ),
+          for (final order in section.prescriptions)
+            pw.Bullet(
+              text: [
+                order.drugName,
+                if (order.doseStrength?.trim().isNotEmpty == true)
+                  order.doseStrength!,
+                if (order.dosageForm?.trim().isNotEmpty == true)
+                  order.dosageForm!,
+                if (order.route?.trim().isNotEmpty == true) order.route!,
+                if (order.frequency?.trim().isNotEmpty == true)
+                  order.frequency!,
+                if (order.duration?.trim().isNotEmpty == true) order.duration!,
+                if (order.diluentAndRate?.trim().isNotEmpty == true)
+                  order.diluentAndRate!,
+                if (order.specialInstructions?.trim().isNotEmpty == true)
+                  'Instructions: ${order.specialInstructions}',
+              ].join(' | '),
+              style: const pw.TextStyle(fontSize: 9),
+            ),
+        ],
+        if (section.investigations.isNotEmpty) ...[
+          pw.Text(
+            'Investigations',
+            style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold),
+          ),
+          for (final investigation in section.investigations) ...[
+            pw.Bullet(
+              text: [
+                investigation.order.testName,
+                if (investigation.order.clinicalIndication?.trim().isNotEmpty ==
+                    true)
+                  'Indication: ${investigation.order.clinicalIndication}',
+              ].join(' | '),
+              style: const pw.TextStyle(fontSize: 9),
+            ),
+            for (final result in investigation.results)
+              pw.Padding(
+                padding: const pw.EdgeInsets.only(left: 14),
+                child: pw.Text(
+                  '${result.testName}: '
+                  '${result.numericValue ?? result.textValue ?? '--'}'
+                  '${result.unit?.trim().isNotEmpty == true ? ' ${result.unit}' : ''}'
+                  '${result.isAbnormal ? ' (abnormal)' : ''}',
+                  style: const pw.TextStyle(fontSize: 8),
+                ),
+              ),
+          ],
+        ],
+        if (section.interventions.isNotEmpty) ...[
+          pw.Text(
+            'Procedures',
+            style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold),
+          ),
+          for (final intervention in section.interventions)
+            pw.Bullet(
+              text: [
+                intervention.procedureName,
+                if (intervention.operativeFindings?.trim().isNotEmpty == true)
+                  intervention.operativeFindings!,
+              ].join(' | '),
+              style: const pw.TextStyle(fontSize: 9),
+            ),
+        ],
+      ],
+      if (data.unlinkedPrescriptions.isNotEmpty ||
+          data.unlinkedInvestigations.isNotEmpty ||
+          data.unlinkedInterventions.isNotEmpty) ...[
+        _sectionTitle('Unlinked management'),
+        for (final order in data.unlinkedPrescriptions)
+          pw.Bullet(
+            text:
+                'Medication: ${order.drugName}'
+                '${order.doseStrength?.trim().isNotEmpty == true ? ' | ${order.doseStrength}' : ''}'
+                '${order.route?.trim().isNotEmpty == true ? ' | ${order.route}' : ''}'
+                '${order.frequency?.trim().isNotEmpty == true ? ' | ${order.frequency}' : ''}'
+                '${order.specialInstructions?.trim().isNotEmpty == true ? ' | Instructions: ${order.specialInstructions}' : ''}',
+            style: const pw.TextStyle(fontSize: 9),
+          ),
+        for (final investigation in data.unlinkedInvestigations)
+          pw.Bullet(
+            text:
+                'Investigation: ${investigation.order.testName}'
+                '${investigation.order.clinicalIndication?.trim().isNotEmpty == true ? ' | Indication: ${investigation.order.clinicalIndication}' : ''}',
+            style: const pw.TextStyle(fontSize: 9),
+          ),
+        for (final intervention in data.unlinkedInterventions)
+          pw.Bullet(
+            text: 'Procedure: ${intervention.procedureName}',
+            style: const pw.TextStyle(fontSize: 9),
+          ),
+      ],
+    ];
+
+    return _document(
+      _header(
+        patient: patient,
+        title: 'Problem-Oriented Clinical Note',
+        hospitalRegNo: hospitalRegNo,
+        hospitalName: hospitalName,
+        department: encounter.department,
+        wardBed: [
+          if (encounter.wardName?.isNotEmpty == true) encounter.wardName!,
+          if (encounter.bedNumber?.isNotEmpty == true)
+            'Bed ${encounter.bedNumber}',
+        ].join(' / '),
+        documentDate: encounter.occurredAt,
+      ),
+      body,
+    );
+  }
+
+  pw.Widget _pomrNarrativeSection(String title, String value) => pw.Column(
+    crossAxisAlignment: pw.CrossAxisAlignment.start,
+    children: [
+      _sectionTitle(title),
+      pw.Text(value, style: const pw.TextStyle(fontSize: 9)),
     ],
   );
 

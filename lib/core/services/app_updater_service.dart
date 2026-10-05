@@ -5,6 +5,18 @@ import 'package:http/http.dart' as http;
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:pub_semver/pub_semver.dart';
 
+class AppUpdateInfo {
+  const AppUpdateInfo({
+    required this.apkUrl,
+    required this.remoteVersion,
+    required this.localVersion,
+  });
+
+  final String apkUrl;
+  final String remoteVersion;
+  final String localVersion;
+}
+
 /// Sprint 8 — CI/CD & In-App Binary Updates: GitHub Release update probe.
 ///
 /// Asks GitHub for the newest published Release (created by
@@ -53,6 +65,12 @@ class AppUpdaterService {
   /// no `.apk` asset attached, or any network/parse failure. This method
   /// never throws so it is safe to call from a `FutureProvider` at startup.
   Future<String?> checkForUpdate() async {
+    return (await checkForUpdateInfo())?.apkUrl;
+  }
+
+  /// Returns update details for UI surfaces that need to show the version
+  /// change, or `null` when no update is available.
+  Future<AppUpdateInfo?> checkForUpdateInfo() async {
     try {
       final info = await _packageInfoLoader();
 
@@ -102,7 +120,11 @@ class AppUpdaterService {
         final downloadUrl = asset['browser_download_url'];
         if (downloadUrl is String && downloadUrl.isNotEmpty) {
           debugPrint('[AppUpdater] Update $tagName available: $downloadUrl');
-          return downloadUrl;
+          return AppUpdateInfo(
+            apkUrl: downloadUrl,
+            remoteVersion: _displayVersion(tagName),
+            localVersion: _displayVersion(info.version),
+          );
         }
       }
 
@@ -138,6 +160,9 @@ class AppUpdaterService {
     if (local == null || remote == null) return false;
     return remote > local;
   }
+
+  static String _displayVersion(String raw) =>
+      raw.trim().replaceFirst(RegExp(r'^[vV]'), '');
 
   /// Parses a GitHub tag (`v1.2.3`, `1.2`, `1.2.3-beta.1+build5`) into a
   /// [Version]. Returns null when the string is not a recognisable version.

@@ -138,10 +138,13 @@ class StagedOrdersNotifier extends Notifier<List<PendingOrder>> {
     if (fresh.isNotEmpty) state = [...state, ...fresh];
   }
 
-  void addManual(String label, {String source = 'manual'}) {
+  void addManual(String label, {String source = 'manual', String? details}) {
     final term = label.trim();
     if (term.isEmpty || state.any((o) => _same(o.label, term))) return;
-    state = [...state, PendingOrder(label: term, source: source)];
+    state = [
+      ...state,
+      PendingOrder(label: term, source: source, details: details),
+    ];
   }
 
   /// Stages a drug chosen from the catalog, pre-filling the prescription

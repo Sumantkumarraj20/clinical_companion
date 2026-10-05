@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'clincom_escalation.dart';
 import 'dart:io';
 import 'dart:isolate';
@@ -56,9 +57,13 @@ class PipelineExtraction {
 }
 
 class ExtractionPipelineService {
-  ExtractionPipelineService(this._aiService);
+  ExtractionPipelineService(
+    this._aiService, {
+    Future<List<String>> Function()? historicalAssociationsLoader,
+  }) : _historicalAssociationsLoader = historicalAssociationsLoader;
 
   final DocumentAiService _aiService;
+  final Future<List<String>> Function()? _historicalAssociationsLoader;
 
   // Created on first use so tests / headless builds can subclass this service
   // without touching the ML Kit platform channel.
@@ -155,6 +160,29 @@ class ExtractionPipelineService {
     return refineWithAi(image, rawText);
   }
 
+  /// Sends clinician-pasted text directly to ClinCom, without OCR, image
+  /// hashing, local lab parsing, or image preparation.
+  Future<PipelineExtraction> processTextWithProvenance(
+    String rawText, {
+    String? activeCensusJson,
+  }) async {
+    if (rawText.trim().isEmpty) {
+      throw ArgumentError.value(rawText, 'rawText', 'Text cannot be empty');
+    }
+    final historicalAssociations =
+        await _historicalAssociationsLoader?.call() ?? const <String>[];
+    final result = await _aiService.extractDocument(
+      image: null,
+      prompt: _polishPrompt(
+        rawText,
+        activeCensusJson: activeCensusJson,
+        includeImage: false,
+        historicalAssociations: historicalAssociations,
+      ),
+    );
+    return PipelineExtraction(result: result, source: PipelineSource.ai);
+  }
+
   Future<AiExtractionResult> processDocument(File image) async {
     return (await processDocumentWithProvenance(image)).result;
   }
@@ -193,15 +221,17 @@ class ExtractionPipelineService {
     String? activeCensusJson,
   }) async {
     final escalation = chooseEscalation(ocrText: rawText);
+    final historicalAssociations =
+        await _historicalAssociationsLoader?.call() ?? const <String>[];
     final prompt = _polishPrompt(
       rawText,
       activeCensusJson: activeCensusJson,
       includeImage: escalation == ClinComEscalation.multimodalVision,
+      historicalAssociations: historicalAssociations,
     );
 
     // Text-only skips the image entirely: no base64 upload, no vision tokens.
-    final File? payload =
-        escalation == ClinComEscalation.multimodalVision
+    final File? payload = escalation == ClinComEscalation.multimodalVision
         ? await _compressForAI(image)
         : null;
 
@@ -212,12 +242,12 @@ class ExtractionPipelineService {
     return PipelineExtraction(result: aiResult, source: PipelineSource.ai);
   }
 
-
-/// Prompt used to polish a document the local regex path could not handle.
+  /// Prompt used to polish a document the local regex path could not handle.
   String _polishPrompt(
     String rawText, {
     String? activeCensusJson,
     bool includeImage = true,
+    List<String> historicalAssociations = const [],
   }) {
     final transcript = rawText.trim();
     final censusJson = (activeCensusJson ?? '').trim();
@@ -225,8 +255,7 @@ class ExtractionPipelineService {
     // Empty census (no active inpatients, or provider unavailable) simply omits
     // the block — a page with no bed number must not be nudged into inventing
     // a patient match.
-    final censusBlock =
-        censusJson.isEmpty
+    final censusBlock = censusJson.isEmpty
         ? ''
         : '''ACTIVE INPATIENT CENSUS (authoritative, from the clinician's current ward):
 $censusJson
@@ -236,10 +265,40 @@ resolve it against the census above and report the matching `patient_id`. If no
 bed number is present, or the bed is ambiguous, set `patient_id` to null rather
 than guessing a patient.''';
 
+    final practicePatterns = historicalAssociations.isEmpty
+        ? ''
+        : '''CLINICIAN'S HISTORICAL PRACTICE PATTERNS (frequency-ranked, local data):
+${jsonEncode(historicalAssociations)}
+Treat these associations only as contextual evidence, not as rules. Do not
+override the current document or established guidelines; never infer a link
+solely because it appears in this list.''';
+
     return '''
 You are ClinCom, an expert Chief Medical Officer and the clinician's second
 brain. You read Indian clinical paperwork — typed and handwritten — and return
 strict JSON for a downstream EHR.
+
+You are an elite Medical Informatician. You will receive messy, unstructured
+clinical text or OCR data. You MUST normalize colloquialisms, abbreviations,
+and brand names to uniform, standard medical vocabulary (for example,
+"Pipzo" -> "Piperacillin/Tazobactam" and "KFT" -> "Renal Function Test").
+Preserve verbatim source conclusions and never alter a dose, measurement, or
+clinically meaningful fact.
+
+You are an expert clinical reasoner. You must organize all extracted
+medications, labs, and procedures under the specific Diagnosis/Problem they
+are intended to manage. If a medication's purpose is unclear, place it in the
+'unlinked_data' array. Never guess wildly; rely on established medical
+guidelines.
+
+When extracting medications, act as a clinical pharmacist. If a documented
+active problem contraindicates a medication or requires a dose adjustment,
+include a concise, evidence-grounded item in `clinical_warnings` with
+medication, condition, warning, and (when supported) dose_adjustment. Do not
+invent contraindications or patient conditions. If the source states or
+strongly indicates a medication side effect (for example, "developed rash from
+penicillin"), extract that reaction as a distinct problem in `pomr_data`; do
+not infer an adverse reaction from a known side-effect list alone.
 
 NON-NEGOTIABLE CLINICAL RULES:
 1. STANDARDISE every medical abbreviation to its full clinical term
@@ -250,10 +309,9 @@ NON-NEGOTIABLE CLINICAL RULES:
    number. A fabricated haemoglobin is a clinical hazard.
 3. DOCUMENT DATE: extract the date the document was WRITTEN (the report's own
    date, the sample-collection date, or the top-right date on a prescription)
-   into `document_date` as ISO-8601 (YYYY-MM-DD). NEVER substitute today's
-   date — a back-dated report entered today must keep its true date. Set
-   `is_date_assumed: true` if the date had to be inferred from context.
-4. CENSUS INFERENCE: if the page carries a bed/ward number but no patient
+   into `encounterDetails.date` as ISO-8601 (YYYY-MM-DD). NEVER substitute
+   today's date — a back-dated report entered today must keep its true date.
+4. CENSUS INFERENCE: if the source carries a bed/ward number but no patient
    name, cross-reference the appended active census JSON and output the matched
    id in `inferred_patient_id`. If the bed is missing or ambiguous, emit null —
    never guess a patient.
@@ -262,19 +320,44 @@ NON-NEGOTIABLE CLINICAL RULES:
    `is_abnormal` only when the report itself flags it.
 6. Keep `clinical_summary` to ONE sentence.
 
-${includeImage
-        ? 'You are given a clinical document photo together with the raw on-device OCR\ntranscript of the same page.'
-        : 'You are given the raw on-device OCR transcript of a clinical document. No\nimage is attached: the transcript is the full page, so rely on it exclusively.'}
-The transcript is noisy: it may miss table cells, swap digits, or drop headers.
+${includeImage ? 'You are given a clinical document photo together with the raw on-device OCR\ntranscript of the same page.' : 'You are given raw, unstructured clinical text pasted by the clinician or\nrecognized by OCR. No image is attached: rely on this text exclusively.'}
+The source text may be noisy: it may miss table cells, swap digits, or drop headers.
 
 $censusBlock
+
+$practicePatterns
 
 
 Clean and normalise the data, then return structured JSON:
 - Repair obvious OCR damage (e.g. "H6b" -> Hb, "1 3.2" -> 13.2) but NEVER
   invent a value that is not evidenced by the image or the transcript.
-- Fill patient_identity, encounter_context, vitals, medications_ordered and
-  lab_results from whatever the page actually contains.
+- Return the universal payload using this shape:
+  `"inferredPatientDemographics": {"name": null, "age": null,
+  "gender": null, "mrn": null},
+  "encounterDetails": {"date": null, "type": "OPD",
+  "department": null, "ward_bed": null, "vitals": {"sbp": null,
+  "dbp": null, "pulse": null, "spo2": null, "temperature_c": null,
+  "respiratory_rate": null, "map": null}},
+  "pomr_data": [{"diagnosis": "Hypertension",
+  "linked_medications": [{"name": "Amlodipine", "dose": "5mg"}],
+  "linked_investigations": [{"test_name": "KFT"}],
+  "linked_procedures": [], "reasoning": "..."}],
+  "unlinked_data": {"medications": [], "investigations": [],
+  "procedures": []}`.
+  Each problem may contain multiple management items. Investigation objects
+  should include any printed `value`, `unit`, and `is_abnormal`; medication
+  objects may include `frequency`. Give concise reasoning grounded in the page
+  and established guidelines.
+- Put every medication, investigation, and procedure whose intended problem is
+  unclear into the matching array in `unlinked_data`. Do not duplicate an
+  item in linked and unlinked management. Never invent a diagnosis or link.
+- Include `clinical_warnings` as an array (empty when none); each warning has
+  `medication`, `condition`, `warning`, and optional `dose_adjustment`.
+- Do not emit the legacy flat arrays; all medications, investigations (including
+  results), and procedures belong in `pomr_data` or `unlinked_data`.
+- Populate demographics and encounter details only when present in the source.
+  Use `type` values OPD, IPD, or ER when supported by the source, otherwise
+  Clinical Note. Put vitals inside `encounterDetails.vitals`.
 - Use null / [] for anything genuinely absent. Do not guess.
 - Preserve original units. Flag a lab is_abnormal only when the source does.
 - clinical_summary must be a terse clinician-facing description of what this
@@ -293,8 +376,8 @@ CONCLUSION (do not skip this):
   "cannot be excluded"). Do not soften, summarise away or harden it.
 - If the page genuinely has no conclusion block, return "conclusion": "".
 
-Raw on-device OCR transcript:
-${transcript.isEmpty ? '(OCR returned no text — rely on the image only.)' : transcript}
+Original source text (clinician-pasted text or on-device OCR transcript):
+${transcript.isEmpty ? '(No text was provided — rely on the image only.)' : transcript}
 ''';
   }
 

@@ -278,365 +278,385 @@ class _ExtractionReviewScreenState
             _ExtractionSourceBanner(source: widget.source),
             Expanded(
               child: LayoutBuilder(
-          builder: (context, constraints) {
-            final isDesktop = constraints.maxWidth >= 900;
+                builder: (context, constraints) {
+                  final isDesktop = constraints.maxWidth >= 900;
 
-            final imageViewer = Container(
-              height: isDesktop ? double.infinity : 260,
-              decoration: BoxDecoration(
-                border: Border(
-                  bottom: BorderSide(
-                    color: Theme.of(
-                      context,
-                    ).dividerColor.withValues(alpha: 0.3),
-                  ),
-                  right: isDesktop
-                      ? BorderSide(
+                  final imageViewer = Container(
+                    height: isDesktop ? double.infinity : 260,
+                    decoration: BoxDecoration(
+                      border: Border(
+                        bottom: BorderSide(
                           color: Theme.of(
                             context,
                           ).dividerColor.withValues(alpha: 0.3),
-                        )
-                      : BorderSide.none,
-                ),
-              ),
-              child: Stack(
-                children: [
-                  PhotoView(
-                    imageProvider: FileImage(File(widget.imagePath)),
-                    backgroundDecoration: BoxDecoration(
-                      color: Theme.of(
-                        context,
-                      ).colorScheme.surfaceContainerHighest,
-                    ),
-                    minScale: PhotoViewComputedScale.contained,
-                    maxScale: PhotoViewComputedScale.covered * 4.0,
-                  ),
-                  Positioned(
-                    top: 10,
-                    right: 10,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.6),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: const Text(
-                        'Pinch / Scroll to Zoom',
-                        style: TextStyle(color: Colors.white, fontSize: 11),
+                        ),
+                        right: isDesktop
+                            ? BorderSide(
+                                color: Theme.of(
+                                  context,
+                                ).dividerColor.withValues(alpha: 0.3),
+                              )
+                            : BorderSide.none,
                       ),
                     ),
-                  ),
-                ],
-              ),
-            );
-
-            final formContent = SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // 1. PATIENT LINKING & IDENTITY SECTION
-                  Text(
-                    'Patient Association',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: Theme.of(context).colorScheme.primary,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  FutureBuilder<Patient?>(
-                    future: _matchedPatient,
-                    builder: (context, matchSnapshot) {
-                      final matched = matchSnapshot.data;
-
-                      return StreamBuilder<List<Patient>>(
-                        stream: dao.watchAllPatients(),
-                        builder: (context, snapshot) {
-                          final patientsList = snapshot.data ?? const [];
-
-                          final effectiveSelectedId =
-                              _selectedPatientId ?? matched?.id;
-
-                          return DropdownButtonFormField<String?>(
-                            initialValue:
-                                patientsList.any(
-                                  (p) => p.id == effectiveSelectedId,
-                                )
-                                ? effectiveSelectedId
-                                : null,
-                            isExpanded: true,
-                            decoration: InputDecoration(
-                              labelText: 'Attach To Patient',
-                              prefixIcon: const Icon(Icons.link_outlined),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(8),
+                    child: Stack(
+                      children: [
+                        PhotoView(
+                          imageProvider: FileImage(File(widget.imagePath)),
+                          backgroundDecoration: BoxDecoration(
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.surfaceContainerHighest,
+                          ),
+                          minScale: PhotoViewComputedScale.contained,
+                          maxScale: PhotoViewComputedScale.covered * 4.0,
+                        ),
+                        Positioned(
+                          top: 10,
+                          right: 10,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withValues(alpha: 0.6),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: const Text(
+                              'Pinch / Scroll to Zoom',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 11,
                               ),
                             ),
-                            items: [
-                              const DropdownMenuItem<String?>(
-                                value: null,
-                                child: Text(
-                                  '✨ Create New Profile (Auto-Assign CR)',
-                                  style: TextStyle(fontWeight: FontWeight.bold),
-                                ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+
+                  final formContent = SingleChildScrollView(
+                    padding: const EdgeInsets.all(16),
+                    keyboardDismissBehavior:
+                        ScrollViewKeyboardDismissBehavior.onDrag,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        // 1. PATIENT LINKING & IDENTITY SECTION
+                        Text(
+                          'Patient Association',
+                          style: Theme.of(context).textTheme.titleMedium
+                              ?.copyWith(
+                                fontWeight: FontWeight.bold,
+                                color: Theme.of(context).colorScheme.primary,
                               ),
-                              ...patientsList.map(
-                                (p) => DropdownMenuItem<String?>(
-                                  value: p.id,
-                                  child: FutureBuilder<String>(
-                                    future: dao.getPatientHospitalRegNo(p.id),
-                                    builder: (context, regSnap) {
-                                      final reg = regSnap.data ?? '…';
-                                      return Text(
-                                        '${p.fullName} (CR: $reg) · ${p.gender ?? '?'}, ${DateTimeUtils.ageOn(p.dateOfBirth, DateTime.now()) ?? '--'}y',
-                                        overflow: TextOverflow.ellipsis,
-                                      );
-                                    },
+                        ),
+                        const SizedBox(height: 8),
+                        FutureBuilder<Patient?>(
+                          future: _matchedPatient,
+                          builder: (context, matchSnapshot) {
+                            final matched = matchSnapshot.data;
+
+                            return StreamBuilder<List<Patient>>(
+                              stream: dao.watchAllPatients(),
+                              builder: (context, snapshot) {
+                                final patientsList = snapshot.data ?? const [];
+
+                                final effectiveSelectedId =
+                                    _selectedPatientId ?? matched?.id;
+
+                                return DropdownButtonFormField<String?>(
+                                  initialValue:
+                                      patientsList.any(
+                                        (p) => p.id == effectiveSelectedId,
+                                      )
+                                      ? effectiveSelectedId
+                                      : null,
+                                  isExpanded: true,
+                                  decoration: InputDecoration(
+                                    labelText: 'Attach To Patient',
+                                    prefixIcon: const Icon(Icons.link_outlined),
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
                                   ),
+                                  items: [
+                                    const DropdownMenuItem<String?>(
+                                      value: null,
+                                      child: Text(
+                                        '✨ Create New Profile (Auto-Assign CR)',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ),
+                                    ...patientsList.map(
+                                      (p) => DropdownMenuItem<String?>(
+                                        value: p.id,
+                                        child: FutureBuilder<String>(
+                                          future: dao.getPatientHospitalRegNo(
+                                            p.id,
+                                          ),
+                                          builder: (context, regSnap) {
+                                            final reg = regSnap.data ?? '…';
+                                            return Text(
+                                              '${p.fullName} (CR: $reg) · ${p.gender ?? '?'}, ${DateTimeUtils.ageOn(p.dateOfBirth, DateTime.now()) ?? '--'}y',
+                                              overflow: TextOverflow.ellipsis,
+                                            );
+                                          },
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                  onChanged: (val) =>
+                                      setState(() => _selectedPatientId = val),
+                                );
+                              },
+                            );
+                          },
+                        ),
+                        const SizedBox(height: 16),
+
+                        // 2. EXTRACTED DEMOGRAPHICS
+                        Text(
+                          'Extracted Demographics',
+                          style: Theme.of(context).textTheme.titleSmall
+                              ?.copyWith(fontWeight: FontWeight.bold),
+                        ),
+                        const SizedBox(height: 8),
+                        TextField(
+                          controller: _name,
+                          decoration: _decoration(
+                            'Patient Full Name',
+                            missing: _name.text.isEmpty,
+                          ),
+                          onChanged: (_) => setState(() {}),
+                        ),
+                        const SizedBox(height: 10),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: TextField(
+                                controller: _age,
+                                keyboardType: TextInputType.number,
+                                decoration: _decoration(
+                                  'Age (Years)',
+                                  missing: _age.text.isEmpty,
+                                ),
+                                onChanged: (_) => setState(() {}),
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: TextField(
+                                controller: _gender,
+                                decoration: _decoration(
+                                  'Gender (M/F/O)',
+                                  missing: _gender.text.isEmpty,
+                                ),
+                                onChanged: (_) => setState(() {}),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        TextField(
+                          controller: _registration,
+                          decoration: _decoration(
+                            'Hospital Reg Number (CR / OPD No.)',
+                            missing: _registration.text.isEmpty,
+                          ),
+                          onChanged: (_) => setState(() {}),
+                        ),
+                        const SizedBox(height: 20),
+
+                        // 3. ENCOUNTER CONTEXT & VITALS
+                        Text(
+                          'Encounter Context & Vitals',
+                          style: Theme.of(context).textTheme.titleSmall
+                              ?.copyWith(fontWeight: FontWeight.bold),
+                        ),
+                        const SizedBox(height: 8),
+                        TextField(
+                          controller: _documentType,
+                          decoration: _decoration(
+                            'Document Type / Classification',
+                            missing: _documentType.text.isEmpty,
+                          ),
+                          onChanged: (_) => setState(() {}),
+                        ),
+                        const SizedBox(height: 10),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _numberField(
+                                'Systolic BP',
+                                _sbp,
+                                suffix: 'mmHg',
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: _numberField(
+                                'Diastolic BP',
+                                _dbp,
+                                suffix: 'mmHg',
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: _numberField(
+                                'Pulse',
+                                _pulse,
+                                suffix: 'bpm',
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _numberField('SpO2', _spo2, suffix: '%'),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: _numberField(
+                                'Temp (°C)',
+                                _temp,
+                                decimal: true,
+                                suffix: '°C',
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 20),
+
+                        // 4. EXTRACTED LAB RESULTS
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              'Extracted Lab Panels (${_labs.length})',
+                              style: Theme.of(context).textTheme.titleSmall
+                                  ?.copyWith(fontWeight: FontWeight.bold),
+                            ),
+                            TextButton.icon(
+                              icon: const Icon(Icons.add, size: 16),
+                              label: const Text('Add Test'),
+                              onPressed: () => setState(
+                                () => _labs.add(_EditableLab.empty()),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        if (_labs.isEmpty)
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.surfaceContainerHighest,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Text(
+                              'No laboratory tests parsed from this page.',
+                              style: TextStyle(
+                                color: Colors.grey,
+                                fontSize: 13,
+                              ),
+                            ),
+                          )
+                        else
+                          ..._labs.asMap().entries.map(
+                            (entry) => _labEditor(entry.key, entry.value),
+                          ),
+                        const SizedBox(height: 20),
+
+                        // 5. EXTRACTED MEDICATIONS
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              'Medications Prescribed (${_medications.length})',
+                              style: Theme.of(context).textTheme.titleSmall
+                                  ?.copyWith(fontWeight: FontWeight.bold),
+                            ),
+                            TextButton.icon(
+                              icon: const Icon(Icons.add, size: 16),
+                              label: const Text('Add Drug'),
+                              onPressed: () => setState(
+                                () => _medications.add(
+                                  _EditableMedication.empty(),
                                 ),
                               ),
-                            ],
-                            onChanged: (val) =>
-                                setState(() => _selectedPatientId = val),
-                          );
-                        },
-                      );
-                    },
-                  ),
-                  const SizedBox(height: 16),
-
-                  // 2. EXTRACTED DEMOGRAPHICS
-                  Text(
-                    'Extracted Demographics',
-                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  TextField(
-                    controller: _name,
-                    decoration: _decoration(
-                      'Patient Full Name',
-                      missing: _name.text.isEmpty,
-                    ),
-                    onChanged: (_) => setState(() {}),
-                  ),
-                  const SizedBox(height: 10),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller: _age,
-                          keyboardType: TextInputType.number,
-                          decoration: _decoration(
-                            'Age (Years)',
-                            missing: _age.text.isEmpty,
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        if (_medications.isEmpty)
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.surfaceContainerHighest,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Text(
+                              'No medications detected on this document.',
+                              style: TextStyle(
+                                color: Colors.grey,
+                                fontSize: 13,
+                              ),
+                            ),
+                          )
+                        else
+                          ..._medications.asMap().entries.map(
+                            (entry) =>
+                                _medicationEditor(entry.key, entry.value),
                           ),
-                          onChanged: (_) => setState(() {}),
+                        const SizedBox(height: 20),
+
+                        // 6. CLINICAL SUMMARY
+                        Text(
+                          'ClinCom Summary & Findings',
+                          style: Theme.of(context).textTheme.titleSmall
+                              ?.copyWith(fontWeight: FontWeight.bold),
                         ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: TextField(
-                          controller: _gender,
+                        const SizedBox(height: 8),
+                        TextField(
+                          controller: _summary,
+                          minLines: 3,
+                          maxLines: 6,
                           decoration: _decoration(
-                            'Gender (M/F/O)',
-                            missing: _gender.text.isEmpty,
+                            'Narrative Summary',
+                            missing: _summary.text.isEmpty,
                           ),
-                          onChanged: (_) => setState(() {}),
                         ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  TextField(
-                    controller: _registration,
-                    decoration: _decoration(
-                      'Hospital Reg Number (CR / OPD No.)',
-                      missing: _registration.text.isEmpty,
+                        const SizedBox(height: 40),
+                      ],
                     ),
-                    onChanged: (_) => setState(() {}),
-                  ),
-                  const SizedBox(height: 20),
+                  );
 
-                  // 3. ENCOUNTER CONTEXT & VITALS
-                  Text(
-                    'Encounter Context & Vitals',
-                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  TextField(
-                    controller: _documentType,
-                    decoration: _decoration(
-                      'Document Type / Classification',
-                      missing: _documentType.text.isEmpty,
-                    ),
-                    onChanged: (_) => setState(() {}),
-                  ),
-                  const SizedBox(height: 10),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _numberField(
-                          'Systolic BP',
-                          _sbp,
-                          suffix: 'mmHg',
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: _numberField(
-                          'Diastolic BP',
-                          _dbp,
-                          suffix: 'mmHg',
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: _numberField('Pulse', _pulse, suffix: 'bpm'),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  Row(
-                    children: [
-                      Expanded(child: _numberField('SpO2', _spo2, suffix: '%')),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: _numberField(
-                          'Temp (°C)',
-                          _temp,
-                          decimal: true,
-                          suffix: '°C',
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
-
-                  // 4. EXTRACTED LAB RESULTS
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'Extracted Lab Panels (${_labs.length})',
-                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      TextButton.icon(
-                        icon: const Icon(Icons.add, size: 16),
-                        label: const Text('Add Test'),
-                        onPressed: () =>
-                            setState(() => _labs.add(_EditableLab.empty())),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 6),
-                  if (_labs.isEmpty)
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Theme.of(
-                          context,
-                        ).colorScheme.surfaceContainerHighest,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: const Text(
-                        'No laboratory tests parsed from this page.',
-                        style: TextStyle(color: Colors.grey, fontSize: 13),
-                      ),
-                    )
-                  else
-                    ..._labs.asMap().entries.map(
-                      (entry) => _labEditor(entry.key, entry.value),
-                    ),
-                  const SizedBox(height: 20),
-
-                  // 5. EXTRACTED MEDICATIONS
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'Medications Prescribed (${_medications.length})',
-                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      TextButton.icon(
-                        icon: const Icon(Icons.add, size: 16),
-                        label: const Text('Add Drug'),
-                        onPressed: () => setState(
-                          () => _medications.add(_EditableMedication.empty()),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 6),
-                  if (_medications.isEmpty)
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Theme.of(
-                          context,
-                        ).colorScheme.surfaceContainerHighest,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: const Text(
-                        'No medications detected on this document.',
-                        style: TextStyle(color: Colors.grey, fontSize: 13),
-                      ),
-                    )
-                  else
-                    ..._medications.asMap().entries.map(
-                      (entry) => _medicationEditor(entry.key, entry.value),
-                    ),
-                  const SizedBox(height: 20),
-
-                  // 6. CLINICAL SUMMARY
-                  Text(
-                    'ClinCom Summary & Findings',
-                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  TextField(
-                    controller: _summary,
-                    minLines: 3,
-                    maxLines: 6,
-                    decoration: _decoration(
-                      'Narrative Summary',
-                      missing: _summary.text.isEmpty,
-                    ),
-                  ),
-                  const SizedBox(height: 40),
-                ],
-              ),
-            );
-
-            if (isDesktop) {
-              return Row(
-                children: [
-                  Expanded(flex: 5, child: imageViewer),
-                  Expanded(flex: 6, child: formContent),
-                ],
-              );
-            } else {
-              return Column(
-                children: [
-                  imageViewer,
-                  Expanded(child: formContent),
-                ],
-              );
-            }
-          },
+                  if (isDesktop) {
+                    return Row(
+                      children: [
+                        Expanded(flex: 5, child: imageViewer),
+                        Expanded(flex: 6, child: formContent),
+                      ],
+                    );
+                  } else {
+                    return Column(
+                      children: [
+                        imageViewer,
+                        Expanded(child: formContent),
+                      ],
+                    );
+                  }
+                },
               ),
             ),
           ],
@@ -818,26 +838,33 @@ class _ExtractionSourceBanner extends StatelessWidget {
   Widget build(BuildContext context) {
     final (label, icon, bg, fg, border) = switch (source) {
       ExtractionSource.local => (
-          'Locally Extracted (Free) — on-device OCR matched labs/demographics.',
-          Icons.offline_bolt_outlined,
-          Colors.green.shade50,
-          Colors.green.shade900,
-          Colors.green.shade700,
-        ),
+        'Locally Extracted (Free) — on-device OCR matched labs/demographics.',
+        Icons.offline_bolt_outlined,
+        Colors.green.shade50,
+        Colors.green.shade900,
+        Colors.green.shade700,
+      ),
       ExtractionSource.ai => (
-          'ClinCom extracted this — escalated after the on-device read was insufficient.',
-          Icons.auto_awesome_outlined,
-          Colors.purple.shade50,
-          Colors.purple.shade900,
-          Colors.purple.shade700,
-        ),
+        'ClinCom extracted this — escalated after the on-device read was insufficient.',
+        Icons.auto_awesome_outlined,
+        Colors.purple.shade50,
+        Colors.purple.shade900,
+        Colors.purple.shade700,
+      ),
+      ExtractionSource.text => (
+        'ClinCom processed pasted text directly without OCR.',
+        Icons.content_paste_go_outlined,
+        Colors.blue.shade50,
+        Colors.blue.shade900,
+        Colors.blue.shade700,
+      ),
       ExtractionSource.unknown => (
-          'Extraction source unknown — verify fields before saving.',
-          Icons.help_outline,
-          Colors.grey.shade200,
-          Colors.grey.shade800,
-          Colors.grey.shade500,
-        ),
+        'Extraction source unknown — verify fields before saving.',
+        Icons.help_outline,
+        Colors.grey.shade200,
+        Colors.grey.shade800,
+        Colors.grey.shade500,
+      ),
     };
     return Container(
       width: double.infinity,
