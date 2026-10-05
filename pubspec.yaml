@@ -48,6 +48,10 @@ dependencies:
   # `v1.1.0-beta.1` correctly sorts BELOW `1.1.0`.
   pub_semver: ^2.2.0
   open_filex: ^4.7.0
+    # SHA-256 content hashing of scanned documents, so re-photographing the same
+  # physical page can never create a second record (Sprint 17).
+  crypto: ^3.0.6
+
   flutter_image_compress: ^2.5.1
   package_info_plus: ^9.0.1
   # DatabaseBackupService opens a *candidate* backup on its own connection to

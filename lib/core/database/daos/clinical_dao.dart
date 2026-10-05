@@ -1,10 +1,11 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/foundation.dart';
-
 import 'package:drift/drift.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../models/ai_extraction_result.dart';
+import '../../utils/document_image_hasher.dart';
 import '../../../features/billing/services/clinical_coding_service.dart';
 import '../../services/extraction_pipeline_service.dart';
 import '../local_database.dart';
@@ -229,7 +230,7 @@ class ClinicalDao extends DatabaseAccessor<AppDatabase>
             orderedAt: Value(occurredAt),
             resultReceivedAt: Value(occurredAt),
             clinicalIndication: Value(
-              lab.isAbnormal ? 'AI flagged abnormal' : null,
+              lab.isAbnormal ? 'ClinCom flagged abnormal' : null,
             ),
           ),
         );
@@ -261,7 +262,7 @@ class ClinicalDao extends DatabaseAccessor<AppDatabase>
             id: Value(problemId),
             patientId: patientId,
             initialEncounterId: Value(encounterId),
-            problemName: 'AI Capture Active Finding',
+            problemName: 'ClinCom Active Finding',
             currentStatus: const Value('Active'),
             onsetDate: Value(occurredAt),
           ),
@@ -1003,7 +1004,182 @@ class ClinicalDao extends DatabaseAccessor<AppDatabase>
         .get();
   }
 
-  Future<int> countReflectionsForPatient(
+  /// Sprint 17 — SHA-256 of a file's bytes, used as the absolute dedup key.
+  ///
+  /// Computed off the **main isolate**, so it is wrapped by the caller's
+  /// isolate helper like `normalizeOcrTextOffMain`; a 10 MB scan must not
+  /// block the UI thread.
+  static Future<String?> hashFile(File file) =>
+      hashDocumentImageOrNull(file.path);
+
+  /// Finds a document previously saved from the exact same image bytes.
+  ///
+  /// Returns null when [hash] is null/empty or unknown. A null or empty hash is
+  /// treated as "unknown", never as a match: legacy rows have NULL, and
+  /// matching them against each other would falsely report every pre-Sprint-17
+  /// document as a duplicate.
+  Future<DocumentRegistry?> findDocumentByImageHash(String? hash) async {
+    if (hash == null || hash.trim().isEmpty) return null;
+    return (select(documentRegistries)..where(
+          (row) => row.imageHash.equals(hash.trim()),
+        ))
+        .getSingleOrNull();
+  }
+
+  /// Finds a document by the image path it was captured from.
+  ///
+  /// Used after a save to stamp the Sprint 17 dedup hash onto the row that was
+  /// just written.
+  Future<DocumentRegistry?> findDocumentByImagePath(String imagePath) async {
+    final path = imagePath.trim();
+    if (path.isEmpty) return null;
+    return (select(documentRegistries)
+          ..where((row) => row.imagePath.equals(path))
+          ..orderBy([(row) => OrderingTerm.desc(row.createdAt)])
+          ..limit(1))
+        .getSingleOrNull();
+  }
+
+  /// How authoritative a reading's provenance is. Higher always wins.
+  ///
+  /// A formal lab report outranks a hastily jotted ward note for the same test;
+  /// that is the whole point of Sprint 17 semantic merging.
+  @visibleForTesting
+  static int authorityRank(String? source) {
+    switch (source?.trim().toLowerCase()) {
+      case 'scanned document':
+      case 'scanned_document':
+        return 3;
+      case 'typed note':
+      case 'typed_note':
+        return 2;
+      case 'ward round note':
+      case 'ward_round_note':
+        return 1;
+      default:
+        // Unknown / legacy rows are least authoritative so a real reading can
+        // always supersede them.
+        return 0;
+    }
+  }
+
+  /// Sprint 17 — semantic upsert for a single investigation result.
+  ///
+  /// A ward round note at 08:00 and the formal lab report for the same test at
+  /// 14:00 must NOT become two rows the clinician has to reconcile. Instead the
+  /// better-sourced reading wins:
+  ///
+  ///  * Same `(patient_id, test_name)` within [window] and the incoming source
+  ///    is at least as authoritative → UPDATE the existing row in place.
+  ///  * Incoming source is weaker (a note arriving after a lab report) → keep
+  ///    the existing row untouched and return it.
+  ///  * No candidate in the window → INSERT as a new result.
+  ///
+  /// Returns the row that now holds the value, and whether it was updated in
+  /// place (so callers can enqueue the right sync operation).
+  Future<({InvestigationResult result, bool merged})> upsertInvestigationResult({
+    required String patientId,
+    required String testName,
+    required DateTime resultDate,
+    String? orderId,
+    double? numericValue,
+    String? textValue,
+    String? unit,
+    String? referenceRange,
+    bool? isAbnormal,
+    String? sourceAuthority,
+    Duration window = const Duration(hours: 12),
+  }) async {
+    final test = testName.trim();
+    final authority = sourceAuthority?.trim();
+
+    return transaction(() async {
+      // Candidate: same patient + same test, within the merge window either side
+      // of the incoming date. Lower-cased comparison so "Haemoglobin" from a
+      // lab report still merges with "H6b" captured from a ward note — ClinCom
+      // standardises terminology, the data must not fork on capitalisation.
+      final from = resultDate.subtract(window);
+      final to = resultDate.add(window);
+      final candidate =
+          await (select(investigationResults)
+                ..where(
+                  (row) =>
+                      row.patientId.equals(patientId) &
+                      row.testName.lower().equals(test.toLowerCase()) &
+                      row.resultDate.isBiggerOrEqualValue(from) &
+                      row.resultDate.isSmallerOrEqualValue(to),
+                )
+                ..orderBy([(row) => OrderingTerm.desc(row.resultDate)])
+                ..limit(1))
+              .getSingleOrNull();
+
+      if (candidate != null) {
+        final incoming = authorityRank(authority);
+        final existing = authorityRank(candidate.sourceAuthority);
+        if (incoming >= existing) {
+          await (update(
+            investigationResults,
+          )..where((row) => row.id.equals(candidate.id))).write(
+            InvestigationResultsCompanion(
+              numericValue: Value(numericValue),
+              textValue: Value(textValue),
+              unit: Value(unit),
+              referenceRange: Value(referenceRange),
+              isAbnormal: Value(isAbnormal ?? candidate.isAbnormal),
+              sourceAuthority: Value(authority),
+              // Keep the EARLIEST of the two dates: that is the true clinical
+              // time of the episode, and re-dating it would move the trend line.
+              resultDate: Value(
+                candidate.resultDate.isBefore(resultDate)
+                    ? candidate.resultDate
+                    : resultDate,
+              ),
+              updatedAt: Value(DateTime.now().toUtc()),
+            ),
+          );
+          final merged = await (select(
+            investigationResults,
+          )..where((row) => row.id.equals(candidate.id))).getSingle();
+          return (result: merged, merged: true);
+        }
+        // Incoming is weaker (a note arriving after the lab report): keep the
+        // authoritative value untouched.
+        return (result: candidate, merged: false);
+      }
+
+      final id = _ids.v4();
+      await into(investigationResults).insert(
+        InvestigationResultsCompanion.insert(
+          id: Value(id),
+          orderId: Value(orderId),
+          patientId: patientId,
+          testName: test,
+          numericValue: Value(numericValue),
+          textValue: Value(textValue),
+          unit: Value(unit),
+          referenceRange: Value(referenceRange),
+          isAbnormal: Value(isAbnormal ?? false),
+          sourceAuthority: Value(authority),
+          resultDate: Value(resultDate),
+        ),
+      );
+      final created = await (select(
+        investigationResults,
+      )..where((row) => row.id.equals(id))).getSingle();
+      return (result: created, merged: false);
+    });
+  }
+
+  /// Reads the image bytes of an image document, for retention pruning.
+  Future<void> attachImageHash(String documentId, String hash) async {
+    await (update(
+      documentRegistries,
+    )..where((row) => row.id.equals(documentId))).write(
+      DocumentRegistriesCompanion(imageHash: Value(hash.trim())),
+    );
+  }
+
+Future<int> countReflectionsForPatient(
     String patientId, {
     String? ownerId,
   }) async {
@@ -2689,3 +2865,5 @@ class TimelineEvent {
   /// Set for [TimelineEventKind.document] so the card can open the scan.
   final String? imagePath;
 }
+
+

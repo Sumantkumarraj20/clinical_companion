@@ -37,36 +37,52 @@ Map<String, dynamic> _$AiVitalsToJson(_AiVitals instance) => <String, dynamic>{
   'spo2': instance.spo2,
 };
 
-_AiExtractionResult _$AiExtractionResultFromJson(Map<String, dynamic> json) =>
-    _AiExtractionResult(
-      patientIdentity: json['patient_identity'] == null
-          ? const PatientIdentity()
-          : PatientIdentity.fromJson(
-              json['patient_identity'] as Map<String, dynamic>,
-            ),
-      encounterContext: json['encounter_context'] == null
-          ? const EncounterContext()
-          : EncounterContext.fromJson(
-              json['encounter_context'] as Map<String, dynamic>,
-            ),
-      vitals: json['vitals'] == null
-          ? const AiVitals()
-          : AiVitals.fromJson(json['vitals'] as Map<String, dynamic>),
-      medicationsOrdered:
-          (json['medications_ordered'] as List<dynamic>?)
-              ?.map(
-                (e) => OrderedMedication.fromJson(e as Map<String, dynamic>),
-              )
-              .toList() ??
-          const <OrderedMedication>[],
-      labResults:
-          (json['lab_results'] as List<dynamic>?)
-              ?.map((e) => AiLabResult.fromJson(e as Map<String, dynamic>))
-              .toList() ??
-          const <AiLabResult>[],
-      clinicalSummary: json['clinicalSummary'] as String? ?? '',
-      conclusion: json['conclusion'] as String? ?? '',
-    );
+_AiExtractionResult _$AiExtractionResultFromJson(
+  Map<String, dynamic> json,
+) => _AiExtractionResult(
+  patientIdentity: json['patient_identity'] == null
+      ? const PatientIdentity()
+      : PatientIdentity.fromJson(
+          json['patient_identity'] as Map<String, dynamic>,
+        ),
+  encounterContext: json['encounter_context'] == null
+      ? const EncounterContext()
+      : EncounterContext.fromJson(
+          json['encounter_context'] as Map<String, dynamic>,
+        ),
+  vitals: json['vitals'] == null
+      ? const AiVitals()
+      : AiVitals.fromJson(json['vitals'] as Map<String, dynamic>),
+  medicationsOrdered:
+      (json['medications_ordered'] as List<dynamic>?)
+          ?.map((e) => OrderedMedication.fromJson(e as Map<String, dynamic>))
+          .toList() ??
+      const <OrderedMedication>[],
+  labResults:
+      (json['lab_results'] as List<dynamic>?)
+          ?.map((e) => AiLabResult.fromJson(e as Map<String, dynamic>))
+          .toList() ??
+      const <AiLabResult>[],
+  clinicalSummary: json['clinicalSummary'] as String? ?? '',
+  conclusion: json['conclusion'] as String? ?? '',
+  documentDate: json['document_date'] as String? ?? '',
+  isDateAssumed: json['is_date_assumed'] as bool? ?? false,
+  inferredPatientId: json['inferred_patient_id'] as String?,
+  chiefComplaints:
+      (json['chief_complaints'] as List<dynamic>?)
+          ?.map((e) => e as String)
+          .toList() ??
+      const <String>[],
+  diagnoses:
+      (json['diagnoses'] as List<dynamic>?)?.map((e) => e as String).toList() ??
+      const <String>[],
+  plannedInvestigations:
+      (json['planned_investigations'] as List<dynamic>?)
+          ?.map((e) => e as String)
+          .toList() ??
+      const <String>[],
+  sourceAuthority: json['source_authority'] as String?,
+);
 
 Map<String, dynamic> _$AiExtractionResultToJson(_AiExtractionResult instance) =>
     <String, dynamic>{
@@ -77,6 +93,13 @@ Map<String, dynamic> _$AiExtractionResultToJson(_AiExtractionResult instance) =>
       'lab_results': instance.labResults,
       'clinicalSummary': instance.clinicalSummary,
       'conclusion': instance.conclusion,
+      'document_date': instance.documentDate,
+      'is_date_assumed': instance.isDateAssumed,
+      'inferred_patient_id': instance.inferredPatientId,
+      'chief_complaints': instance.chiefComplaints,
+      'diagnoses': instance.diagnoses,
+      'planned_investigations': instance.plannedInvestigations,
+      'source_authority': instance.sourceAuthority,
     };
 
 _PatientIdentity _$PatientIdentityFromJson(Map<String, dynamic> json) =>

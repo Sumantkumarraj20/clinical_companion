@@ -39,7 +39,11 @@ class _FakePipeline extends ExtractionPipelineService {
   AiExtractionResult? parseLocalText(String rawText) => localResult;
 
   @override
-  Future<PipelineExtraction> refineWithAi(File image, String rawText) async {
+  Future<PipelineExtraction> refineWithAi(
+    File image,
+    String rawText, {
+    String? activeCensusJson,
+  }) async {
     refineCalls++;
     if (failAi) {
       throw const DocumentAiException(

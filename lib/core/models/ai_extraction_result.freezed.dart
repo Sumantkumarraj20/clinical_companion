@@ -560,7 +560,16 @@ mixin _$AiExtractionResult {
 /// it is the single most damaging way OCR can truncate a report: every
 /// numeric value survives but the interpretation does not. Storing it apart
 /// also keeps it editable in review instead of being flattened into prose.
-@JsonKey(name: 'conclusion') String get conclusion;
+@JsonKey(name: 'conclusion') String get conclusion;/// The date the document was WRITTEN (ISO-8601), never today's date.
+/// ClinCom is instructed never to substitute the current date, so a
+/// back-dated report keeps its true clinical date.
+@JsonKey(name: 'document_date') String get documentDate;/// True when [documentDate] was inferred rather than read off the page.
+@JsonKey(name: 'is_date_assumed') bool get isDateAssumed;/// Patient resolved from a bed/ward number via the appended active census
+/// JSON. Null when the page carried no bed number or the bed was ambiguous
+/// — ClinCom is explicitly forbidden from guessing a patient.
+@JsonKey(name: 'inferred_patient_id') String? get inferredPatientId;@JsonKey(name: 'chief_complaints') List<String> get chiefComplaints;@JsonKey(name: 'diagnoses') List<String> get diagnoses;@JsonKey(name: 'planned_investigations') List<String> get plannedInvestigations;/// Provenance of this reading. Drives Sprint 17 semantic merging: a
+/// formal 'Scanned Document' report outranks a 'Ward Round Note'.
+@JsonKey(name: 'source_authority') String? get sourceAuthority;
 /// Create a copy of AiExtractionResult
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -573,16 +582,16 @@ $AiExtractionResultCopyWith<AiExtractionResult> get copyWith => _$AiExtractionRe
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is AiExtractionResult&&(identical(other.patientIdentity, patientIdentity) || other.patientIdentity == patientIdentity)&&(identical(other.encounterContext, encounterContext) || other.encounterContext == encounterContext)&&(identical(other.vitals, vitals) || other.vitals == vitals)&&const DeepCollectionEquality().equals(other.medicationsOrdered, medicationsOrdered)&&const DeepCollectionEquality().equals(other.labResults, labResults)&&(identical(other.clinicalSummary, clinicalSummary) || other.clinicalSummary == clinicalSummary)&&(identical(other.conclusion, conclusion) || other.conclusion == conclusion));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is AiExtractionResult&&(identical(other.patientIdentity, patientIdentity) || other.patientIdentity == patientIdentity)&&(identical(other.encounterContext, encounterContext) || other.encounterContext == encounterContext)&&(identical(other.vitals, vitals) || other.vitals == vitals)&&const DeepCollectionEquality().equals(other.medicationsOrdered, medicationsOrdered)&&const DeepCollectionEquality().equals(other.labResults, labResults)&&(identical(other.clinicalSummary, clinicalSummary) || other.clinicalSummary == clinicalSummary)&&(identical(other.conclusion, conclusion) || other.conclusion == conclusion)&&(identical(other.documentDate, documentDate) || other.documentDate == documentDate)&&(identical(other.isDateAssumed, isDateAssumed) || other.isDateAssumed == isDateAssumed)&&(identical(other.inferredPatientId, inferredPatientId) || other.inferredPatientId == inferredPatientId)&&const DeepCollectionEquality().equals(other.chiefComplaints, chiefComplaints)&&const DeepCollectionEquality().equals(other.diagnoses, diagnoses)&&const DeepCollectionEquality().equals(other.plannedInvestigations, plannedInvestigations)&&(identical(other.sourceAuthority, sourceAuthority) || other.sourceAuthority == sourceAuthority));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,patientIdentity,encounterContext,vitals,const DeepCollectionEquality().hash(medicationsOrdered),const DeepCollectionEquality().hash(labResults),clinicalSummary,conclusion);
+int get hashCode => Object.hash(runtimeType,patientIdentity,encounterContext,vitals,const DeepCollectionEquality().hash(medicationsOrdered),const DeepCollectionEquality().hash(labResults),clinicalSummary,conclusion,documentDate,isDateAssumed,inferredPatientId,const DeepCollectionEquality().hash(chiefComplaints),const DeepCollectionEquality().hash(diagnoses),const DeepCollectionEquality().hash(plannedInvestigations),sourceAuthority);
 
 @override
 String toString() {
-  return 'AiExtractionResult(patientIdentity: $patientIdentity, encounterContext: $encounterContext, vitals: $vitals, medicationsOrdered: $medicationsOrdered, labResults: $labResults, clinicalSummary: $clinicalSummary, conclusion: $conclusion)';
+  return 'AiExtractionResult(patientIdentity: $patientIdentity, encounterContext: $encounterContext, vitals: $vitals, medicationsOrdered: $medicationsOrdered, labResults: $labResults, clinicalSummary: $clinicalSummary, conclusion: $conclusion, documentDate: $documentDate, isDateAssumed: $isDateAssumed, inferredPatientId: $inferredPatientId, chiefComplaints: $chiefComplaints, diagnoses: $diagnoses, plannedInvestigations: $plannedInvestigations, sourceAuthority: $sourceAuthority)';
 }
 
 
@@ -593,7 +602,7 @@ abstract mixin class $AiExtractionResultCopyWith<$Res>  {
   factory $AiExtractionResultCopyWith(AiExtractionResult value, $Res Function(AiExtractionResult) _then) = _$AiExtractionResultCopyWithImpl;
 @useResult
 $Res call({
-@JsonKey(name: 'patient_identity') PatientIdentity patientIdentity,@JsonKey(name: 'encounter_context') EncounterContext encounterContext, AiVitals vitals,@JsonKey(name: 'medications_ordered') List<OrderedMedication> medicationsOrdered,@JsonKey(name: 'lab_results') List<AiLabResult> labResults, String clinicalSummary,@JsonKey(name: 'conclusion') String conclusion
+@JsonKey(name: 'patient_identity') PatientIdentity patientIdentity,@JsonKey(name: 'encounter_context') EncounterContext encounterContext, AiVitals vitals,@JsonKey(name: 'medications_ordered') List<OrderedMedication> medicationsOrdered,@JsonKey(name: 'lab_results') List<AiLabResult> labResults, String clinicalSummary,@JsonKey(name: 'conclusion') String conclusion,@JsonKey(name: 'document_date') String documentDate,@JsonKey(name: 'is_date_assumed') bool isDateAssumed,@JsonKey(name: 'inferred_patient_id') String? inferredPatientId,@JsonKey(name: 'chief_complaints') List<String> chiefComplaints,@JsonKey(name: 'diagnoses') List<String> diagnoses,@JsonKey(name: 'planned_investigations') List<String> plannedInvestigations,@JsonKey(name: 'source_authority') String? sourceAuthority
 });
 
 
@@ -610,7 +619,7 @@ class _$AiExtractionResultCopyWithImpl<$Res>
 
 /// Create a copy of AiExtractionResult
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? patientIdentity = null,Object? encounterContext = null,Object? vitals = null,Object? medicationsOrdered = null,Object? labResults = null,Object? clinicalSummary = null,Object? conclusion = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? patientIdentity = null,Object? encounterContext = null,Object? vitals = null,Object? medicationsOrdered = null,Object? labResults = null,Object? clinicalSummary = null,Object? conclusion = null,Object? documentDate = null,Object? isDateAssumed = null,Object? inferredPatientId = freezed,Object? chiefComplaints = null,Object? diagnoses = null,Object? plannedInvestigations = null,Object? sourceAuthority = freezed,}) {
   return _then(AiExtractionResult(
 patientIdentity: null == patientIdentity ? _self.patientIdentity : patientIdentity // ignore: cast_nullable_to_non_nullable
 as PatientIdentity,encounterContext: null == encounterContext ? _self.encounterContext : encounterContext // ignore: cast_nullable_to_non_nullable
@@ -619,7 +628,14 @@ as AiVitals,medicationsOrdered: null == medicationsOrdered ? _self.medicationsOr
 as List<OrderedMedication>,labResults: null == labResults ? _self.labResults : labResults // ignore: cast_nullable_to_non_nullable
 as List<AiLabResult>,clinicalSummary: null == clinicalSummary ? _self.clinicalSummary : clinicalSummary // ignore: cast_nullable_to_non_nullable
 as String,conclusion: null == conclusion ? _self.conclusion : conclusion // ignore: cast_nullable_to_non_nullable
-as String,
+as String,documentDate: null == documentDate ? _self.documentDate : documentDate // ignore: cast_nullable_to_non_nullable
+as String,isDateAssumed: null == isDateAssumed ? _self.isDateAssumed : isDateAssumed // ignore: cast_nullable_to_non_nullable
+as bool,inferredPatientId: freezed == inferredPatientId ? _self.inferredPatientId : inferredPatientId // ignore: cast_nullable_to_non_nullable
+as String?,chiefComplaints: null == chiefComplaints ? _self.chiefComplaints : chiefComplaints // ignore: cast_nullable_to_non_nullable
+as List<String>,diagnoses: null == diagnoses ? _self.diagnoses : diagnoses // ignore: cast_nullable_to_non_nullable
+as List<String>,plannedInvestigations: null == plannedInvestigations ? _self.plannedInvestigations : plannedInvestigations // ignore: cast_nullable_to_non_nullable
+as List<String>,sourceAuthority: freezed == sourceAuthority ? _self.sourceAuthority : sourceAuthority // ignore: cast_nullable_to_non_nullable
+as String?,
   ));
 }
 /// Create a copy of AiExtractionResult
@@ -728,10 +744,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function(@JsonKey(name: 'patient_identity')  PatientIdentity patientIdentity, @JsonKey(name: 'encounter_context')  EncounterContext encounterContext,  AiVitals vitals, @JsonKey(name: 'medications_ordered')  List<OrderedMedication> medicationsOrdered, @JsonKey(name: 'lab_results')  List<AiLabResult> labResults,  String clinicalSummary, @JsonKey(name: 'conclusion')  String conclusion)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function(@JsonKey(name: 'patient_identity')  PatientIdentity patientIdentity, @JsonKey(name: 'encounter_context')  EncounterContext encounterContext,  AiVitals vitals, @JsonKey(name: 'medications_ordered')  List<OrderedMedication> medicationsOrdered, @JsonKey(name: 'lab_results')  List<AiLabResult> labResults,  String clinicalSummary, @JsonKey(name: 'conclusion')  String conclusion, @JsonKey(name: 'document_date')  String documentDate, @JsonKey(name: 'is_date_assumed')  bool isDateAssumed, @JsonKey(name: 'inferred_patient_id')  String? inferredPatientId, @JsonKey(name: 'chief_complaints')  List<String> chiefComplaints, @JsonKey(name: 'diagnoses')  List<String> diagnoses, @JsonKey(name: 'planned_investigations')  List<String> plannedInvestigations, @JsonKey(name: 'source_authority')  String? sourceAuthority)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _AiExtractionResult() when $default != null:
-return $default(_that.patientIdentity,_that.encounterContext,_that.vitals,_that.medicationsOrdered,_that.labResults,_that.clinicalSummary,_that.conclusion);case _:
+return $default(_that.patientIdentity,_that.encounterContext,_that.vitals,_that.medicationsOrdered,_that.labResults,_that.clinicalSummary,_that.conclusion,_that.documentDate,_that.isDateAssumed,_that.inferredPatientId,_that.chiefComplaints,_that.diagnoses,_that.plannedInvestigations,_that.sourceAuthority);case _:
   return orElse();
 
 }
@@ -749,10 +765,10 @@ return $default(_that.patientIdentity,_that.encounterContext,_that.vitals,_that.
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function(@JsonKey(name: 'patient_identity')  PatientIdentity patientIdentity, @JsonKey(name: 'encounter_context')  EncounterContext encounterContext,  AiVitals vitals, @JsonKey(name: 'medications_ordered')  List<OrderedMedication> medicationsOrdered, @JsonKey(name: 'lab_results')  List<AiLabResult> labResults,  String clinicalSummary, @JsonKey(name: 'conclusion')  String conclusion)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function(@JsonKey(name: 'patient_identity')  PatientIdentity patientIdentity, @JsonKey(name: 'encounter_context')  EncounterContext encounterContext,  AiVitals vitals, @JsonKey(name: 'medications_ordered')  List<OrderedMedication> medicationsOrdered, @JsonKey(name: 'lab_results')  List<AiLabResult> labResults,  String clinicalSummary, @JsonKey(name: 'conclusion')  String conclusion, @JsonKey(name: 'document_date')  String documentDate, @JsonKey(name: 'is_date_assumed')  bool isDateAssumed, @JsonKey(name: 'inferred_patient_id')  String? inferredPatientId, @JsonKey(name: 'chief_complaints')  List<String> chiefComplaints, @JsonKey(name: 'diagnoses')  List<String> diagnoses, @JsonKey(name: 'planned_investigations')  List<String> plannedInvestigations, @JsonKey(name: 'source_authority')  String? sourceAuthority)  $default,) {final _that = this;
 switch (_that) {
 case _AiExtractionResult():
-return $default(_that.patientIdentity,_that.encounterContext,_that.vitals,_that.medicationsOrdered,_that.labResults,_that.clinicalSummary,_that.conclusion);}
+return $default(_that.patientIdentity,_that.encounterContext,_that.vitals,_that.medicationsOrdered,_that.labResults,_that.clinicalSummary,_that.conclusion,_that.documentDate,_that.isDateAssumed,_that.inferredPatientId,_that.chiefComplaints,_that.diagnoses,_that.plannedInvestigations,_that.sourceAuthority);}
 }
 /// A variant of `when` that fallback to returning `null`
 ///
@@ -766,10 +782,10 @@ return $default(_that.patientIdentity,_that.encounterContext,_that.vitals,_that.
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function(@JsonKey(name: 'patient_identity')  PatientIdentity patientIdentity, @JsonKey(name: 'encounter_context')  EncounterContext encounterContext,  AiVitals vitals, @JsonKey(name: 'medications_ordered')  List<OrderedMedication> medicationsOrdered, @JsonKey(name: 'lab_results')  List<AiLabResult> labResults,  String clinicalSummary, @JsonKey(name: 'conclusion')  String conclusion)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function(@JsonKey(name: 'patient_identity')  PatientIdentity patientIdentity, @JsonKey(name: 'encounter_context')  EncounterContext encounterContext,  AiVitals vitals, @JsonKey(name: 'medications_ordered')  List<OrderedMedication> medicationsOrdered, @JsonKey(name: 'lab_results')  List<AiLabResult> labResults,  String clinicalSummary, @JsonKey(name: 'conclusion')  String conclusion, @JsonKey(name: 'document_date')  String documentDate, @JsonKey(name: 'is_date_assumed')  bool isDateAssumed, @JsonKey(name: 'inferred_patient_id')  String? inferredPatientId, @JsonKey(name: 'chief_complaints')  List<String> chiefComplaints, @JsonKey(name: 'diagnoses')  List<String> diagnoses, @JsonKey(name: 'planned_investigations')  List<String> plannedInvestigations, @JsonKey(name: 'source_authority')  String? sourceAuthority)?  $default,) {final _that = this;
 switch (_that) {
 case _AiExtractionResult() when $default != null:
-return $default(_that.patientIdentity,_that.encounterContext,_that.vitals,_that.medicationsOrdered,_that.labResults,_that.clinicalSummary,_that.conclusion);case _:
+return $default(_that.patientIdentity,_that.encounterContext,_that.vitals,_that.medicationsOrdered,_that.labResults,_that.clinicalSummary,_that.conclusion,_that.documentDate,_that.isDateAssumed,_that.inferredPatientId,_that.chiefComplaints,_that.diagnoses,_that.plannedInvestigations,_that.sourceAuthority);case _:
   return null;
 
 }
@@ -781,7 +797,7 @@ return $default(_that.patientIdentity,_that.encounterContext,_that.vitals,_that.
 @JsonSerializable()
 
 class _AiExtractionResult extends AiExtractionResult {
-  const _AiExtractionResult({@JsonKey(name: 'patient_identity') this.patientIdentity = const PatientIdentity(), @JsonKey(name: 'encounter_context') this.encounterContext = const EncounterContext(), this.vitals = const AiVitals(), @JsonKey(name: 'medications_ordered')  List<OrderedMedication> medicationsOrdered = const <OrderedMedication>[], @JsonKey(name: 'lab_results')  List<AiLabResult> labResults = const <AiLabResult>[], this.clinicalSummary = '', @JsonKey(name: 'conclusion') this.conclusion = ''}): _medicationsOrdered = medicationsOrdered,_labResults = labResults,super._();
+  const _AiExtractionResult({@JsonKey(name: 'patient_identity') this.patientIdentity = const PatientIdentity(), @JsonKey(name: 'encounter_context') this.encounterContext = const EncounterContext(), this.vitals = const AiVitals(), @JsonKey(name: 'medications_ordered')  List<OrderedMedication> medicationsOrdered = const <OrderedMedication>[], @JsonKey(name: 'lab_results')  List<AiLabResult> labResults = const <AiLabResult>[], this.clinicalSummary = '', @JsonKey(name: 'conclusion') this.conclusion = '', @JsonKey(name: 'document_date') this.documentDate = '', @JsonKey(name: 'is_date_assumed') this.isDateAssumed = false, @JsonKey(name: 'inferred_patient_id') this.inferredPatientId, @JsonKey(name: 'chief_complaints')  List<String> chiefComplaints = const <String>[], @JsonKey(name: 'diagnoses')  List<String> diagnoses = const <String>[], @JsonKey(name: 'planned_investigations')  List<String> plannedInvestigations = const <String>[], @JsonKey(name: 'source_authority') this.sourceAuthority}): _medicationsOrdered = medicationsOrdered,_labResults = labResults,_chiefComplaints = chiefComplaints,_diagnoses = diagnoses,_plannedInvestigations = plannedInvestigations,super._();
   factory _AiExtractionResult.fromJson(Map<String, dynamic> json) => _$AiExtractionResultFromJson(json);
 
 @override@JsonKey(name: 'patient_identity') final  PatientIdentity patientIdentity;
@@ -812,6 +828,40 @@ class _AiExtractionResult extends AiExtractionResult {
 /// numeric value survives but the interpretation does not. Storing it apart
 /// also keeps it editable in review instead of being flattened into prose.
 @override@JsonKey(name: 'conclusion') final  String conclusion;
+/// The date the document was WRITTEN (ISO-8601), never today's date.
+/// ClinCom is instructed never to substitute the current date, so a
+/// back-dated report keeps its true clinical date.
+@override@JsonKey(name: 'document_date') final  String documentDate;
+/// True when [documentDate] was inferred rather than read off the page.
+@override@JsonKey(name: 'is_date_assumed') final  bool isDateAssumed;
+/// Patient resolved from a bed/ward number via the appended active census
+/// JSON. Null when the page carried no bed number or the bed was ambiguous
+/// — ClinCom is explicitly forbidden from guessing a patient.
+@override@JsonKey(name: 'inferred_patient_id') final  String? inferredPatientId;
+ final  List<String> _chiefComplaints;
+@override@JsonKey(name: 'chief_complaints') List<String> get chiefComplaints {
+  if (_chiefComplaints is EqualUnmodifiableListView) return _chiefComplaints;
+  // ignore: implicit_dynamic_type
+  return EqualUnmodifiableListView(_chiefComplaints);
+}
+
+ final  List<String> _diagnoses;
+@override@JsonKey(name: 'diagnoses') List<String> get diagnoses {
+  if (_diagnoses is EqualUnmodifiableListView) return _diagnoses;
+  // ignore: implicit_dynamic_type
+  return EqualUnmodifiableListView(_diagnoses);
+}
+
+ final  List<String> _plannedInvestigations;
+@override@JsonKey(name: 'planned_investigations') List<String> get plannedInvestigations {
+  if (_plannedInvestigations is EqualUnmodifiableListView) return _plannedInvestigations;
+  // ignore: implicit_dynamic_type
+  return EqualUnmodifiableListView(_plannedInvestigations);
+}
+
+/// Provenance of this reading. Drives Sprint 17 semantic merging: a
+/// formal 'Scanned Document' report outranks a 'Ward Round Note'.
+@override@JsonKey(name: 'source_authority') final  String? sourceAuthority;
 
 /// Create a copy of AiExtractionResult
 /// with the given fields replaced by the non-null parameter values.
@@ -826,16 +876,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _AiExtractionResult&&(identical(other.patientIdentity, patientIdentity) || other.patientIdentity == patientIdentity)&&(identical(other.encounterContext, encounterContext) || other.encounterContext == encounterContext)&&(identical(other.vitals, vitals) || other.vitals == vitals)&&const DeepCollectionEquality().equals(other._medicationsOrdered, _medicationsOrdered)&&const DeepCollectionEquality().equals(other._labResults, _labResults)&&(identical(other.clinicalSummary, clinicalSummary) || other.clinicalSummary == clinicalSummary)&&(identical(other.conclusion, conclusion) || other.conclusion == conclusion));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _AiExtractionResult&&(identical(other.patientIdentity, patientIdentity) || other.patientIdentity == patientIdentity)&&(identical(other.encounterContext, encounterContext) || other.encounterContext == encounterContext)&&(identical(other.vitals, vitals) || other.vitals == vitals)&&const DeepCollectionEquality().equals(other._medicationsOrdered, _medicationsOrdered)&&const DeepCollectionEquality().equals(other._labResults, _labResults)&&(identical(other.clinicalSummary, clinicalSummary) || other.clinicalSummary == clinicalSummary)&&(identical(other.conclusion, conclusion) || other.conclusion == conclusion)&&(identical(other.documentDate, documentDate) || other.documentDate == documentDate)&&(identical(other.isDateAssumed, isDateAssumed) || other.isDateAssumed == isDateAssumed)&&(identical(other.inferredPatientId, inferredPatientId) || other.inferredPatientId == inferredPatientId)&&const DeepCollectionEquality().equals(other._chiefComplaints, _chiefComplaints)&&const DeepCollectionEquality().equals(other._diagnoses, _diagnoses)&&const DeepCollectionEquality().equals(other._plannedInvestigations, _plannedInvestigations)&&(identical(other.sourceAuthority, sourceAuthority) || other.sourceAuthority == sourceAuthority));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,patientIdentity,encounterContext,vitals,const DeepCollectionEquality().hash(_medicationsOrdered),const DeepCollectionEquality().hash(_labResults),clinicalSummary,conclusion);
+int get hashCode => Object.hash(runtimeType,patientIdentity,encounterContext,vitals,const DeepCollectionEquality().hash(_medicationsOrdered),const DeepCollectionEquality().hash(_labResults),clinicalSummary,conclusion,documentDate,isDateAssumed,inferredPatientId,const DeepCollectionEquality().hash(_chiefComplaints),const DeepCollectionEquality().hash(_diagnoses),const DeepCollectionEquality().hash(_plannedInvestigations),sourceAuthority);
 
 @override
 String toString() {
-  return 'AiExtractionResult(patientIdentity: $patientIdentity, encounterContext: $encounterContext, vitals: $vitals, medicationsOrdered: $medicationsOrdered, labResults: $labResults, clinicalSummary: $clinicalSummary, conclusion: $conclusion)';
+  return 'AiExtractionResult(patientIdentity: $patientIdentity, encounterContext: $encounterContext, vitals: $vitals, medicationsOrdered: $medicationsOrdered, labResults: $labResults, clinicalSummary: $clinicalSummary, conclusion: $conclusion, documentDate: $documentDate, isDateAssumed: $isDateAssumed, inferredPatientId: $inferredPatientId, chiefComplaints: $chiefComplaints, diagnoses: $diagnoses, plannedInvestigations: $plannedInvestigations, sourceAuthority: $sourceAuthority)';
 }
 
 
@@ -846,7 +896,7 @@ abstract mixin class _$AiExtractionResultCopyWith<$Res> implements $AiExtraction
   factory _$AiExtractionResultCopyWith(_AiExtractionResult value, $Res Function(_AiExtractionResult) _then) = __$AiExtractionResultCopyWithImpl;
 @override @useResult
 $Res call({
-@JsonKey(name: 'patient_identity') PatientIdentity patientIdentity,@JsonKey(name: 'encounter_context') EncounterContext encounterContext, AiVitals vitals,@JsonKey(name: 'medications_ordered') List<OrderedMedication> medicationsOrdered,@JsonKey(name: 'lab_results') List<AiLabResult> labResults, String clinicalSummary,@JsonKey(name: 'conclusion') String conclusion
+@JsonKey(name: 'patient_identity') PatientIdentity patientIdentity,@JsonKey(name: 'encounter_context') EncounterContext encounterContext, AiVitals vitals,@JsonKey(name: 'medications_ordered') List<OrderedMedication> medicationsOrdered,@JsonKey(name: 'lab_results') List<AiLabResult> labResults, String clinicalSummary,@JsonKey(name: 'conclusion') String conclusion,@JsonKey(name: 'document_date') String documentDate,@JsonKey(name: 'is_date_assumed') bool isDateAssumed,@JsonKey(name: 'inferred_patient_id') String? inferredPatientId,@JsonKey(name: 'chief_complaints') List<String> chiefComplaints,@JsonKey(name: 'diagnoses') List<String> diagnoses,@JsonKey(name: 'planned_investigations') List<String> plannedInvestigations,@JsonKey(name: 'source_authority') String? sourceAuthority
 });
 
 
@@ -863,7 +913,7 @@ class __$AiExtractionResultCopyWithImpl<$Res>
 
 /// Create a copy of AiExtractionResult
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? patientIdentity = null,Object? encounterContext = null,Object? vitals = null,Object? medicationsOrdered = null,Object? labResults = null,Object? clinicalSummary = null,Object? conclusion = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? patientIdentity = null,Object? encounterContext = null,Object? vitals = null,Object? medicationsOrdered = null,Object? labResults = null,Object? clinicalSummary = null,Object? conclusion = null,Object? documentDate = null,Object? isDateAssumed = null,Object? inferredPatientId = freezed,Object? chiefComplaints = null,Object? diagnoses = null,Object? plannedInvestigations = null,Object? sourceAuthority = freezed,}) {
   return _then(_AiExtractionResult(
 patientIdentity: null == patientIdentity ? _self.patientIdentity : patientIdentity // ignore: cast_nullable_to_non_nullable
 as PatientIdentity,encounterContext: null == encounterContext ? _self.encounterContext : encounterContext // ignore: cast_nullable_to_non_nullable
@@ -872,7 +922,14 @@ as AiVitals,medicationsOrdered: null == medicationsOrdered ? _self._medicationsO
 as List<OrderedMedication>,labResults: null == labResults ? _self._labResults : labResults // ignore: cast_nullable_to_non_nullable
 as List<AiLabResult>,clinicalSummary: null == clinicalSummary ? _self.clinicalSummary : clinicalSummary // ignore: cast_nullable_to_non_nullable
 as String,conclusion: null == conclusion ? _self.conclusion : conclusion // ignore: cast_nullable_to_non_nullable
-as String,
+as String,documentDate: null == documentDate ? _self.documentDate : documentDate // ignore: cast_nullable_to_non_nullable
+as String,isDateAssumed: null == isDateAssumed ? _self.isDateAssumed : isDateAssumed // ignore: cast_nullable_to_non_nullable
+as bool,inferredPatientId: freezed == inferredPatientId ? _self.inferredPatientId : inferredPatientId // ignore: cast_nullable_to_non_nullable
+as String?,chiefComplaints: null == chiefComplaints ? _self._chiefComplaints : chiefComplaints // ignore: cast_nullable_to_non_nullable
+as List<String>,diagnoses: null == diagnoses ? _self._diagnoses : diagnoses // ignore: cast_nullable_to_non_nullable
+as List<String>,plannedInvestigations: null == plannedInvestigations ? _self._plannedInvestigations : plannedInvestigations // ignore: cast_nullable_to_non_nullable
+as List<String>,sourceAuthority: freezed == sourceAuthority ? _self.sourceAuthority : sourceAuthority // ignore: cast_nullable_to_non_nullable
+as String?,
   ));
 }
 

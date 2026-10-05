@@ -52,3 +52,4 @@ assets/clinical_drugs.sqlite
 scripts/HBP 2022 Tier 2 (SHA Bihar).xlsx
 assets/clinical_drugs.sqlite*.xlsx
 assets/clinical_drugs.sqlite
+keystore_base64.txt

@@ -1,10 +1,14 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+
+import '../../../core/utils/document_image_hasher.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../../../core/database/daos/clinical_dao.dart';
 import '../../../core/database/local_database.dart';
 import '../../../core/models/ai_extraction_result.dart';
 import '../../../core/models/document_task.dart';
@@ -218,6 +222,14 @@ class _AdaptiveReviewScreenState extends ConsumerState<AdaptiveReviewScreen> {
         patientIdOverride: linkedId,
       );
 
+      // Sprint 17 — stamp the dedup key AFTER the save, and never await it.
+      //
+      // Saving the reviewed document is the clinical priority and must not be
+      // gated on hashing bytes. Hashing runs on a background isolate; if the
+      // clinician backgrounds the app first, the worst case is that this one
+      // page is not content-deduplicated next time — never a lost record.
+      unawaited(_stampImageHash(dao, task.originalFile));
+
       if (!mounted) return;
       _savedCount++;
       // Drop the reviewed page: the queue shrinks by one and the PageView
@@ -289,6 +301,18 @@ class _AdaptiveReviewScreenState extends ConsumerState<AdaptiveReviewScreen> {
     return created;
   }
 
+  /// Hashes a saved page's image and records it as its content dedup key.
+  ///
+  /// Fire-and-forget by design; failures are logged, never surfaced, because a
+  /// missing dedup key is far less harmful than a failed save.
+  Future<void> _stampImageHash(ClinicalDao dao, File file) async {
+    final hash = await hashDocumentImageOrNull(file.path);
+    if (hash == null) return;
+    final document = await dao.findDocumentByImagePath(file.path);
+    if (document == null) return;
+    await dao.attachImageHash(document.id, hash);
+  }
+
   Future<void> _addToQueue(ImageSource source) async {
     try {
       final List<File> files;
@@ -304,7 +328,48 @@ class _AdaptiveReviewScreenState extends ConsumerState<AdaptiveReviewScreen> {
       }
       if (files.isEmpty || !mounted) return;
 
-      ref.read(batchExtractionProvider.notifier).addFiles(files);
+      // ---- Sprint 17: absolute deduplication -----------------------------
+      // Hash every picked file. A file whose exact bytes are already on file
+      // never enters the queue: no OCR, no API call, no duplicate record. The
+      // clinician is routed straight into Edit Mode for the existing record.
+      final notifier = ref.read(batchExtractionProvider.notifier);
+      final dao = ref.read(clinicalDaoProvider);
+      final fresh = <File>[];
+      for (final file in files) {
+        final duplicate = await notifier.findDuplicate(file);
+        if (!mounted) return;
+        if (duplicate != null) {
+          final patient = await dao.findPatient(duplicate.patientId);
+          if (!mounted) return;
+          if (patient != null) {
+            await AdaptiveReviewScreen.editExisting(
+              context,
+              document: duplicate,
+              patient: patient,
+            );
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text(
+                  'This exact page was already saved. It was not captured again.',
+                ),
+              ),
+            );
+          }
+          continue;
+        }
+        fresh.add(file);
+      }
+
+      if (fresh.isEmpty) {
+        if (mounted) setState(() {});
+        return;
+      }
+      // Sprint 17 — snapshot the live inpatient census onto the queued pages so
+      // ClinCom can resolve a bed number to a patient at extraction time.
+      final census = await BatchExtractionNotifier.buildActiveCensusJson(dao);
+      if (!mounted) return;
+      notifier.addFiles(fresh, activeCensusJson: census);
       _index = ref.read(batchExtractionProvider).length - 1;
       _clampIndex();
       setState(() {});
@@ -561,7 +626,7 @@ class _AdaptiveReviewScreenState extends ConsumerState<AdaptiveReviewScreen> {
       ExtractionStatus.processingAiFallback ||
       ExtractionStatus.processingAi => (
         'Normalizing with Cloud AI…',
-        'The local read was messy, so Gemini is cleaning and structuring '
+        'The local read was messy, so ClinCom is cleaning and structuring '
             'this page now.',
       ),
       _ => ('Working…', ''),
@@ -745,7 +810,7 @@ class _AdaptiveReviewScreenState extends ConsumerState<AdaptiveReviewScreen> {
     );
   }
 
-  /// "Locally Extracted (Free)" vs "AI Extracted" provenance, kept from the
+  /// "Locally Extracted (Free)" vs "ClinCom Extracted" provenance, kept from the
   /// earlier screens so reviewers can tell what produced the numbers.
   Widget _provenanceBanner(DocumentTask task) {
     final (label, icon, bg, fg, border) = switch (task.source) {
@@ -757,7 +822,7 @@ class _AdaptiveReviewScreenState extends ConsumerState<AdaptiveReviewScreen> {
         Colors.green.shade700,
       ),
       ExtractionSource.ai => (
-        'AI Extracted — Gemini cleaned up an unreadable local scan.',
+        'ClinCom extracted this — it read an otherwise unreadable local scan.',
         Icons.auto_awesome_outlined,
         Colors.purple.shade50,
         Colors.purple.shade900,

@@ -8298,6 +8298,17 @@ class $InvestigationResultsTable extends InvestigationResults
     requiredDuringInsert: false,
     defaultValue: const Constant('{}'),
   );
+  static const VerificationMeta _sourceAuthorityMeta = const VerificationMeta(
+    'sourceAuthority',
+  );
+  @override
+  late final GeneratedColumn<String> sourceAuthority = GeneratedColumn<String>(
+    'source_authority',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _resultDateMeta = const VerificationMeta(
     'resultDate',
   );
@@ -8346,6 +8357,7 @@ class $InvestigationResultsTable extends InvestigationResults
     referenceRange,
     isAbnormal,
     antibiogramJson,
+    sourceAuthority,
     resultDate,
     createdAt,
     updatedAt,
@@ -8432,6 +8444,15 @@ class $InvestigationResultsTable extends InvestigationResults
         ),
       );
     }
+    if (data.containsKey('source_authority')) {
+      context.handle(
+        _sourceAuthorityMeta,
+        sourceAuthority.isAcceptableOrUnknown(
+          data['source_authority']!,
+          _sourceAuthorityMeta,
+        ),
+      );
+    }
     if (data.containsKey('result_date')) {
       context.handle(
         _resultDateMeta,
@@ -8499,6 +8520,10 @@ class $InvestigationResultsTable extends InvestigationResults
         DriftSqlType.string,
         data['${effectivePrefix}antibiogram_json'],
       )!,
+      sourceAuthority: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}source_authority'],
+      ),
       resultDate: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}result_date'],
@@ -8532,6 +8557,13 @@ class InvestigationResult extends DataClass
   final String? referenceRange;
   final bool isAbnormal;
   final String antibiogramJson;
+
+  /// Sprint 17 — provenance of this reading, used by semantic merging to decide
+  /// whether an incoming value should overwrite this row.
+  ///
+  /// Null on pre-Sprint-17 rows, which are treated as least-authoritative so a
+  /// real lab report can always supersede them.
+  final String? sourceAuthority;
   final DateTime resultDate;
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -8546,6 +8578,7 @@ class InvestigationResult extends DataClass
     this.referenceRange,
     required this.isAbnormal,
     required this.antibiogramJson,
+    this.sourceAuthority,
     required this.resultDate,
     required this.createdAt,
     required this.updatedAt,
@@ -8573,6 +8606,9 @@ class InvestigationResult extends DataClass
     }
     map['is_abnormal'] = Variable<bool>(isAbnormal);
     map['antibiogram_json'] = Variable<String>(antibiogramJson);
+    if (!nullToAbsent || sourceAuthority != null) {
+      map['source_authority'] = Variable<String>(sourceAuthority);
+    }
     map['result_date'] = Variable<DateTime>(resultDate);
     map['created_at'] = Variable<DateTime>(createdAt);
     map['updated_at'] = Variable<DateTime>(updatedAt);
@@ -8599,6 +8635,9 @@ class InvestigationResult extends DataClass
           : Value(referenceRange),
       isAbnormal: Value(isAbnormal),
       antibiogramJson: Value(antibiogramJson),
+      sourceAuthority: sourceAuthority == null && nullToAbsent
+          ? const Value.absent()
+          : Value(sourceAuthority),
       resultDate: Value(resultDate),
       createdAt: Value(createdAt),
       updatedAt: Value(updatedAt),
@@ -8621,6 +8660,7 @@ class InvestigationResult extends DataClass
       referenceRange: serializer.fromJson<String?>(json['referenceRange']),
       isAbnormal: serializer.fromJson<bool>(json['isAbnormal']),
       antibiogramJson: serializer.fromJson<String>(json['antibiogramJson']),
+      sourceAuthority: serializer.fromJson<String?>(json['sourceAuthority']),
       resultDate: serializer.fromJson<DateTime>(json['resultDate']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
@@ -8640,6 +8680,7 @@ class InvestigationResult extends DataClass
       'referenceRange': serializer.toJson<String?>(referenceRange),
       'isAbnormal': serializer.toJson<bool>(isAbnormal),
       'antibiogramJson': serializer.toJson<String>(antibiogramJson),
+      'sourceAuthority': serializer.toJson<String?>(sourceAuthority),
       'resultDate': serializer.toJson<DateTime>(resultDate),
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
@@ -8657,6 +8698,7 @@ class InvestigationResult extends DataClass
     Value<String?> referenceRange = const Value.absent(),
     bool? isAbnormal,
     String? antibiogramJson,
+    Value<String?> sourceAuthority = const Value.absent(),
     DateTime? resultDate,
     DateTime? createdAt,
     DateTime? updatedAt,
@@ -8673,6 +8715,9 @@ class InvestigationResult extends DataClass
         : this.referenceRange,
     isAbnormal: isAbnormal ?? this.isAbnormal,
     antibiogramJson: antibiogramJson ?? this.antibiogramJson,
+    sourceAuthority: sourceAuthority.present
+        ? sourceAuthority.value
+        : this.sourceAuthority,
     resultDate: resultDate ?? this.resultDate,
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
@@ -8697,6 +8742,9 @@ class InvestigationResult extends DataClass
       antibiogramJson: data.antibiogramJson.present
           ? data.antibiogramJson.value
           : this.antibiogramJson,
+      sourceAuthority: data.sourceAuthority.present
+          ? data.sourceAuthority.value
+          : this.sourceAuthority,
       resultDate: data.resultDate.present
           ? data.resultDate.value
           : this.resultDate,
@@ -8718,6 +8766,7 @@ class InvestigationResult extends DataClass
           ..write('referenceRange: $referenceRange, ')
           ..write('isAbnormal: $isAbnormal, ')
           ..write('antibiogramJson: $antibiogramJson, ')
+          ..write('sourceAuthority: $sourceAuthority, ')
           ..write('resultDate: $resultDate, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt')
@@ -8737,6 +8786,7 @@ class InvestigationResult extends DataClass
     referenceRange,
     isAbnormal,
     antibiogramJson,
+    sourceAuthority,
     resultDate,
     createdAt,
     updatedAt,
@@ -8755,6 +8805,7 @@ class InvestigationResult extends DataClass
           other.referenceRange == this.referenceRange &&
           other.isAbnormal == this.isAbnormal &&
           other.antibiogramJson == this.antibiogramJson &&
+          other.sourceAuthority == this.sourceAuthority &&
           other.resultDate == this.resultDate &&
           other.createdAt == this.createdAt &&
           other.updatedAt == this.updatedAt);
@@ -8772,6 +8823,7 @@ class InvestigationResultsCompanion
   final Value<String?> referenceRange;
   final Value<bool> isAbnormal;
   final Value<String> antibiogramJson;
+  final Value<String?> sourceAuthority;
   final Value<DateTime> resultDate;
   final Value<DateTime> createdAt;
   final Value<DateTime> updatedAt;
@@ -8787,6 +8839,7 @@ class InvestigationResultsCompanion
     this.referenceRange = const Value.absent(),
     this.isAbnormal = const Value.absent(),
     this.antibiogramJson = const Value.absent(),
+    this.sourceAuthority = const Value.absent(),
     this.resultDate = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
@@ -8803,6 +8856,7 @@ class InvestigationResultsCompanion
     this.referenceRange = const Value.absent(),
     this.isAbnormal = const Value.absent(),
     this.antibiogramJson = const Value.absent(),
+    this.sourceAuthority = const Value.absent(),
     this.resultDate = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
@@ -8820,6 +8874,7 @@ class InvestigationResultsCompanion
     Expression<String>? referenceRange,
     Expression<bool>? isAbnormal,
     Expression<String>? antibiogramJson,
+    Expression<String>? sourceAuthority,
     Expression<DateTime>? resultDate,
     Expression<DateTime>? createdAt,
     Expression<DateTime>? updatedAt,
@@ -8836,6 +8891,7 @@ class InvestigationResultsCompanion
       if (referenceRange != null) 'reference_range': referenceRange,
       if (isAbnormal != null) 'is_abnormal': isAbnormal,
       if (antibiogramJson != null) 'antibiogram_json': antibiogramJson,
+      if (sourceAuthority != null) 'source_authority': sourceAuthority,
       if (resultDate != null) 'result_date': resultDate,
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
@@ -8854,6 +8910,7 @@ class InvestigationResultsCompanion
     Value<String?>? referenceRange,
     Value<bool>? isAbnormal,
     Value<String>? antibiogramJson,
+    Value<String?>? sourceAuthority,
     Value<DateTime>? resultDate,
     Value<DateTime>? createdAt,
     Value<DateTime>? updatedAt,
@@ -8870,6 +8927,7 @@ class InvestigationResultsCompanion
       referenceRange: referenceRange ?? this.referenceRange,
       isAbnormal: isAbnormal ?? this.isAbnormal,
       antibiogramJson: antibiogramJson ?? this.antibiogramJson,
+      sourceAuthority: sourceAuthority ?? this.sourceAuthority,
       resultDate: resultDate ?? this.resultDate,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
@@ -8910,6 +8968,9 @@ class InvestigationResultsCompanion
     if (antibiogramJson.present) {
       map['antibiogram_json'] = Variable<String>(antibiogramJson.value);
     }
+    if (sourceAuthority.present) {
+      map['source_authority'] = Variable<String>(sourceAuthority.value);
+    }
     if (resultDate.present) {
       map['result_date'] = Variable<DateTime>(resultDate.value);
     }
@@ -8938,6 +8999,7 @@ class InvestigationResultsCompanion
           ..write('referenceRange: $referenceRange, ')
           ..write('isAbnormal: $isAbnormal, ')
           ..write('antibiogramJson: $antibiogramJson, ')
+          ..write('sourceAuthority: $sourceAuthority, ')
           ..write('resultDate: $resultDate, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
@@ -18019,6 +18081,17 @@ class $DocumentRegistriesTable extends DocumentRegistries
     requiredDuringInsert: false,
     defaultValue: const Constant(''),
   );
+  static const VerificationMeta _imageHashMeta = const VerificationMeta(
+    'imageHash',
+  );
+  @override
+  late final GeneratedColumn<String> imageHash = GeneratedColumn<String>(
+    'image_hash',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _confidenceScoreMeta = const VerificationMeta(
     'confidenceScore',
   );
@@ -18061,6 +18134,7 @@ class $DocumentRegistriesTable extends DocumentRegistries
     documentCategory,
     imagePath,
     rawOcrTranscript,
+    imageHash,
     confidenceScore,
     documentedAt,
     createdAt,
@@ -18118,6 +18192,12 @@ class $DocumentRegistriesTable extends DocumentRegistries
         ),
       );
     }
+    if (data.containsKey('image_hash')) {
+      context.handle(
+        _imageHashMeta,
+        imageHash.isAcceptableOrUnknown(data['image_hash']!, _imageHashMeta),
+      );
+    }
     if (data.containsKey('confidence_score')) {
       context.handle(
         _confidenceScoreMeta,
@@ -18173,6 +18253,10 @@ class $DocumentRegistriesTable extends DocumentRegistries
         DriftSqlType.string,
         data['${effectivePrefix}raw_ocr_transcript'],
       )!,
+      imageHash: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}image_hash'],
+      ),
       confidenceScore: attachedDatabase.typeMapping.read(
         DriftSqlType.double,
         data['${effectivePrefix}confidence_score'],
@@ -18201,6 +18285,15 @@ class DocumentRegistry extends DataClass
   final String documentCategory;
   final String imagePath;
   final String rawOcrTranscript;
+
+  /// Sprint 17 — SHA-256 of the *original* image bytes; an absolute
+  /// deduplication key so re-photographing the same physical page can never
+  /// create a second record.
+  ///
+  /// Null on rows written before this column existed (and on rows restored from
+  /// an older backup), so a null hash must never be treated as a match — see
+  /// `ClinicalDao.findDocumentByImageHash`.
+  final String? imageHash;
   final double confidenceScore;
   final DateTime documentedAt;
   final DateTime createdAt;
@@ -18210,6 +18303,7 @@ class DocumentRegistry extends DataClass
     required this.documentCategory,
     required this.imagePath,
     required this.rawOcrTranscript,
+    this.imageHash,
     required this.confidenceScore,
     required this.documentedAt,
     required this.createdAt,
@@ -18222,6 +18316,9 @@ class DocumentRegistry extends DataClass
     map['document_category'] = Variable<String>(documentCategory);
     map['image_path'] = Variable<String>(imagePath);
     map['raw_ocr_transcript'] = Variable<String>(rawOcrTranscript);
+    if (!nullToAbsent || imageHash != null) {
+      map['image_hash'] = Variable<String>(imageHash);
+    }
     map['confidence_score'] = Variable<double>(confidenceScore);
     map['documented_at'] = Variable<DateTime>(documentedAt);
     map['created_at'] = Variable<DateTime>(createdAt);
@@ -18235,6 +18332,9 @@ class DocumentRegistry extends DataClass
       documentCategory: Value(documentCategory),
       imagePath: Value(imagePath),
       rawOcrTranscript: Value(rawOcrTranscript),
+      imageHash: imageHash == null && nullToAbsent
+          ? const Value.absent()
+          : Value(imageHash),
       confidenceScore: Value(confidenceScore),
       documentedAt: Value(documentedAt),
       createdAt: Value(createdAt),
@@ -18252,6 +18352,7 @@ class DocumentRegistry extends DataClass
       documentCategory: serializer.fromJson<String>(json['documentCategory']),
       imagePath: serializer.fromJson<String>(json['imagePath']),
       rawOcrTranscript: serializer.fromJson<String>(json['rawOcrTranscript']),
+      imageHash: serializer.fromJson<String?>(json['imageHash']),
       confidenceScore: serializer.fromJson<double>(json['confidenceScore']),
       documentedAt: serializer.fromJson<DateTime>(json['documentedAt']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
@@ -18266,6 +18367,7 @@ class DocumentRegistry extends DataClass
       'documentCategory': serializer.toJson<String>(documentCategory),
       'imagePath': serializer.toJson<String>(imagePath),
       'rawOcrTranscript': serializer.toJson<String>(rawOcrTranscript),
+      'imageHash': serializer.toJson<String?>(imageHash),
       'confidenceScore': serializer.toJson<double>(confidenceScore),
       'documentedAt': serializer.toJson<DateTime>(documentedAt),
       'createdAt': serializer.toJson<DateTime>(createdAt),
@@ -18278,6 +18380,7 @@ class DocumentRegistry extends DataClass
     String? documentCategory,
     String? imagePath,
     String? rawOcrTranscript,
+    Value<String?> imageHash = const Value.absent(),
     double? confidenceScore,
     DateTime? documentedAt,
     DateTime? createdAt,
@@ -18287,6 +18390,7 @@ class DocumentRegistry extends DataClass
     documentCategory: documentCategory ?? this.documentCategory,
     imagePath: imagePath ?? this.imagePath,
     rawOcrTranscript: rawOcrTranscript ?? this.rawOcrTranscript,
+    imageHash: imageHash.present ? imageHash.value : this.imageHash,
     confidenceScore: confidenceScore ?? this.confidenceScore,
     documentedAt: documentedAt ?? this.documentedAt,
     createdAt: createdAt ?? this.createdAt,
@@ -18302,6 +18406,7 @@ class DocumentRegistry extends DataClass
       rawOcrTranscript: data.rawOcrTranscript.present
           ? data.rawOcrTranscript.value
           : this.rawOcrTranscript,
+      imageHash: data.imageHash.present ? data.imageHash.value : this.imageHash,
       confidenceScore: data.confidenceScore.present
           ? data.confidenceScore.value
           : this.confidenceScore,
@@ -18320,6 +18425,7 @@ class DocumentRegistry extends DataClass
           ..write('documentCategory: $documentCategory, ')
           ..write('imagePath: $imagePath, ')
           ..write('rawOcrTranscript: $rawOcrTranscript, ')
+          ..write('imageHash: $imageHash, ')
           ..write('confidenceScore: $confidenceScore, ')
           ..write('documentedAt: $documentedAt, ')
           ..write('createdAt: $createdAt')
@@ -18334,6 +18440,7 @@ class DocumentRegistry extends DataClass
     documentCategory,
     imagePath,
     rawOcrTranscript,
+    imageHash,
     confidenceScore,
     documentedAt,
     createdAt,
@@ -18347,6 +18454,7 @@ class DocumentRegistry extends DataClass
           other.documentCategory == this.documentCategory &&
           other.imagePath == this.imagePath &&
           other.rawOcrTranscript == this.rawOcrTranscript &&
+          other.imageHash == this.imageHash &&
           other.confidenceScore == this.confidenceScore &&
           other.documentedAt == this.documentedAt &&
           other.createdAt == this.createdAt);
@@ -18358,6 +18466,7 @@ class DocumentRegistriesCompanion extends UpdateCompanion<DocumentRegistry> {
   final Value<String> documentCategory;
   final Value<String> imagePath;
   final Value<String> rawOcrTranscript;
+  final Value<String?> imageHash;
   final Value<double> confidenceScore;
   final Value<DateTime> documentedAt;
   final Value<DateTime> createdAt;
@@ -18368,6 +18477,7 @@ class DocumentRegistriesCompanion extends UpdateCompanion<DocumentRegistry> {
     this.documentCategory = const Value.absent(),
     this.imagePath = const Value.absent(),
     this.rawOcrTranscript = const Value.absent(),
+    this.imageHash = const Value.absent(),
     this.confidenceScore = const Value.absent(),
     this.documentedAt = const Value.absent(),
     this.createdAt = const Value.absent(),
@@ -18379,6 +18489,7 @@ class DocumentRegistriesCompanion extends UpdateCompanion<DocumentRegistry> {
     required String documentCategory,
     required String imagePath,
     this.rawOcrTranscript = const Value.absent(),
+    this.imageHash = const Value.absent(),
     this.confidenceScore = const Value.absent(),
     required DateTime documentedAt,
     this.createdAt = const Value.absent(),
@@ -18394,6 +18505,7 @@ class DocumentRegistriesCompanion extends UpdateCompanion<DocumentRegistry> {
     Expression<String>? documentCategory,
     Expression<String>? imagePath,
     Expression<String>? rawOcrTranscript,
+    Expression<String>? imageHash,
     Expression<double>? confidenceScore,
     Expression<DateTime>? documentedAt,
     Expression<DateTime>? createdAt,
@@ -18405,6 +18517,7 @@ class DocumentRegistriesCompanion extends UpdateCompanion<DocumentRegistry> {
       if (documentCategory != null) 'document_category': documentCategory,
       if (imagePath != null) 'image_path': imagePath,
       if (rawOcrTranscript != null) 'raw_ocr_transcript': rawOcrTranscript,
+      if (imageHash != null) 'image_hash': imageHash,
       if (confidenceScore != null) 'confidence_score': confidenceScore,
       if (documentedAt != null) 'documented_at': documentedAt,
       if (createdAt != null) 'created_at': createdAt,
@@ -18418,6 +18531,7 @@ class DocumentRegistriesCompanion extends UpdateCompanion<DocumentRegistry> {
     Value<String>? documentCategory,
     Value<String>? imagePath,
     Value<String>? rawOcrTranscript,
+    Value<String?>? imageHash,
     Value<double>? confidenceScore,
     Value<DateTime>? documentedAt,
     Value<DateTime>? createdAt,
@@ -18429,6 +18543,7 @@ class DocumentRegistriesCompanion extends UpdateCompanion<DocumentRegistry> {
       documentCategory: documentCategory ?? this.documentCategory,
       imagePath: imagePath ?? this.imagePath,
       rawOcrTranscript: rawOcrTranscript ?? this.rawOcrTranscript,
+      imageHash: imageHash ?? this.imageHash,
       confidenceScore: confidenceScore ?? this.confidenceScore,
       documentedAt: documentedAt ?? this.documentedAt,
       createdAt: createdAt ?? this.createdAt,
@@ -18454,6 +18569,9 @@ class DocumentRegistriesCompanion extends UpdateCompanion<DocumentRegistry> {
     if (rawOcrTranscript.present) {
       map['raw_ocr_transcript'] = Variable<String>(rawOcrTranscript.value);
     }
+    if (imageHash.present) {
+      map['image_hash'] = Variable<String>(imageHash.value);
+    }
     if (confidenceScore.present) {
       map['confidence_score'] = Variable<double>(confidenceScore.value);
     }
@@ -18477,6 +18595,7 @@ class DocumentRegistriesCompanion extends UpdateCompanion<DocumentRegistry> {
           ..write('documentCategory: $documentCategory, ')
           ..write('imagePath: $imagePath, ')
           ..write('rawOcrTranscript: $rawOcrTranscript, ')
+          ..write('imageHash: $imageHash, ')
           ..write('confidenceScore: $confidenceScore, ')
           ..write('documentedAt: $documentedAt, ')
           ..write('createdAt: $createdAt, ')
@@ -30741,6 +30860,7 @@ typedef $$InvestigationResultsTableCreateCompanionBuilder =
       Value<String?> referenceRange,
       Value<bool> isAbnormal,
       Value<String> antibiogramJson,
+      Value<String?> sourceAuthority,
       Value<DateTime> resultDate,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
@@ -30758,6 +30878,7 @@ typedef $$InvestigationResultsTableUpdateCompanionBuilder =
       Value<String?> referenceRange,
       Value<bool> isAbnormal,
       Value<String> antibiogramJson,
+      Value<String?> sourceAuthority,
       Value<DateTime> resultDate,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
@@ -30846,6 +30967,11 @@ class $$InvestigationResultsTableFilterComposer
 
   ColumnFilters<String> get antibiogramJson => $composableBuilder(
     column: $table.antibiogramJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get sourceAuthority => $composableBuilder(
+    column: $table.sourceAuthority,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -30942,6 +31068,11 @@ class $$InvestigationResultsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get sourceAuthority => $composableBuilder(
+    column: $table.sourceAuthority,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get resultDate => $composableBuilder(
     column: $table.resultDate,
     builder: (column) => ColumnOrderings(column),
@@ -31022,6 +31153,11 @@ class $$InvestigationResultsTableAnnotationComposer
 
   GeneratedColumn<String> get antibiogramJson => $composableBuilder(
     column: $table.antibiogramJson,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get sourceAuthority => $composableBuilder(
+    column: $table.sourceAuthority,
     builder: (column) => column,
   );
 
@@ -31106,6 +31242,7 @@ class $$InvestigationResultsTableTableManager
                 Value<String?> referenceRange = const Value.absent(),
                 Value<bool> isAbnormal = const Value.absent(),
                 Value<String> antibiogramJson = const Value.absent(),
+                Value<String?> sourceAuthority = const Value.absent(),
                 Value<DateTime> resultDate = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
@@ -31121,6 +31258,7 @@ class $$InvestigationResultsTableTableManager
                 referenceRange: referenceRange,
                 isAbnormal: isAbnormal,
                 antibiogramJson: antibiogramJson,
+                sourceAuthority: sourceAuthority,
                 resultDate: resultDate,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
@@ -31138,6 +31276,7 @@ class $$InvestigationResultsTableTableManager
                 Value<String?> referenceRange = const Value.absent(),
                 Value<bool> isAbnormal = const Value.absent(),
                 Value<String> antibiogramJson = const Value.absent(),
+                Value<String?> sourceAuthority = const Value.absent(),
                 Value<DateTime> resultDate = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
@@ -31153,6 +31292,7 @@ class $$InvestigationResultsTableTableManager
                 referenceRange: referenceRange,
                 isAbnormal: isAbnormal,
                 antibiogramJson: antibiogramJson,
+                sourceAuthority: sourceAuthority,
                 resultDate: resultDate,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
@@ -35822,6 +35962,7 @@ typedef $$DocumentRegistriesTableCreateCompanionBuilder =
       required String documentCategory,
       required String imagePath,
       Value<String> rawOcrTranscript,
+      Value<String?> imageHash,
       Value<double> confidenceScore,
       required DateTime documentedAt,
       Value<DateTime> createdAt,
@@ -35834,6 +35975,7 @@ typedef $$DocumentRegistriesTableUpdateCompanionBuilder =
       Value<String> documentCategory,
       Value<String> imagePath,
       Value<String> rawOcrTranscript,
+      Value<String?> imageHash,
       Value<double> confidenceScore,
       Value<DateTime> documentedAt,
       Value<DateTime> createdAt,
@@ -35967,6 +36109,11 @@ class $$DocumentRegistriesTableFilterComposer
 
   ColumnFilters<String> get rawOcrTranscript => $composableBuilder(
     column: $table.rawOcrTranscript,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get imageHash => $composableBuilder(
+    column: $table.imageHash,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -36113,6 +36260,11 @@ class $$DocumentRegistriesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get imageHash => $composableBuilder(
+    column: $table.imageHash,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<double> get confidenceScore => $composableBuilder(
     column: $table.confidenceScore,
     builder: (column) => ColumnOrderings(column),
@@ -36176,6 +36328,9 @@ class $$DocumentRegistriesTableAnnotationComposer
     column: $table.rawOcrTranscript,
     builder: (column) => column,
   );
+
+  GeneratedColumn<String> get imageHash =>
+      $composableBuilder(column: $table.imageHash, builder: (column) => column);
 
   GeneratedColumn<double> get confidenceScore => $composableBuilder(
     column: $table.confidenceScore,
@@ -36334,6 +36489,7 @@ class $$DocumentRegistriesTableTableManager
                 Value<String> documentCategory = const Value.absent(),
                 Value<String> imagePath = const Value.absent(),
                 Value<String> rawOcrTranscript = const Value.absent(),
+                Value<String?> imageHash = const Value.absent(),
                 Value<double> confidenceScore = const Value.absent(),
                 Value<DateTime> documentedAt = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
@@ -36344,6 +36500,7 @@ class $$DocumentRegistriesTableTableManager
                 documentCategory: documentCategory,
                 imagePath: imagePath,
                 rawOcrTranscript: rawOcrTranscript,
+                imageHash: imageHash,
                 confidenceScore: confidenceScore,
                 documentedAt: documentedAt,
                 createdAt: createdAt,
@@ -36356,6 +36513,7 @@ class $$DocumentRegistriesTableTableManager
                 required String documentCategory,
                 required String imagePath,
                 Value<String> rawOcrTranscript = const Value.absent(),
+                Value<String?> imageHash = const Value.absent(),
                 Value<double> confidenceScore = const Value.absent(),
                 required DateTime documentedAt,
                 Value<DateTime> createdAt = const Value.absent(),
@@ -36366,6 +36524,7 @@ class $$DocumentRegistriesTableTableManager
                 documentCategory: documentCategory,
                 imagePath: imagePath,
                 rawOcrTranscript: rawOcrTranscript,
+                imageHash: imageHash,
                 confidenceScore: confidenceScore,
                 documentedAt: documentedAt,
                 createdAt: createdAt,

@@ -12,6 +12,15 @@ class DocumentRegistries extends Table {
   TextColumn get documentCategory => text()();
   TextColumn get imagePath => text()();
   TextColumn get rawOcrTranscript => text().withDefault(const Constant(''))();
+
+  /// Sprint 17 — SHA-256 of the *original* image bytes; an absolute
+  /// deduplication key so re-photographing the same physical page can never
+  /// create a second record.
+  ///
+  /// Null on rows written before this column existed (and on rows restored from
+  /// an older backup), so a null hash must never be treated as a match — see
+  /// `ClinicalDao.findDocumentByImageHash`.
+  TextColumn get imageHash => text().nullable()();
   RealColumn get confidenceScore => real().withDefault(const Constant(0.0))();
   DateTimeColumn get documentedAt => dateTime()();
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();

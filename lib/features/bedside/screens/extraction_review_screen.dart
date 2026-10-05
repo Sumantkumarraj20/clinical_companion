@@ -601,7 +601,7 @@ class _ExtractionReviewScreenState
 
                   // 6. CLINICAL SUMMARY
                   Text(
-                    'AI Clinical Summary & Findings',
+                    'ClinCom Summary & Findings',
                     style: Theme.of(context).textTheme.titleSmall?.copyWith(
                       fontWeight: FontWeight.bold,
                     ),
@@ -825,7 +825,7 @@ class _ExtractionSourceBanner extends StatelessWidget {
           Colors.green.shade700,
         ),
       ExtractionSource.ai => (
-          'AI Extracted — escalated to Gemini after local OCR was insufficient.',
+          'ClinCom extracted this — escalated after the on-device read was insufficient.',
           Icons.auto_awesome_outlined,
           Colors.purple.shade50,
           Colors.purple.shade900,

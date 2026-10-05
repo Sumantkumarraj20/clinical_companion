@@ -60,7 +60,46 @@ sealed class AiExtractionResult with _$AiExtractionResult {
     /// numeric value survives but the interpretation does not. Storing it apart
     /// also keeps it editable in review instead of being flattened into prose.
     @JsonKey(name: 'conclusion') @Default('') String conclusion,
+
+    // ---- Sprint 17: the ClinCom semantic layer -----------------------------
+    // These are emitted by the model and parsed here so the review screen can
+    // render them. They default to empty so a document saved before Sprint 17
+    // (or a page where ClinCom found nothing) still parses cleanly.
+
+    /// The date the document was WRITTEN (ISO-8601), never today's date.
+    /// ClinCom is instructed never to substitute the current date, so a
+    /// back-dated report keeps its true clinical date.
+    @JsonKey(name: 'document_date') @Default('') String documentDate,
+
+    /// True when [documentDate] was inferred rather than read off the page.
+    @JsonKey(name: 'is_date_assumed') @Default(false) bool isDateAssumed,
+
+    /// Patient resolved from a bed/ward number via the appended active census
+    /// JSON. Null when the page carried no bed number or the bed was ambiguous
+    /// — ClinCom is explicitly forbidden from guessing a patient.
+    @JsonKey(name: 'inferred_patient_id') String? inferredPatientId,
+
+    @JsonKey(name: 'chief_complaints') @Default(<String>[])
+    List<String> chiefComplaints,
+
+    @JsonKey(name: 'diagnoses') @Default(<String>[]) List<String> diagnoses,
+
+    @JsonKey(name: 'planned_investigations') @Default(<String>[])
+    List<String> plannedInvestigations,
+
+    /// Provenance of this reading. Drives Sprint 17 semantic merging: a
+    /// formal 'Scanned Document' report outranks a 'Ward Round Note'.
+    @JsonKey(name: 'source_authority') String? sourceAuthority,
   }) = _AiExtractionResult;
+
+  /// True when this page carries any of the optional semantic sections, so the
+  /// review screen can render a section only when the document actually has it
+  /// (no empty Medications card on a bare prescription).
+  bool get hasClinicalNarrative =>
+      chiefComplaints.isNotEmpty ||
+      diagnoses.isNotEmpty ||
+      plannedInvestigations.isNotEmpty;
+
 
   factory AiExtractionResult.fromJson(Map<String, dynamic> json) =>
       _$AiExtractionResultFromJson(json);

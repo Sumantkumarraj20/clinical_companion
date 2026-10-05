@@ -11,7 +11,7 @@ import '../../../core/providers/app_providers.dart';
 ///
 /// This screen only *queues* work: the picked file(s) are handed to
 /// [batchExtractionProvider], which runs on-device OCR and — when the local
-/// read is messy — the Gemini clean-up in the background. We navigate to the
+/// read is messy — ClinCom cleans and structures it in the background. We navigate to the
 /// review queue immediately so the clinician never waits on a spinner; the
 /// review screen renders live progress per page.
 class SmartCaptureScreen extends ConsumerStatefulWidget {
@@ -50,7 +50,14 @@ class _SmartCaptureScreenState extends ConsumerState<SmartCaptureScreen> {
       }
       if (files.isEmpty || !mounted) return;
 
-      ref.read(batchExtractionProvider.notifier).addFiles(files);
+      // Sprint 17 — attach the live census so bed numbers resolve to patients.
+      final census = await BatchExtractionNotifier.buildActiveCensusJson(
+        ref.read(clinicalDaoProvider),
+      );
+      if (!mounted) return;
+      ref
+          .read(batchExtractionProvider.notifier)
+          .addFiles(files, activeCensusJson: census);
       if (!mounted) return;
 
       // STEP 1 — straight into the review queue; extraction continues there.
@@ -72,7 +79,7 @@ class _SmartCaptureScreenState extends ConsumerState<SmartCaptureScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('AI Smart Capture')),
+      appBar: AppBar(title: const Text('ClinCom Smart Capture')),
       body: Center(
         child: _busy
             ? const Column(

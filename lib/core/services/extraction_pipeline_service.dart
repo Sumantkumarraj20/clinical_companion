@@ -1,3 +1,4 @@
+import 'clincom_escalation.dart';
 import 'dart:io';
 import 'dart:isolate';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
@@ -9,7 +10,7 @@ import '../models/document_task.dart';
 import '../utils/clinical_date_parser.dart';
 
 /// Provenance of an extraction, surfaced to the UI so reviewers can tell
-/// "Locally Extracted (Free)" apart from "AI Extracted".
+/// "Locally Extracted (Free)" apart from "ClinCom Extracted".
 enum PipelineSource { local, ai }
 
 /// Resolves the timestamp a scanned document should be filed under.
@@ -168,7 +169,7 @@ class ExtractionPipelineService {
   /// Free, instant on-device parse of an already recognised transcript.
   ///
   /// Returns `null` when the transcript is too short or too messy to trust,
-  /// which is the signal for the caller to escalate to Gemini.
+  /// which is the signal for the caller to escalate to ClinCom.
   AiExtractionResult? parseLocalText(String rawText) {
     if (rawText.trim().length < _minReliableOcrLength) return null;
     final localData = _attemptLocalParsing(_normalizeOcrText(rawText));
@@ -176,27 +177,98 @@ class ExtractionPipelineService {
     return localData;
   }
 
-  /// Escalates to Gemini to clean up a messy / incomplete local read.
+  /// Escalates to ClinCom to clean up a messy / incomplete local read.
   ///
-  /// The raw on-device transcript is handed to the model as context so it can
-  /// correct OCR noise rather than re-reading the pixels cold. The image is
-  /// still sent because handwriting and tables are unreliable in OCR alone.
-  Future<PipelineExtraction> refineWithAi(File image, String rawText) async {
-    final compressed = await _compressForAI(image);
+  /// Sprint 17 "ClinCom" — the image is now sent **only when it earns its
+  /// cost**. Dense, trustworthy on-device OCR takes the text-only path; sparse
+  /// or handwriting-shaped OCR escalates to a compressed image so the vision
+  /// model reads the page itself.
+  ///
+  /// [activeCensusJson] is the clinician's current inpatient census, so a page
+  /// carrying only a bed number ("Bed 12, R/O 2 days...") can be resolved to a
+  /// real patient without a second human step.
+  Future<PipelineExtraction> refineWithAi(
+    File image,
+    String rawText, {
+    String? activeCensusJson,
+  }) async {
+    final escalation = chooseEscalation(ocrText: rawText);
+    final prompt = _polishPrompt(
+      rawText,
+      activeCensusJson: activeCensusJson,
+      includeImage: escalation == ClinComEscalation.multimodalVision,
+    );
+
+    // Text-only skips the image entirely: no base64 upload, no vision tokens.
+    final File? payload =
+        escalation == ClinComEscalation.multimodalVision
+        ? await _compressForAI(image)
+        : null;
+
     final aiResult = await _aiService.extractDocument(
-      image: compressed,
-      prompt: _polishPrompt(rawText),
+      image: payload,
+      prompt: prompt,
     );
     return PipelineExtraction(result: aiResult, source: PipelineSource.ai);
   }
 
-  /// Prompt used to polish a document the local regex path could not handle.
-  String _polishPrompt(String rawText) {
+
+/// Prompt used to polish a document the local regex path could not handle.
+  String _polishPrompt(
+    String rawText, {
+    String? activeCensusJson,
+    bool includeImage = true,
+  }) {
     final transcript = rawText.trim();
+    final censusJson = (activeCensusJson ?? '').trim();
+
+    // Empty census (no active inpatients, or provider unavailable) simply omits
+    // the block — a page with no bed number must not be nudged into inventing
+    // a patient match.
+    final censusBlock =
+        censusJson.isEmpty
+        ? ''
+        : '''ACTIVE INPATIENT CENSUS (authoritative, from the clinician's current ward):
+$censusJson
+
+If the page identifies a patient ONLY by bed or ward number and carries no name,
+resolve it against the census above and report the matching `patient_id`. If no
+bed number is present, or the bed is ambiguous, set `patient_id` to null rather
+than guessing a patient.''';
+
     return '''
-You are given a clinical document photo together with the raw on-device OCR
-transcript of the same page. The transcript is noisy: it may miss table cells,
-swap digits, or drop headers.
+You are ClinCom, an expert Chief Medical Officer and the clinician's second
+brain. You read Indian clinical paperwork — typed and handwritten — and return
+strict JSON for a downstream EHR.
+
+NON-NEGOTIABLE CLINICAL RULES:
+1. STANDARDISE every medical abbreviation to its full clinical term
+   (e.g. "H6b" -> "Haemoglobin", "TLC" -> "Total Leucocyte Count",
+   "R/O" -> "Review Of", "K/C" -> "Known Case of"). Clinicians scan for
+   meaning, not shorthand.
+2. NEVER GUESS a value. A field you cannot read is null, not a plausible
+   number. A fabricated haemoglobin is a clinical hazard.
+3. DOCUMENT DATE: extract the date the document was WRITTEN (the report's own
+   date, the sample-collection date, or the top-right date on a prescription)
+   into `document_date` as ISO-8601 (YYYY-MM-DD). NEVER substitute today's
+   date — a back-dated report entered today must keep its true date. Set
+   `is_date_assumed: true` if the date had to be inferred from context.
+4. CENSUS INFERENCE: if the page carries a bed/ward number but no patient
+   name, cross-reference the appended active census JSON and output the matched
+   id in `inferred_patient_id`. If the bed is missing or ambiguous, emit null —
+   never guess a patient.
+5. LABS: expand test names to standard units ("Serum Creatinine"), keep the
+   original value, unit and reference range exactly as printed, and set
+   `is_abnormal` only when the report itself flags it.
+6. Keep `clinical_summary` to ONE sentence.
+
+${includeImage
+        ? 'You are given a clinical document photo together with the raw on-device OCR\ntranscript of the same page.'
+        : 'You are given the raw on-device OCR transcript of a clinical document. No\nimage is attached: the transcript is the full page, so rely on it exclusively.'}
+The transcript is noisy: it may miss table cells, swap digits, or drop headers.
+
+$censusBlock
+
 
 Clean and normalise the data, then return structured JSON:
 - Repair obvious OCR damage (e.g. "H6b" -> Hb, "1 3.2" -> 13.2) but NEVER
@@ -227,7 +299,7 @@ ${transcript.isEmpty ? '(OCR returned no text — rely on the image only.)' : tr
   }
 
   /// Lightweight probe for UI badges: runs OCR + local regex only, never
-  /// calls Gemini. Returns non-null when the free path would succeed.
+  /// calls ClinCom. Returns non-null when the free path would succeed.
   Future<PipelineExtraction?> tryLocalOnly(File image) async {
     final rawText = await recognizeRawText(image);
     final local = parseLocalText(rawText);

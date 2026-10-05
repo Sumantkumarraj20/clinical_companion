@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:connectivity_plus/connectivity_plus.dart';
@@ -226,14 +227,42 @@ class BatchExtractionNotifier extends Notifier<List<DocumentTask>> {
 
   DateTime? _seedDocumentedAt;
 
+  /// Returns a document already saved from these EXACT image bytes, if any.
+  ///
+  /// Sprint 17 — absolute deduplication. Returning a duplicate means the
+  /// pipeline never runs OCR and never spends an API call; the caller routes
+  /// the clinician straight into Edit Mode for the record that already exists.
+  ///
+  /// A hash failure is swallowed: proceeding may create one duplicate record,
+  /// which is strictly better than refusing to open a document at the bedside.
+  Future<DocumentRegistry?> findDuplicate(File file) async {
+    try {
+      final hash = await ClinicalDao.hashFile(file);
+      return await ref.read(clinicalDaoProvider).findDocumentByImageHash(hash);
+    } catch (error) {
+      debugPrint('[ClinCom] Deduplication check skipped: $error');
+      return null;
+    }
+  }
+
   /// Queue up one or more images. Re-adding an identical file path is a no-op
   /// so a double tap on the capture button cannot create duplicate tasks.
-  void addFiles(List<File> files) {
+  ///
+  /// [activeCensusJson] is the clinician's inpatient census at the moment of
+  /// capture. It is snapshotted onto each task rather than read later, so the
+  /// prompt reflects who was actually on the ward when the page was scanned.
+  void addFiles(List<File> files, {String? activeCensusJson}) {
     final seen = <String>{for (final task in state) task.originalFile.path};
     final newTasks = <DocumentTask>[];
     for (final file in files) {
       if (!seen.add(file.path)) continue;
-      newTasks.add(DocumentTask(id: _ids.v4(), originalFile: file));
+      newTasks.add(
+        DocumentTask(
+          id: _ids.v4(),
+          originalFile: file,
+          activeCensusJson: activeCensusJson,
+        ),
+      );
     }
     if (newTasks.isEmpty) return;
     state = [...state, ...newTasks];
@@ -289,6 +318,36 @@ class BatchExtractionNotifier extends Notifier<List<DocumentTask>> {
     }
   }
 
+  /// Serialises the clinician's current active inpatient census for the prompt.
+  ///
+  /// Lives on the SCREEN, not the queue notifier: `BatchExtractionNotifier` is
+  /// deliberately free of database access so it can be driven by a bare pipeline
+  /// in tests and in Edit Mode. The screen already holds a live DAO handle.
+  static Future<String?> buildActiveCensusJson(ClinicalDao dao) async {
+    try {
+      final rows = await dao.watchActiveWardRounds().first;
+      if (rows.isEmpty) return null;
+      final payload = rows
+          .map(
+            (r) => jsonEncode(<String, Object?>{
+              'patient_id': r.patient.id,
+              'name': r.patient.fullName,
+              'date_of_birth': r.patient.dateOfBirth?.toIso8601String().split('T').first,
+              'gender': r.patient.gender,
+              'bed': r.bedNumber,
+              'ward': r.wardName,
+            }),
+          )
+          .toList(growable: false);
+      return '[${payload.join(',')}]';
+    } catch (error) {
+      // Best effort: extraction must proceed without census context rather than
+      // fail, since a missing census only costs patient-inference accuracy.
+      debugPrint('[ClinCom] Active census unavailable, continuing without it: $error');
+      return null;
+    }
+  }
+
   Future<void> _runTask(DocumentTask task) async {
     final pipeline = ref.read(extractionPipelineProvider);
 
@@ -322,12 +381,15 @@ class BatchExtractionNotifier extends Notifier<List<DocumentTask>> {
       return;
     }
 
-    // ---- Stage 2b: cloud refinement of a messy read ----------------------
+    // ---- Stage 2b: ClinCom semantic refinement --------------------------
     _update(task.id, status: ExtractionStatus.processingAiFallback);
     try {
+      // Sprint 17 — the census block was captured by the screen at enqueue time
+      // and rides along on the task, so this notifier stays database-free.
       final extraction = await pipeline.refineWithAi(
         task.originalFile,
         rawText,
+        activeCensusJson: task.activeCensusJson,
       );
       _update(
         task.id,

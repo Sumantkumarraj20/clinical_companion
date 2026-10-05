@@ -645,6 +645,13 @@ class InvestigationResults extends Table {
   TextColumn get referenceRange => text().nullable()();
   BoolColumn get isAbnormal => boolean().withDefault(const Constant(false))();
   TextColumn get antibiogramJson => text().withDefault(const Constant('{}'))();
+
+  /// Sprint 17 — provenance of this reading, used by semantic merging to decide
+  /// whether an incoming value should overwrite this row.
+  ///
+  /// Null on pre-Sprint-17 rows, which are treated as least-authoritative so a
+  /// real lab report can always supersede them.
+  TextColumn get sourceAuthority => text().nullable()();
   DateTimeColumn get resultDate => dateTime().withDefault(currentDateAndTime)();
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
   DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
@@ -903,7 +910,7 @@ class AppDatabase extends _$AppDatabase {
     : super(executor ?? openAppDatabaseExecutor());
 
   @override
-  int get schemaVersion => 26;
+  int get schemaVersion => 28;
 
   /// Tables that must exist for the drug catalog and POMR to function.
   ///
@@ -1258,6 +1265,27 @@ class AppDatabase extends _$AppDatabase {
           // already-completed notes.
           try {
             await m.addColumn(clinicalEncounters, clinicalEncounters.isDraft);
+          } catch (_) {}
+        }
+        if (from < 28) {
+          // Sprint 17 — provenance for semantic merging. Nullable, no default,
+          // so pre-existing readings are readable and treated as unknown.
+          try {
+            await m.addColumn(
+              investigationResults,
+              investigationResults.sourceAuthority,
+            );
+          } catch (_) {}
+        }
+        if (from < 27) {
+          // Sprint 17 — absolute image deduplication key. Nullable with no
+          // default: old rows stay NULL rather than sharing a sentinel, so a
+          // NULL is never mistaken for a match by findDocumentByImageHash.
+          try {
+            await m.addColumn(
+              documentRegistries,
+              documentRegistries.imageHash,
+            );
           } catch (_) {}
         }
         if (from < 26) {

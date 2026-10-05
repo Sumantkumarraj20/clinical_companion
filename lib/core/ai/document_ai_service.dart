@@ -353,7 +353,7 @@ class DocumentAiService {
   }
 
   Future<Map<String, dynamic>> _extractStructuredJson({
-    required File image,
+    required File? image,
     required String prompt,
     required Schema schema,
     required Map<String, dynamic> Function(Map<String, dynamic>) validator,
@@ -366,8 +366,11 @@ class DocumentAiService {
       );
     }
 
-    final preparedImage = await _prepareImage(image);
-    final mimeType = _mimeType(preparedImage);
+    // Sprint 17 — ClinCom's cost-optimising text-only path. When the on-device
+    // OCR was dense and confident we skip the image entirely: no base64 upload,
+    // no vision tokens. `image` is null on that path.
+    final preparedImage = image == null ? null : await _prepareImage(image);
+    final mimeType = preparedImage == null ? null : _mimeType(preparedImage);
 
     Future<Map<String, dynamic>> request(String modelName) async {
       try {
@@ -379,17 +382,19 @@ class DocumentAiService {
             responseSchema: schema,
           ),
         );
-        final bytes = await preparedImage.readAsBytes();
+        final parts = <Part>[
+          TextPart(
+            '$prompt\n'
+            'Return only valid JSON matching the requested schema. '
+            'Do not invent or infer values that are not visible in the source. '
+            'Use null for missing values and preserve the original source wording.',
+          ),
+        ];
+        if (preparedImage != null) {
+          parts.add(DataPart(mimeType!, await preparedImage.readAsBytes()));
+        }
         final response = await model.generateContent([
-          Content.multi([
-            TextPart(
-              '$prompt\n'
-              'Return only valid JSON matching the requested schema. '
-              'Do not invent or infer values that are not visible in the source. '
-              'Use null for missing values and preserve the original source wording.',
-            ),
-            DataPart(mimeType, bytes),
-          ]),
+          Content.multi(parts),
         ]);
 
         final text = response.text;
@@ -422,8 +427,9 @@ class DocumentAiService {
     return _executeWithRetry(request: request, modelName: defaultModel);
   }
 
+  /// Sprint 17 — nullable [image] enables ClinCom's text-only path.
   Future<AiExtractionResult> extractDocument({
-    required File image,
+    required File? image,
     required String prompt,
   }) async {
     final schema = Schema.object(
@@ -471,6 +477,23 @@ class DocumentAiService {
               'is_abnormal': Schema.boolean(),
             },
           ),
+        ),
+        // ---- Sprint 17: ClinCom semantic layer ---------------------------
+        // The date the document was WRITTEN, never today's date. Required by
+        // the prompt contract so a back-dated report keeps its true date.
+        'document_date': Schema.string(nullable: true),
+        'is_date_assumed': Schema.boolean(),
+        // Resolved from bed/ward number via the appended active census JSON.
+        'inferred_patient_id': Schema.string(nullable: true),
+        'chief_complaints': Schema.array(items: Schema.string()),
+        'diagnoses': Schema.array(items: Schema.string()),
+        'planned_investigations': Schema.array(items: Schema.string()),
+        // Source authority, drives semantic merging: a formal Scanned Document
+        // report outranks a hastily jotted Ward Round Note for the same test.
+        'source_authority': Schema.string(
+          nullable: true,
+          description:
+              'One of: Ward Round Note, Scanned Document, Typed Note, Unknown.',
         ),
         'clinical_summary': Schema.string(),
       },
