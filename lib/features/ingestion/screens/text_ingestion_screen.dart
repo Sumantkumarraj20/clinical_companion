@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/database/local_database.dart';
 import '../../../core/providers/app_providers.dart';
 
 class TextIngestionScreen extends ConsumerStatefulWidget {
@@ -15,6 +16,8 @@ class TextIngestionScreen extends ConsumerStatefulWidget {
 class _TextIngestionScreenState extends ConsumerState<TextIngestionScreen> {
   final _textController = TextEditingController();
   bool _submitting = false;
+  bool _processAsGuideline = false;
+  List<CachedClinicalRule> _guidelineRules = const [];
 
   @override
   void dispose() {
@@ -32,6 +35,28 @@ class _TextIngestionScreenState extends ConsumerState<TextIngestionScreen> {
     }
     setState(() => _submitting = true);
     try {
+      if (_processAsGuideline) {
+        final suggestions = await ref
+            .read(documentAiServiceProvider)
+            .generateClinicalRulesFromGuideline(text);
+        final result = await ref
+            .read(clinicalRuleDaoProvider)
+            .saveGuidelineRules(suggestions);
+        if (!mounted) return;
+        setState(() => _guidelineRules = result.rules);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              suggestions.isEmpty
+                  ? 'ClinCom found no supported clinical rules in this text.'
+                  : 'Saved ${result.insertedCount} new rule'
+                        '${result.insertedCount == 1 ? '' : 's'}. '
+                        'Review each suggestion before it becomes active.',
+            ),
+          ),
+        );
+        return;
+      }
       final census = await BatchExtractionNotifier.buildActiveCensusJson(
         ref.read(clinicalDaoProvider),
       );
@@ -47,6 +72,38 @@ class _TextIngestionScreenState extends ConsumerState<TextIngestionScreen> {
       );
     } finally {
       if (mounted) setState(() => _submitting = false);
+    }
+  }
+
+  Future<void> _reviewRule(CachedClinicalRule rule, {required bool accept}) async {
+    try {
+      final dao = ref.read(clinicalRuleDaoProvider);
+      if (accept) {
+        final verified = await dao.verifyRule(rule.id);
+        if (mounted) {
+          setState(() {
+            _guidelineRules = [
+              for (final item in _guidelineRules)
+                if (item.id == rule.id) verified else item,
+            ];
+          });
+        }
+      } else {
+        await dao.dismissRule(rule.id);
+        if (mounted) {
+          setState(
+            () => _guidelineRules = _guidelineRules
+                .where((item) => item.id != rule.id)
+                .toList(growable: false),
+          );
+        }
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not update clinical rule: $error')),
+        );
+      }
     }
   }
 
@@ -72,26 +129,115 @@ class _TextIngestionScreenState extends ConsumerState<TextIngestionScreen> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Text(
-                'Paste clinical text from an EHR, message, or note. '
-                'ClinCom will organize it for your review.',
+                _processAsGuideline
+                    ? 'Paste guideline or trial text. ClinCom will extract '
+                          'reusable rules for clinician review.'
+                    : 'Paste clinical text from an EHR, message, or note. '
+                          'ClinCom will organize it for your review.',
                 style: Theme.of(context).textTheme.bodyMedium,
               ),
               const SizedBox(height: 12),
+              SwitchListTile.adaptive(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Process as Clinical Guideline'),
+                subtitle: Text(
+                  _processAsGuideline
+                      ? 'Extract reusable rules; no patient record is created.'
+                      : 'Process as Patient Data',
+                ),
+                value: _processAsGuideline,
+                onChanged: _submitting
+                    ? null
+                    : (enabled) =>
+                          setState(() => _processAsGuideline = enabled),
+              ),
               Expanded(
-                child: TextField(
-                  controller: _textController,
-                  autofocus: true,
-                  expands: true,
-                  minLines: null,
-                  maxLines: null,
-                  textAlignVertical: TextAlignVertical.top,
-                  keyboardType: TextInputType.multiline,
-                  decoration: const InputDecoration(
-                    hintText: 'Paste or type unstructured clinical text…',
-                    border: OutlineInputBorder(),
-                    alignLabelWithHint: true,
-                  ),
-                  onChanged: (_) => setState(() {}),
+                child: Column(
+                  children: [
+                    Expanded(
+                      flex: _guidelineRules.isEmpty ? 1 : 3,
+                      child: TextField(
+                        controller: _textController,
+                        autofocus: true,
+                        expands: true,
+                        minLines: null,
+                        maxLines: null,
+                        textAlignVertical: TextAlignVertical.top,
+                        keyboardType: TextInputType.multiline,
+                        decoration: const InputDecoration(
+                          hintText: 'Paste or type unstructured clinical text…',
+                          border: OutlineInputBorder(),
+                          alignLabelWithHint: true,
+                        ),
+                        onChanged: (_) => setState(() {}),
+                      ),
+                    ),
+                    if (_guidelineRules.isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      Expanded(
+                        flex: 2,
+                        child: ListView(
+                          children: [
+                            for (final rule in _guidelineRules)
+                              Card(
+                                child: Padding(
+                                  padding: const EdgeInsets.all(10),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        '${rule.triggerType}: ${rule.triggerValue}',
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                      Text(rule.suggestedAction),
+                                      if (rule.contraindicatingConditions
+                                          .isNotEmpty)
+                                        Text(
+                                          'Do not proceed: ${rule.contraindicatingConditions.join('; ')}',
+                                        ),
+                                      if (rule.requiredMonitoring.isNotEmpty)
+                                        Text(
+                                          'Monitor: ${rule.requiredMonitoring.join('; ')}',
+                                        ),
+                                      if (rule.sourceReference
+                                          .trim()
+                                          .isNotEmpty)
+                                        Text('Source: ${rule.sourceReference}'),
+                                      if (!rule.isVerified)
+                                        Row(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.end,
+                                          children: [
+                                            TextButton(
+                                              onPressed: () => _reviewRule(
+                                                rule,
+                                                accept: false,
+                                              ),
+                                              child: const Text('Dismiss'),
+                                            ),
+                                            FilledButton.tonal(
+                                              onPressed: () => _reviewRule(
+                                                rule,
+                                                accept: true,
+                                              ),
+                                              child: const Text('Verify rule'),
+                                            ),
+                                          ],
+                                        )
+                                      else
+                                        const Text('Verified and active'),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
               ),
             ],

@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/providers/app_providers.dart';
 import '../../../core/database/local_database.dart';
+import '../providers/clinical_rule_guardian_provider.dart';
 
 class AddProblemField extends ConsumerStatefulWidget {
   const AddProblemField({required this.patientId, super.key});
@@ -50,6 +53,11 @@ class _AddProblemFieldState extends ConsumerState<AddProblemField> {
       await ref
           .read(clinicalDaoProvider)
           .addPatientProblem(patientId: widget.patientId, problemName: term);
+      unawaited(
+        ref
+            .read(clinicalRuleGuardianProvider.notifier)
+            .evaluate(triggerType: 'diagnosis', triggerValue: term),
+      );
       await ref
           .read(clinicalDaoProvider)
           .recordCatalogUsage(category: 'diagnosis', term: term);

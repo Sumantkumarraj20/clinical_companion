@@ -8,6 +8,7 @@ import 'package:google_generative_ai/google_generative_ai.dart';
 import '../database/daos/pharmacopeia_dao.dart';
 import '../models/ai_extraction_result.dart';
 import '../models/clinical_insight.dart';
+import '../models/clinical_rule_suggestion.dart';
 import 'clinical_prompts.dart';
 
 /// JSON decoding is CPU work and can be substantial for multi-page results.
@@ -173,6 +174,210 @@ $chartSummary
         .map(
           (item) =>
               ClinicalInsight.fromJson(Map<String, dynamic>.from(item as Map)),
+        )
+        .toList(growable: false);
+  }
+
+  /// Generates a reusable, patient-independent rule for a single clinical
+  /// trigger. The caller only invokes this after a local cache miss.
+  Future<ClinicalRuleSuggestion> generateClinicalRule({
+    required String triggerType,
+    required String triggerValue,
+  }) async {
+    final normalizedType = triggerType.trim().toLowerCase();
+    final value = triggerValue.trim();
+    if (normalizedType != 'diagnosis' &&
+        normalizedType != 'symptom' &&
+        normalizedType != 'medication') {
+      throw ArgumentError.value(triggerType, 'triggerType');
+    }
+    if (value.isEmpty) {
+      throw ArgumentError.value(triggerValue, 'triggerValue');
+    }
+
+    final schema = Schema.object(
+      properties: {
+        'trigger_type': Schema.string(),
+        'trigger_value': Schema.string(),
+        'suggested_action': Schema.string(),
+        'evidence_rationale': Schema.string(),
+        'contraindicating_conditions': Schema.array(items: Schema.string()),
+        'required_monitoring': Schema.array(items: Schema.string()),
+        'differential_diagnoses': Schema.array(items: Schema.string()),
+        'recommended_investigations': Schema.array(items: Schema.string()),
+        'recommended_management': Schema.array(items: Schema.string()),
+        'source_reference': Schema.string(),
+      },
+      requiredProperties: [
+        'trigger_type',
+        'trigger_value',
+        'suggested_action',
+        'evidence_rationale',
+        'contraindicating_conditions',
+        'required_monitoring',
+        'differential_diagnoses',
+        'recommended_investigations',
+        'recommended_management',
+        'source_reference',
+      ],
+    );
+    final response = await _extractStructuredJson(
+      image: null,
+      prompt:
+          '''
+You are an elite clinical informatician. The clinician just logged the
+$normalizedType "$value". Generate an evidence-based universal pathway with
+an ordered differential diagnosis, investigations that narrow the
+differential, and initial management suggestions.
+
+Use only the trigger provided. Do not infer or mention patient-specific
+demographics, history, results, or other clinical context. Keep lists focused
+and ordered by clinical priority. If evidence is uncertain, say so in the
+rationale rather than inventing certainty. Include contraindications and
+monitoring when relevant. The clinician must verify the pathway before it
+becomes active.
+
+Return JSON with exactly these fields:
+- trigger_type: "$normalizedType"
+- trigger_value: "$value"
+- suggested_action: concise clinician-facing action or safety warning
+- evidence_rationale: concise rationale grounded in standard-of-care evidence
+- contraindicating_conditions: strict conditions where this action must not
+  proceed, as concise strings (empty array when none are stated)
+- required_monitoring: parameters to check or monitor (empty array when none
+  are stated)
+- differential_diagnoses: ordered likely diagnoses for this trigger
+- recommended_investigations: specific investigations to narrow the DDx
+- recommended_management: initial evidence-based drugs or procedures
+- source_reference: guideline, trial, or other source when identified, else
+  "Not specified"
+''',
+      schema: schema,
+      validator: (json) {
+        final suggestion = ClinicalRuleSuggestion.fromJson(json);
+        if (suggestion.triggerType != normalizedType ||
+            suggestion.triggerValue.toLowerCase() != value.toLowerCase()) {
+          throw const FormatException(
+            'Clinical rule response changed its requested trigger.',
+          );
+        }
+        if (suggestion.differentialDiagnoses.isEmpty &&
+            suggestion.recommendedInvestigations.isEmpty &&
+            suggestion.recommendedManagement.isEmpty) {
+          throw const FormatException(
+            'Clinical rule response omitted pathway suggestions.',
+          );
+        }
+        return json;
+      },
+    );
+    return ClinicalRuleSuggestion.fromJson(response);
+  }
+
+  /// Extracts reusable contraindication and monitoring rules from clinician-
+  /// supplied medical literature.
+  Future<List<ClinicalRuleSuggestion>> generateClinicalRulesFromGuideline(
+    String sourceText,
+  ) async {
+    if (sourceText.trim().isEmpty) {
+      throw ArgumentError.value(sourceText, 'sourceText');
+    }
+    final schema = Schema.object(
+      properties: {
+        'rules': Schema.array(
+          items: Schema.object(
+            properties: {
+              'trigger_type': Schema.string(),
+              'trigger_value': Schema.string(),
+              'suggested_action': Schema.string(),
+              'evidence_rationale': Schema.string(),
+              'contraindicating_conditions': Schema.array(
+                items: Schema.string(),
+              ),
+              'required_monitoring': Schema.array(items: Schema.string()),
+              'differential_diagnoses': Schema.array(
+                items: Schema.string(),
+              ),
+              'recommended_investigations': Schema.array(
+                items: Schema.string(),
+              ),
+              'recommended_management': Schema.array(
+                items: Schema.string(),
+              ),
+              'source_reference': Schema.string(),
+            },
+            requiredProperties: [
+              'trigger_type',
+              'trigger_value',
+              'suggested_action',
+              'evidence_rationale',
+              'contraindicating_conditions',
+              'required_monitoring',
+              'differential_diagnoses',
+              'recommended_investigations',
+              'recommended_management',
+              'source_reference',
+            ],
+          ),
+        ),
+      },
+      requiredProperties: ['rules'],
+    );
+    final response = await _extractStructuredJson(
+      image: null,
+      prompt:
+          '''
+You are an elite Medical Informatician. Extract reusable proactive pathways
+from the supplied medical literature. Identify triggers such as conditions,
+symptoms, or medications. For each trigger, output an ordered, data-backed
+differential diagnosis and the next best investigations and initial management
+steps. Include contraindicating conditions and monitoring when supported by
+the source. Only include recommendations supported by the supplied text; do
+not invent recommendations or patient-specific facts. Preserve clinically
+meaningful thresholds and qualifiers. Include a concise rationale and source
+reference. Split distinct triggers into separate rules and return an empty
+array when no defensible pathway is present.
+
+Each rule must contain:
+- trigger_type: "diagnosis", "symptom", or "medication"
+- trigger_value: canonical diagnosis or medication
+- suggested_action: concise action overview
+- evidence_rationale: concise rationale grounded in the supplied literature
+- contraindicating_conditions: string array; use "allergy: <substance>" for
+  allergy restrictions and retain numeric thresholds
+- required_monitoring: string array of monitoring parameters
+- differential_diagnoses: ordered likely alternatives
+- recommended_investigations: prioritized specific labs or imaging
+- recommended_management: prioritized drugs or procedures
+- source_reference: named guideline/trial or "Not specified"
+
+MEDICAL LITERATURE:
+$sourceText
+''',
+      schema: schema,
+      validator: (json) {
+        final rawRules = json['rules'];
+        if (rawRules is! List) {
+          throw const FormatException(
+            'Guideline extraction response omitted rules.',
+          );
+        }
+        for (final rawRule in rawRules) {
+          if (rawRule is! Map) {
+            throw const FormatException(
+              'Guideline extraction rule must be a JSON object.',
+            );
+          }
+          ClinicalRuleSuggestion.fromJson(Map<String, dynamic>.from(rawRule));
+        }
+        return json;
+      },
+    );
+    return (response['rules']! as List)
+        .map(
+          (rule) => ClinicalRuleSuggestion.fromJson(
+            Map<String, dynamic>.from(rule as Map),
+          ),
         )
         .toList(growable: false);
   }

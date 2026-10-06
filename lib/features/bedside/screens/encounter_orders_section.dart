@@ -5,6 +5,7 @@ import '../../../core/providers/app_providers.dart';
 import '../../../core/widgets/smart_catalog_autocomplete.dart';
 import '../../../core/widgets/smart_drug_autocomplete.dart';
 import '../providers/staged_orders_provider.dart';
+import '../../../core/cds/decision_support_engine.dart';
 
 /// Shared Orders & Plan tray bound to [stagedOrdersProvider].
 ///
@@ -36,10 +37,9 @@ class OrdersAndPlanSection extends ConsumerWidget {
               children: [
                 Text(
                   'Orders & Plan (${orders.length})',
-                  style: Theme.of(context)
-                      .textTheme
-                      .titleSmall
-                      ?.copyWith(fontWeight: FontWeight.bold),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
                 ),
                 const Spacer(),
                 if (orders.isNotEmpty)
@@ -80,7 +80,7 @@ class OrdersAndPlanSection extends ConsumerWidget {
               hintText: 'Type 2+ letters',
               prefixIcon: Icons.history_outlined,
               onSelected: (term) {
-                notifier.addManual(term);
+                notifier.addManual(term, kind: OrderProposalKind.medication);
                 procedureController.clear();
               },
             ),
@@ -90,6 +90,7 @@ class OrdersAndPlanSection extends ConsumerWidget {
     );
   }
 }
+
 /// One staged order. Medications get the full editable prescription row;
 /// everything else stays a compact chip.
 class _OrderRow extends StatelessWidget {
@@ -141,7 +142,8 @@ class _OrderRow extends StatelessWidget {
                 ),
                 if (order.source == 'catalog')
                   const Tooltip(
-                    message: 'Suggested by the drug catalog — review before save',
+                    message:
+                        'Suggested by the drug catalog — review before save',
                     child: Icon(
                       Icons.auto_awesome,
                       size: 14,
@@ -149,11 +151,7 @@ class _OrderRow extends StatelessWidget {
                     ),
                   ),
                 IconButton(
-                  icon: const Icon(
-                    Icons.close,
-                    size: 18,
-                    color: Colors.grey,
-                  ),
+                  icon: const Icon(Icons.close, size: 18, color: Colors.grey),
                   tooltip: 'Remove',
                   onPressed: () => notifier.removeByLabel(order.label),
                 ),
@@ -197,8 +195,7 @@ class _OrderRow extends StatelessWidget {
               'Special instructions',
               initial: order.specialInstructions,
               hint: 'Post meals, check renal dose…',
-              onChanged: (value) =>
-                  edit((o) => o..specialInstructions = value),
+              onChanged: (value) => edit((o) => o..specialInstructions = value),
             ),
           ],
         ),

@@ -10,6 +10,7 @@ import '../../utils/document_image_hasher.dart';
 import '../../../features/billing/services/clinical_coding_service.dart';
 import '../../services/extraction_pipeline_service.dart';
 import '../local_database.dart';
+import '../../models/patient_clinical_context.dart';
 import '../../models/clinical_insight.dart';
 import '../schema/clinical_records.dart' as clinical_records;
 import '../services/identity_resolution_service.dart';
@@ -103,12 +104,14 @@ class ClinicalDao extends DatabaseAccessor<AppDatabase>
     String imagePath, {
     String? patientIdOverride,
     String? clincomJson,
+    String? imageHash,
     List<String> verifiedProblemAssociations = const [],
   }) => saveUniversalClinicalPayload(
     result: result,
     imagePath: imagePath,
     patientIdOverride: patientIdOverride,
     clincomJson: clincomJson,
+    imageHash: imageHash,
     verifiedProblemAssociations: verifiedProblemAssociations,
   );
 
@@ -121,6 +124,7 @@ class ClinicalDao extends DatabaseAccessor<AppDatabase>
     bool isTextInput = false,
     String? patientIdOverride,
     String? clincomJson,
+    String? imageHash,
     List<String> verifiedProblemAssociations = const [],
   }) async {
     return transaction(() async {
@@ -172,6 +176,11 @@ class ClinicalDao extends DatabaseAccessor<AppDatabase>
       );
 
       final documentId = _ids.v4();
+      // The dedup hash is written at creation so the outbox snapshot enqueued
+      // below already carries it. Stamping it afterwards via attachImageHash
+      // would leave the queued payload with a null image_hash, so the remote
+      // could never dedupe this page.
+      final normalizedHash = imageHash?.trim();
       await into(documentRegistries).insert(
         DocumentRegistriesCompanion.insert(
           id: documentId,
@@ -187,10 +196,32 @@ class ClinicalDao extends DatabaseAccessor<AppDatabase>
                 ? rawSourceText!
                 : result.clinicalSummary,
           ),
+          imageHash: Value(
+            normalizedHash != null && normalizedHash.isNotEmpty
+                ? normalizedHash
+                : null,
+          ),
           clincomJson: Value(clincomJson),
           confidenceScore: const Value(0.0),
           documentedAt: occurredAt,
         ),
+      );
+
+      // Sprint 17.6 — queue the document itself, not just the encounter
+      // derived from it. `document_registries` was inserted locally but never
+      // enqueued, so the scanned page and its image_hash dedup key never
+      // reached Supabase: devices would sync an encounter with no source
+      // document behind it.
+      final savedDocument = await (select(
+        documentRegistries,
+      )..where((row) => row.id.equals(documentId))).getSingle();
+      await _enqueue(
+        ownerId: defaultOwnerId,
+        entityType: 'document_registries',
+        entityId: savedDocument.id,
+        operation: 'insert',
+        payload: _documentRegistryPayload(savedDocument),
+        clientUpdatedAt: DateTime.now().toUtc(),
       );
 
       final encounter = ClinicalEncountersCompanion.insert(
@@ -2439,6 +2470,90 @@ class ClinicalDao extends DatabaseAccessor<AppDatabase>
             ]))
           .get();
 
+  /// Reads only the bounded chart context needed for point-of-order checks.
+  ///
+  /// Recent encounter scans use the patient/occurred-at index; allergy history
+  /// is read from the latest few encounters that actually contain it.
+  Future<PatientClinicalContext> getCurrentPatientContext(
+    String patientId, {
+    DateTime? now,
+  }) async {
+    final currentTime = now ?? DateTime.now().toUtc();
+    final since = currentTime.subtract(const Duration(hours: 24));
+    final recentEncounters =
+        await (select(clinicalEncounters)
+                ..where(
+                  (row) =>
+                      row.patientId.equals(patientId) &
+                      row.occurredAt.isBiggerOrEqualValue(since),
+                )
+                ..orderBy([
+                  (row) => OrderingTerm.desc(row.occurredAt),
+                ])
+                ..limit(30))
+              .get();
+    final allergyEncounters =
+        await (select(clinicalEncounters)
+                ..where(
+                  (row) =>
+                      row.patientId.equals(patientId) &
+                      row.drugAndAllergyHistory.isNotNull() &
+                      row.drugAndAllergyHistory.isNotValue(''),
+                )
+                ..orderBy([
+                  (row) => OrderingTerm.desc(row.occurredAt),
+                ])
+                ..limit(1))
+              .get();
+    final problems = await getPatientProblems(patientId);
+
+    final allergyHistory = allergyEncounters
+        .map((encounter) => encounter.drugAndAllergyHistory?.trim() ?? '')
+        .firstWhere((value) => value.isNotEmpty, orElse: () => '');
+    final activeProblems = problems
+        .where((problem) => problem.currentStatus.toLowerCase() != 'resolved')
+        .map((problem) => problem.problemName)
+        .toList(growable: false);
+    final recentVitals = <String>[];
+    final recentSymptoms = <String>[];
+    for (final encounter in recentEncounters) {
+      final measurements = <String>[
+        if (encounter.sbp != null) 'SBP ${encounter.sbp} mmHg',
+        if (encounter.dbp != null) 'DBP ${encounter.dbp} mmHg',
+        if (encounter.pulse != null) 'pulse ${encounter.pulse} bpm',
+        if (encounter.spo2 != null) 'SpO2 ${encounter.spo2}%',
+        if (encounter.temperatureC != null)
+            'temperature ${encounter.temperatureC} C',
+        if (encounter.respiratoryRate != null)
+            'respiratory rate ${encounter.respiratoryRate}',
+      ];
+      if (measurements.isNotEmpty) {
+        recentVitals.add(
+            '${measurements.join(', ')} '
+            '(${encounter.occurredAt.toIso8601String()})',
+        );
+      }
+      for (final narrative in [
+        encounter.chiefComplaints,
+        encounter.historyOfPresentIllness,
+      ]) {
+        final text = narrative?.trim() ?? '';
+        if (text.isNotEmpty) {
+          recentSymptoms.add(
+            '$text (${encounter.occurredAt.toIso8601String()})',
+          );
+        }
+      }
+    }
+
+    return PatientClinicalContext(
+      allergyHistory: allergyHistory,
+      activeProblems: activeProblems,
+      recentVitals: recentVitals,
+      recentSymptoms: recentSymptoms,
+    );
+  }
+
   /// Builds a bounded, de-identified-from-demographics summary of the
   /// patient's active problems, current prescriptions, and recent results.
   Future<String> buildClinicalAuditSummary(String patientId) async {
@@ -3722,6 +3837,34 @@ class ClinicalDao extends DatabaseAccessor<AppDatabase>
     'ai_summary': row.aiSummary,
     'created_at': row.createdAt.toIso8601String(),
     'updated_at': row.updatedAt.toIso8601String(),
+  };
+
+  /// Sync payload for a scanned or text-originated document.
+  ///
+  /// `owner_id` is taken from [defaultOwnerId] because the local
+  /// `document_registries` table has no owner column of its own, while the
+  /// remote one still needs a value — the RLS policies scope document rows per
+  /// clinician, and the Sprint 16 blockers migration switched `owner_id` to
+  /// `text` defaulting to exactly this sentinel.
+  ///
+  /// `updated_at` is deliberately omitted so Postgres fills it from its own
+  /// `DEFAULT now()`; overriding it with the client clock would let a stale
+  /// device clobber a newer row's timestamp.
+  Map<String, dynamic> _documentRegistryPayload(DocumentRegistry row) => {
+    'id': row.id,
+    'owner_id': defaultOwnerId,
+    'patient_id': row.patientId,
+    'document_category': row.documentCategory,
+    'image_path': row.imagePath,
+    'raw_ocr_transcript': row.rawOcrTranscript,
+    // Sprint 17 — the dedup key. Requires supabase_migration_sprint20.sql,
+    // which adds image_hash/clincom_json to the remote table.
+    'image_hash': row.imageHash,
+    // Sprint 17.5 — the whole extraction, so Edit Mode rehydrates remotely.
+    'clincom_json': row.clincomJson,
+    'confidence_score': row.confidenceScore,
+    'documented_at': row.documentedAt.toUtc().toIso8601String(),
+    'created_at': row.createdAt.toUtc().toIso8601String(),
   };
 
   DateTime? _date(Object? value) {

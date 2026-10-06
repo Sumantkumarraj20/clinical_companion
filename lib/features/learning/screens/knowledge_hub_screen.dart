@@ -25,7 +25,7 @@ class KnowledgeHubScreen extends ConsumerStatefulWidget {
 
 class _KnowledgeHubScreenState extends ConsumerState<KnowledgeHubScreen>
     with SingleTickerProviderStateMixin {
-  late final TabController _tabs = TabController(length: 3, vsync: this);
+  late final TabController _tabs = TabController(length: 4, vsync: this);
 
   @override
   void dispose() {
@@ -40,6 +40,7 @@ class _KnowledgeHubScreenState extends ConsumerState<KnowledgeHubScreen>
         title: const Text('Knowledge Hub'),
         bottom: TabBar(
           controller: _tabs,
+          isScrollable: true,
           tabs: const [
             Tab(
               icon: Icon(Icons.psychology_outlined),
@@ -49,13 +50,228 @@ class _KnowledgeHubScreenState extends ConsumerState<KnowledgeHubScreen>
               icon: Icon(Icons.menu_book_outlined),
               text: 'Clinical Guidelines',
             ),
+            Tab(
+              icon: Icon(Icons.pending_actions_outlined),
+              text: 'Pending Pathways',
+            ),
             Tab(icon: Icon(Icons.visibility_outlined), text: 'Blind Spots'),
           ],
         ),
       ),
       body: TabBarView(
         controller: _tabs,
-        children: const [_ReflectionsTab(), _GuidelinesTab(), _BlindSpotsTab()],
+        children: const [
+          _ReflectionsTab(),
+          _GuidelinesTab(),
+          _PendingPathwaysTab(),
+          _BlindSpotsTab(),
+        ],
+      ),
+    );
+  }
+}
+
+class _PendingPathwaysTab extends ConsumerWidget {
+  const _PendingPathwaysTab();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return StreamBuilder<List<CachedClinicalRule>>(
+      stream: ref.watch(clinicalRuleDaoProvider).watchPendingPathways(),
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return _HubEmpty(
+            icon: Icons.error_outline,
+            title: 'Could not load pending pathways',
+            body:
+                'The local clinical rule database could not be read: '
+                '${snapshot.error}',
+          );
+        }
+        if (!snapshot.hasData) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        final pathways = snapshot.data!;
+        if (pathways.isEmpty) {
+          return const _HubEmpty(
+            icon: Icons.pending_actions_outlined,
+            title: 'No pathways to review',
+            body:
+                'AI-generated clinical pathways will appear here for review '
+                'before they can be used as active suggestions.',
+          );
+        }
+        return ListView.builder(
+          padding: const EdgeInsets.fromLTRB(12, 12, 12, 32),
+          itemCount: pathways.length,
+          itemBuilder: (context, index) => _PendingPathwayCard(
+            key: ValueKey(pathways[index].id),
+            rule: pathways[index],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _PendingPathwayCard extends ConsumerStatefulWidget {
+  const _PendingPathwayCard({required this.rule, super.key});
+
+  final CachedClinicalRule rule;
+
+  @override
+  ConsumerState<_PendingPathwayCard> createState() =>
+      _PendingPathwayCardState();
+}
+
+class _PendingPathwayCardState extends ConsumerState<_PendingPathwayCard> {
+  late final _ddx = TextEditingController(
+    text: widget.rule.differentialDiagnoses.join('\n'),
+  );
+  late final _investigations = TextEditingController(
+    text: widget.rule.recommendedInvestigations.join('\n'),
+  );
+  late final _management = TextEditingController(
+    text: widget.rule.recommendedManagement.join('\n'),
+  );
+  late final _rationale = TextEditingController(
+    text: widget.rule.evidenceRationale,
+  );
+  bool _saving = false;
+
+  @override
+  void dispose() {
+    _ddx.dispose();
+    _investigations.dispose();
+    _management.dispose();
+    _rationale.dispose();
+    super.dispose();
+  }
+
+  List<String> _lines(String text) => text
+      .split('\n')
+      .map((line) => line.trim())
+      .where((line) => line.isNotEmpty)
+      .toList(growable: false);
+
+  Future<void> _verify() async {
+    setState(() => _saving = true);
+    try {
+      await ref
+          .read(clinicalRuleDaoProvider)
+          .updatePathwayAndVerify(
+            id: widget.rule.id,
+            differentialDiagnoses: _lines(_ddx.text),
+            recommendedInvestigations: _lines(_investigations.text),
+            recommendedManagement: _lines(_management.text),
+            evidenceRationale: _rationale.text,
+          );
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not verify pathway: $error')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _dismiss() async {
+    try {
+      await ref.read(clinicalRuleDaoProvider).dismissRule(widget.rule.id);
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not dismiss pathway: $error')),
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '${widget.rule.triggerType}: ${widget.rule.triggerValue}',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            if (widget.rule.sourceReference.trim().isNotEmpty) ...[
+              const SizedBox(height: 4),
+              Text('Source: ${widget.rule.sourceReference}'),
+            ],
+            const SizedBox(height: 12),
+            _PathwayEditor(
+              controller: _ddx,
+              label: 'Differential diagnoses (one per line; reorder as needed)',
+              minLines: 2,
+            ),
+            _PathwayEditor(
+              controller: _investigations,
+              label: 'Recommended investigations (one per line)',
+            ),
+            _PathwayEditor(
+              controller: _management,
+              label: 'Recommended management (one per line)',
+            ),
+            _PathwayEditor(
+              controller: _rationale,
+              label: 'Evidence rationale',
+              minLines: 2,
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              children: [
+                FilledButton.icon(
+                  onPressed: _saving ? null : _verify,
+                  icon: const Icon(Icons.verified_outlined),
+                  label: Text(_saving ? 'Saving…' : 'Verify & Save'),
+                ),
+                TextButton.icon(
+                  onPressed: _saving ? null : _dismiss,
+                  icon: const Icon(Icons.close),
+                  label: const Text('Dismiss'),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PathwayEditor extends StatelessWidget {
+  const _PathwayEditor({
+    required this.controller,
+    required this.label,
+    this.minLines = 1,
+  });
+
+  final TextEditingController controller;
+  final String label;
+  final int minLines;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: TextField(
+        controller: controller,
+        minLines: minLines,
+        maxLines: 6,
+        decoration: InputDecoration(
+          labelText: label,
+          alignLabelWithHint: true,
+          border: const OutlineInputBorder(),
+        ),
       ),
     );
   }

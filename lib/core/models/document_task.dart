@@ -30,6 +30,7 @@ class DocumentTask {
     required this.id,
     this.originalFile,
     this.isTextInput = false,
+    this.isAmbientAudio = false,
     this.status = ExtractionStatus.pending,
     this.extractedData,
     this.source = ExtractionSource.unknown,
@@ -41,6 +42,7 @@ class DocumentTask {
   final String id;
   final File? originalFile;
   final bool isTextInput;
+  final bool isAmbientAudio;
   final ExtractionStatus status;
   final AiExtractionResult? extractedData;
   final ExtractionSource source;
@@ -82,6 +84,7 @@ class DocumentTask {
       id: id,
       originalFile: originalFile,
       isTextInput: isTextInput,
+      isAmbientAudio: isAmbientAudio,
       activeCensusJson: activeCensusJson,
       status: status ?? this.status,
       extractedData: clearExtractedData

@@ -363,6 +363,11 @@ class SyncService {
       case 'investigation_results':
       case 'personal_wiki':
       case 'cdss_rules':
+      // Sprint 17.6 — the scanned document itself must reach the cloud, not
+      // just the encounter derived from it. Without this the clinician sees a
+      // remote encounter with no source page, and the image_hash dedup key
+      // never propagates to other devices.
+      case 'document_registries':
         return entityType;
 
       case 'daily_vitals_notes':

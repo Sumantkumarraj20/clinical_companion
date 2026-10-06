@@ -105,7 +105,10 @@ Future<ProviderContainer> _pumpReview(
   await tester.pumpWidget(
     UncontrolledProviderScope(
       container: container,
-      child: MaterialApp.router(routerConfig: router),
+      child: MaterialApp.router(
+        routerConfig: router,
+        theme: ThemeData(splashFactory: NoSplash.splashFactory),
+      ),
     ),
   );
   return container;

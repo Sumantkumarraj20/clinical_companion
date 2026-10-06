@@ -165,6 +165,7 @@ class ExtractionPipelineService {
   Future<PipelineExtraction> processTextWithProvenance(
     String rawText, {
     String? activeCensusJson,
+    bool ambientAudioTranscription = false,
   }) async {
     if (rawText.trim().isEmpty) {
       throw ArgumentError.value(rawText, 'rawText', 'Text cannot be empty');
@@ -178,10 +179,21 @@ class ExtractionPipelineService {
         activeCensusJson: activeCensusJson,
         includeImage: false,
         historicalAssociations: historicalAssociations,
+        ambientAudioTranscription: ambientAudioTranscription,
       ),
     );
     return PipelineExtraction(result: result, source: PipelineSource.ai);
   }
+
+  Future<PipelineExtraction> processTextPayload(
+    String rawText, {
+    String? activeCensusJson,
+    bool ambientAudioTranscription = false,
+  }) => processTextWithProvenance(
+    rawText,
+    activeCensusJson: activeCensusJson,
+    ambientAudioTranscription: ambientAudioTranscription,
+  );
 
   Future<AiExtractionResult> processDocument(File image) async {
     return (await processDocumentWithProvenance(image)).result;
@@ -248,6 +260,7 @@ class ExtractionPipelineService {
     String? activeCensusJson,
     bool includeImage = true,
     List<String> historicalAssociations = const [],
+    bool ambientAudioTranscription = false,
   }) {
     final transcript = rawText.trim();
     final censusJson = (activeCensusJson ?? '').trim();
@@ -272,6 +285,16 @@ ${jsonEncode(historicalAssociations)}
 Treat these associations only as contextual evidence, not as rules. Do not
 override the current document or established guidelines; never infer a link
 solely because it appears in this list.''';
+
+    final audioTranscriptNote = ambientAudioTranscription
+        ? 'Note: The provided text is a raw, ambient audio transcription from '
+              'an Indian hospital ward. It contains a mix of Hindi, regional '
+              'dialects, and English medical jargon. You are an expert medical '
+              'translator. You MUST translate all patient complaints and '
+              'history from Hindi/Hinglish into standard English medical '
+              "terminology before extracting the POMR data (e.g., map 'saans "
+              "phool rahi hai' to 'Dyspnea'). Ignore conversational filler."
+        : '';
 
     return '''
 You are ClinCom, an expert Chief Medical Officer and the clinician's second
@@ -327,6 +350,7 @@ $censusBlock
 
 $practicePatterns
 
+$audioTranscriptNote
 
 Clean and normalise the data, then return structured JSON:
 - Repair obvious OCR damage (e.g. "H6b" -> Hb, "1 3.2" -> 13.2) but NEVER

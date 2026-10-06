@@ -1,0 +1,351 @@
+import 'dart:async';
+
+import 'package:flutter/widgets.dart';
+import 'package:speech_to_text/speech_recognition_error.dart';
+import 'package:speech_to_text/speech_recognition_result.dart';
+import 'package:speech_to_text/speech_to_text.dart';
+
+enum AmbientScribeStatus { idle, recording, paused, transcribing }
+
+@immutable
+class AmbientScribeState {
+  const AmbientScribeState({
+    this.status = AmbientScribeStatus.idle,
+    this.error,
+  });
+
+  final AmbientScribeStatus status;
+  final String? error;
+}
+
+abstract interface class NativeSpeechRecognizer {
+  Future<bool> initialize({
+    required void Function(String status) onStatus,
+    required void Function(String error, bool permanent) onError,
+  });
+
+  Future<List<String>> locales();
+
+  Future<void> listen({
+    required String localeId,
+    required Duration listenFor,
+    required Duration pauseFor,
+    required void Function(String words, bool isFinal) onResult,
+  });
+
+  Future<void> stop();
+}
+
+class _SpeechToTextRecognizer implements NativeSpeechRecognizer {
+  final SpeechToText _speech = SpeechToText();
+
+  @override
+  Future<bool> initialize({
+    required void Function(String status) onStatus,
+    required void Function(String error, bool permanent) onError,
+  }) => _speech.initialize(
+    onStatus: onStatus,
+    onError: (SpeechRecognitionError error) =>
+        onError(error.errorMsg, error.permanent),
+  );
+
+  @override
+  Future<List<String>> locales() async =>
+      (await _speech.locales()).map((locale) => locale.localeId).toList();
+
+  @override
+  Future<void> listen({
+    required String localeId,
+    required Duration listenFor,
+    required Duration pauseFor,
+    required void Function(String words, bool isFinal) onResult,
+  }) async {
+    await _speech.listen(
+      onResult: (SpeechRecognitionResult result) =>
+          onResult(result.recognizedWords, result.finalResult),
+      listenOptions: SpeechListenOptions(
+        localeId: localeId,
+        listenFor: listenFor,
+        pauseFor: pauseFor,
+        partialResults: true,
+        onDevice: true,
+        cancelOnError: false,
+        listenMode: ListenMode.dictation,
+        contextualPhrases: const [
+          'dyspnea',
+          'hypertension',
+          'diabetes mellitus',
+          'myocardial infarction',
+          'amlodipine',
+          'paracetamol',
+          'blood pressure',
+          'saans phool rahi hai',
+        ],
+      ),
+    );
+  }
+
+  @override
+  Future<void> stop() => _speech.stop();
+}
+
+class AmbientScribeService with WidgetsBindingObserver {
+  AmbientScribeService({NativeSpeechRecognizer? recognizer})
+    : _recognizer = recognizer ?? _SpeechToTextRecognizer() {
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  static const defaultLocaleId = 'en_IN';
+  static const hindiLocaleId = 'hi_IN';
+  static const _listenWindow = Duration(minutes: 5);
+  static const _pauseWindow = Duration(seconds: 20);
+  static const _restartDelay = Duration(milliseconds: 300);
+
+  final NativeSpeechRecognizer _recognizer;
+  final ValueNotifier<AmbientScribeState> state = ValueNotifier(
+    const AmbientScribeState(),
+  );
+  final List<String> _completedSegments = [];
+  String _currentSegment = '';
+  String _localeId = defaultLocaleId;
+  Timer? _restartTimer;
+  bool _initialized = false;
+  bool _manualStop = false;
+  bool _interrupted = false;
+  bool _disposed = false;
+  Completer<void>? _finalResultReceived;
+  Future<void>? _interruptionStop;
+
+  String get localeId => _localeId;
+
+  Future<void> startListening({String localeId = defaultLocaleId}) async {
+    if (state.value.status != AmbientScribeStatus.idle) {
+      throw StateError('The ambient scribe is already active.');
+    }
+    _localeId = localeId;
+    state.value = const AmbientScribeState(
+      status: AmbientScribeStatus.transcribing,
+    );
+    try {
+      if (!_initialized) {
+        _initialized = await _recognizer.initialize(
+          onStatus: _onStatus,
+          onError: _onError,
+        );
+      }
+      if (!_initialized) {
+        throw StateError(
+          'Native speech recognition is unavailable or microphone permission '
+          'was denied.',
+        );
+      }
+      final availableLocales = await _recognizer.locales();
+      String normalizeLocale(String locale) =>
+          locale.replaceAll('-', '_').toLowerCase();
+      if (availableLocales.isNotEmpty &&
+          !availableLocales.any(
+            (locale) => normalizeLocale(locale) == normalizeLocale(_localeId),
+          )) {
+        throw StateError(
+          'The selected on-device speech locale $_localeId is unavailable. '
+          'Install its offline speech language pack or choose another locale.',
+        );
+      }
+
+      _completedSegments.clear();
+      _currentSegment = '';
+      _manualStop = false;
+      state.value = const AmbientScribeState(
+        status: AmbientScribeStatus.recording,
+      );
+      await _startListenWindow();
+      if (_interrupted) await _pauseForInterruption();
+    } catch (error) {
+      _manualStop = true;
+      _restartTimer?.cancel();
+      state.value = AmbientScribeState(error: error.toString());
+      rethrow;
+    }
+  }
+
+  Future<String> stopAndGetTranscript() async {
+    if (state.value.status != AmbientScribeStatus.recording &&
+        state.value.status != AmbientScribeStatus.paused) {
+      throw StateError('There is no active speech session to stop.');
+    }
+    _manualStop = true;
+    _restartTimer?.cancel();
+    _finalResultReceived = Completer<void>();
+    state.value = const AmbientScribeState(
+      status: AmbientScribeStatus.transcribing,
+    );
+    try {
+      await _recognizer.stop();
+      await _finalResultReceived!.future.timeout(
+        const Duration(milliseconds: 500),
+        onTimeout: () {},
+      );
+      final transcript = [
+        ..._completedSegments,
+        if (_currentSegment.trim().isNotEmpty) _currentSegment.trim(),
+      ].join(' ').trim();
+      if (transcript.isEmpty) {
+        throw StateError(
+          'No speech was recognized. Check the selected language and try again.',
+        );
+      }
+      return transcript;
+    } finally {
+      _completedSegments.clear();
+      _currentSegment = '';
+      _interrupted = false;
+      _finalResultReceived = null;
+      if (!_disposed) state.value = const AmbientScribeState();
+    }
+  }
+
+  Future<void> _startListenWindow() async {
+    if (_manualStop || _interrupted || _disposed) return;
+    await _recognizer.listen(
+      localeId: _localeId,
+      listenFor: _listenWindow,
+      pauseFor: _pauseWindow,
+      onResult: _onResult,
+    );
+  }
+
+  void _onResult(String words, bool isFinal) {
+    if ((_manualStop && !isFinal) || words.trim().isEmpty) return;
+    _currentSegment = words.trim();
+    if (isFinal) {
+      _completedSegments.add(_currentSegment);
+      _currentSegment = '';
+      final completion = _finalResultReceived;
+      if (completion != null && !completion.isCompleted) {
+        completion.complete();
+      }
+    }
+  }
+
+  void _onStatus(String status) {
+    if (_manualStop || _disposed) return;
+    if (status == SpeechToText.listeningStatus) {
+      state.value = const AmbientScribeState(
+        status: AmbientScribeStatus.recording,
+      );
+    } else if (status == SpeechToText.notListeningStatus ||
+        status == SpeechToText.doneStatus) {
+      state.value = const AmbientScribeState(
+        status: AmbientScribeStatus.paused,
+      );
+      _scheduleRestart();
+    }
+  }
+
+  void _onError(String message, bool permanent) {
+    if (_manualStop || _disposed) return;
+    state.value = AmbientScribeState(
+      status: _interrupted
+          ? AmbientScribeStatus.paused
+          : AmbientScribeStatus.recording,
+      error: 'On-device speech recognition: $message',
+    );
+    if (!permanent) {
+      _scheduleRestart();
+    } else {
+      _manualStop = true;
+    }
+  }
+
+  void _scheduleRestart() {
+    if (_manualStop || _interrupted || _disposed) return;
+    _restartTimer?.cancel();
+    _restartTimer = Timer(_restartDelay, () async {
+      try {
+        await _startListenWindow();
+        if (!_interrupted && !_manualStop) {
+          state.value = const AmbientScribeState(
+            status: AmbientScribeStatus.recording,
+          );
+        }
+      } catch (error) {
+        if (!_manualStop && !_disposed) {
+          state.value = AmbientScribeState(
+            status: AmbientScribeStatus.paused,
+            error: 'Could not resume on-device speech recognition: $error',
+          );
+        }
+      }
+    });
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.hidden ||
+        state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached) {
+      _interrupted = true;
+      _restartTimer?.cancel();
+      unawaited(_pauseForInterruption());
+    } else if (state == AppLifecycleState.resumed) {
+      _interrupted = false;
+      unawaited(_resumeAfterInterruption());
+    }
+  }
+
+  Future<void> _pauseForInterruption() async {
+    if (state.value.status != AmbientScribeStatus.recording) return;
+    try {
+      state.value = const AmbientScribeState(
+        status: AmbientScribeStatus.paused,
+      );
+      final stopping = _recognizer.stop();
+      _interruptionStop = stopping;
+      await stopping;
+      if (!_manualStop && !_disposed) {
+        if (!_interrupted) await _resumeAfterInterruption();
+      }
+    } catch (error) {
+      if (!_manualStop && !_disposed) {
+        state.value = AmbientScribeState(
+          status: AmbientScribeStatus.paused,
+          error: 'Could not pause listening during an interruption: $error',
+        );
+      }
+    }
+  }
+
+  Future<void> _resumeAfterInterruption() async {
+    if (_manualStop || _disposed) {
+      return;
+    }
+    try {
+      await _interruptionStop;
+      if (_interrupted ||
+          state.value.status != AmbientScribeStatus.paused ||
+          _manualStop) {
+        return;
+      }
+      await _startListenWindow();
+      state.value = const AmbientScribeState(
+        status: AmbientScribeStatus.recording,
+      );
+    } catch (error) {
+      state.value = AmbientScribeState(
+        status: AmbientScribeStatus.paused,
+        error: 'Could not resume on-device speech recognition: $error',
+      );
+    }
+  }
+
+  Future<void> dispose() async {
+    if (_disposed) return;
+    _disposed = true;
+    _manualStop = true;
+    _restartTimer?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
+    await _recognizer.stop();
+    state.dispose();
+  }
+}

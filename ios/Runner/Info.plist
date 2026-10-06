@@ -26,6 +26,10 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>ClinCom uses the microphone for on-device speech recognition during a clinician-recorded patient encounter.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>ClinCom uses on-device speech recognition to transcribe clinical dialogue for review.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

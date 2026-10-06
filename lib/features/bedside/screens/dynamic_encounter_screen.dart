@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -14,6 +16,12 @@ import 'encounter_opd_sections.dart';
 import 'encounter_orders_section.dart';
 import 'encounter_sections.dart' show EncounterCdssBanners;
 import '../../learning/widgets/reflection_entry_sheet.dart';
+import '../providers/clinical_rule_guardian_provider.dart';
+import '../providers/clinical_guardrail_provider.dart';
+import '../widgets/subtle_guardian_banner.dart';
+import '../widgets/guardrail_status_widget.dart';
+import '../widgets/clinical_rule_navigator.dart';
+import '../../ingestion/widgets/ambient_scribe_fab.dart';
 
 class DynamicEncounterScreen extends ConsumerStatefulWidget {
   const DynamicEncounterScreen({required this.patient, super.key});
@@ -63,6 +71,8 @@ class _DynamicEncounterScreenState
 
   // IPD controllers.
   final _newProblemName = TextEditingController();
+  final _navigatorProblemTrigger = ValueNotifier<String>('');
+  final _navigatorSymptomTrigger = ValueNotifier<String>('');
   final _stagedManual = TextEditingController();
   final _procedureSearch = TextEditingController();
   final _medicationSearch = TextEditingController();
@@ -96,6 +106,7 @@ class _DynamicEncounterScreenState
   bool _suicidalIdeation = false;
   bool _homicidalIdeation = false;
   bool _saving = false;
+  Timer? _guardrailDebounce;
   String _encounterType = 'Ward Round';
   String _disposition = 'Admitted';
   double? _map;
@@ -103,7 +114,24 @@ class _DynamicEncounterScreenState
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _checkMedicationGuardrails(ref.read(stagedOrdersProvider));
+    });
     _sbp.addListener(_calculateMap);
+    for (final controller in [
+      _complaint,
+      _hpi,
+      _assessment,
+      _diagnosis,
+      _newProblemName,
+      _sbp,
+      _dbp,
+      _pulse,
+      _spo2,
+      _temp,
+    ]) {
+      controller.addListener(_scheduleGuardrailRefresh);
+    }
     _dbp.addListener(_calculateMap);
     // The narrative becomes an EncounterDraft as it is typed. EncounterNotifier
     // debounces internally, so one listener per field costs nothing and the
@@ -154,6 +182,21 @@ class _DynamicEncounterScreenState
 
   @override
   void dispose() {
+    _guardrailDebounce?.cancel();
+    for (final controller in [
+      _complaint,
+      _hpi,
+      _assessment,
+      _diagnosis,
+      _newProblemName,
+      _sbp,
+      _dbp,
+      _pulse,
+      _spo2,
+      _temp,
+    ]) {
+      controller.removeListener(_scheduleGuardrailRefresh);
+    }
     for (final controller in [
       _complaint,
       _hpi,
@@ -215,6 +258,8 @@ class _DynamicEncounterScreenState
       controller.dispose();
     }
     _gcs.dispose();
+    _navigatorProblemTrigger.dispose();
+    _navigatorSymptomTrigger.dispose();
     super.dispose();
   }
 
@@ -233,6 +278,56 @@ class _DynamicEncounterScreenState
   String _orNotRecorded(String? value) {
     final trimmed = (value ?? '').trim();
     return trimmed.isEmpty ? 'Not recorded' : trimmed;
+  }
+
+  void _checkMedicationGuardrails(List<PendingOrder> orders) {
+    final medications = orders
+        .where((order) => order.isMedication)
+        .map((order) => order.label)
+        .toList(growable: false);
+    unawaited(
+      ref
+          .read(clinicalGuardrailProvider.notifier)
+          .check(
+            patientId: widget.patient.id,
+            medications: medications,
+            additionalSymptoms: _currentSymptoms,
+            additionalVitals: _currentVitals,
+          ),
+    );
+  }
+
+  List<String> get _currentSymptoms => [
+    _complaint.text,
+    _hpi.text,
+    _assessment.text,
+    _diagnosis.text,
+    _newProblemName.text,
+  ].where((text) => text.trim().isNotEmpty).toList(growable: false);
+
+  List<String> get _currentVitals => [
+    if (_sbp.text.trim().isNotEmpty) 'SBP ${_sbp.text.trim()} mmHg',
+    if (_dbp.text.trim().isNotEmpty) 'DBP ${_dbp.text.trim()} mmHg',
+    if (_pulse.text.trim().isNotEmpty) 'pulse ${_pulse.text.trim()} bpm',
+    if (_spo2.text.trim().isNotEmpty) 'SpO2 ${_spo2.text.trim()}%',
+    if (_temp.text.trim().isNotEmpty)
+      'temperature ${_temp.text.trim()} C',
+  ];
+
+  void _scheduleGuardrailRefresh() {
+    final orders = ref.read(stagedOrdersProvider);
+    final medications = orders
+        .where((order) => order.isMedication)
+        .map((order) => order.label);
+    if (medications.isEmpty) return;
+    ref
+        .read(clinicalGuardrailProvider.notifier)
+        .invalidate(patientId: widget.patient.id, medications: medications);
+    _guardrailDebounce?.cancel();
+    _guardrailDebounce = Timer(
+      const Duration(milliseconds: 250),
+      () => _checkMedicationGuardrails(ref.read(stagedOrdersProvider)),
+    );
   }
 
   Future<void> _save() async {
@@ -264,6 +359,14 @@ class _DynamicEncounterScreenState
           onsetDate: now,
         );
         activeProbId = newId;
+        unawaited(
+          ref
+              .read(clinicalRuleGuardianProvider.notifier)
+              .evaluate(
+                triggerType: 'diagnosis',
+                triggerValue: _newProblemName.text.trim(),
+              ),
+        );
       }
 
       // Handle Problem Evolution Snapshot
@@ -443,6 +546,31 @@ class _DynamicEncounterScreenState
 
   @override
   Widget build(BuildContext context) {
+    ref.listen<List<PendingOrder>>(stagedOrdersProvider, (previous, next) {
+      final priorMedicationNames = (previous ?? const <PendingOrder>[])
+          .where((order) => order.isMedication)
+          .map((order) => order.label.toLowerCase())
+          .toSet();
+      final nextMedicationNames = next
+          .where((order) => order.isMedication)
+          .map((order) => order.label.toLowerCase())
+          .toSet();
+      if (priorMedicationNames.length != nextMedicationNames.length ||
+          !priorMedicationNames.containsAll(nextMedicationNames)) {
+        _checkMedicationGuardrails(next);
+      }
+      for (final order in next) {
+        if (order.isMedication &&
+            !priorMedicationNames.contains(order.label.toLowerCase())) {
+          unawaited(
+            ref
+                .read(clinicalRuleGuardianProvider.notifier)
+                .evaluate(triggerType: 'medication', triggerValue: order.label),
+          );
+        }
+      }
+    });
+
     final dao = ref.watch(clinicalDaoProvider);
     final department = _departmentText.text.trim().isEmpty
         ? 'Clinical'
@@ -459,28 +587,35 @@ class _DynamicEncounterScreenState
       // Sprint 15 — the private learning loop. Placed at the end of the
       // consultation, which is the only moment the clinician actually knows how
       // confident they were and what they weighed.
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () async {
-          // Captured before the await: using `context` after an async gap is
-          // exactly what the use_build_context_synchronously lint guards.
-          final messenger = ScaffoldMessenger.of(context);
-          final saved = await ReflectionEntrySheet.show(
-            context,
-            patientId: widget.patient.id,
-          );
-          if (!saved || !mounted) return;
-          messenger.showSnackBar(
-            const SnackBar(content: Text('Reflection saved (private)')),
-          );
-        },
-        icon: const Icon(Icons.psychology_alt_outlined),
-        label: const Text('Log Reflection'),
+      floatingActionButton: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          AmbientScribeFab(patient: widget.patient),
+          const SizedBox(height: 12),
+          FloatingActionButton.extended(
+            onPressed: () async {
+              final messenger = ScaffoldMessenger.of(context);
+              final saved = await ReflectionEntrySheet.show(
+                context,
+                patientId: widget.patient.id,
+              );
+              if (!saved || !mounted) return;
+              messenger.showSnackBar(
+                const SnackBar(content: Text('Reflection saved (private)')),
+              );
+            },
+            icon: const Icon(Icons.psychology_alt_outlined),
+            label: const Text('Log Reflection'),
+          ),
+        ],
       ),
       body: Form(
         key: _formKey,
         child: ListView(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 40),
           children: [
+            const SubtleGuardianBanner(),
             // 1. LOCKED PATIENT IDENTIFIER HEADER
             _PatientBanner(patient: widget.patient),
             const SizedBox(height: 12),
@@ -679,6 +814,17 @@ class _DynamicEncounterScreenState
                     const SizedBox(height: 8),
                     TextFormField(
                       controller: _newProblemName,
+                      onFieldSubmitted: (value) {
+                        _navigatorProblemTrigger.value = value;
+                        unawaited(
+                          ref
+                              .read(clinicalRuleGuardianProvider.notifier)
+                              .evaluate(
+                                triggerType: 'diagnosis',
+                                triggerValue: value,
+                              ),
+                        );
+                      },
                       decoration: const InputDecoration(
                         labelText: 'Or Add New Clinical Problem',
                         hintText:
@@ -686,6 +832,14 @@ class _DynamicEncounterScreenState
                         isDense: true,
                         prefixIcon: Icon(Icons.add_circle_outline, size: 20),
                       ),
+                    ),
+                    ValueListenableBuilder<String>(
+                      valueListenable: _navigatorProblemTrigger,
+                      builder: (context, value, child) =>
+                          ClinicalRuleNavigator(
+                            triggerType: 'diagnosis',
+                            triggerValue: value,
+                          ),
                     ),
                     const SizedBox(height: 8),
                     Row(
@@ -799,10 +953,28 @@ class _DynamicEncounterScreenState
             // 5. CLINICAL NARRATIVE
             TextFormField(
               controller: _diagnosis,
+              onFieldSubmitted: (value) {
+                _navigatorProblemTrigger.value = value;
+                unawaited(
+                  ref
+                      .read(clinicalRuleGuardianProvider.notifier)
+                      .evaluate(
+                        triggerType: 'diagnosis',
+                        triggerValue: value,
+                      ),
+                );
+              },
               decoration: const InputDecoration(
                 labelText: 'Encounter Clinical Impression / Working Diagnosis',
                 prefixIcon: Icon(Icons.psychology_outlined),
                 isDense: true,
+              ),
+            ),
+            ValueListenableBuilder<String>(
+              valueListenable: _navigatorProblemTrigger,
+              builder: (context, value, child) => ClinicalRuleNavigator(
+                triggerType: 'diagnosis',
+                triggerValue: value,
               ),
             ),
             const SizedBox(height: 10),
@@ -811,9 +983,27 @@ class _DynamicEncounterScreenState
               minLines: 2,
               maxLines: 3,
               textInputAction: TextInputAction.next,
+              onFieldSubmitted: (value) {
+                _navigatorSymptomTrigger.value = value;
+                unawaited(
+                  ref
+                      .read(clinicalRuleGuardianProvider.notifier)
+                      .evaluate(
+                        triggerType: 'symptom',
+                        triggerValue: value,
+                      ),
+                );
+              },
               decoration: const InputDecoration(
                 labelText: 'Today\'s Complaints / S (Subjective)',
                 alignLabelWithHint: true,
+              ),
+            ),
+            ValueListenableBuilder<String>(
+              valueListenable: _navigatorSymptomTrigger,
+              builder: (context, value, child) => ClinicalRuleNavigator(
+                triggerType: 'symptom',
+                triggerValue: value,
               ),
             ),
             const SizedBox(height: 10),
@@ -851,6 +1041,8 @@ class _DynamicEncounterScreenState
             const SizedBox(height: 28),
 
             // 7. SAVE BUTTON
+            GuardrailStatusWidget(patientId: widget.patient.id),
+            const SizedBox(height: 8),
             SizedBox(
               height: 54,
               child: FilledButton.icon(

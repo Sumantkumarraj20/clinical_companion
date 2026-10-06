@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
@@ -45,7 +47,7 @@ android {
         // Credentials come from android/key.properties (git-ignored) or from
         // the SIGNING_* env vars CI injects.
         create("release") {
-            val props = java.util.Properties()
+            val props = Properties()
             val propsFile = rootProject.file("key.properties")
             if (propsFile.exists()) {
                 propsFile.inputStream().use { props.load(it) }
@@ -54,20 +56,24 @@ android {
             fun setting(name: String, env: String): String? =
                 props.getProperty(name) ?: System.getenv(env)
 
-            val storePath = setting("storeFile", "SIGNING_KEY_PATH")
-            val storePassword = setting("storePassword", "SIGNING_KEY_PASSWORD")
-            val keyAlias = setting("keyAlias", "SIGNING_KEY_ALIAS")
-            val keyPassword = setting("keyPassword", "SIGNING_KEY_PASSWORD")
+            // NOTE: locals are suffixed `Setting` on purpose — an unsuffixed
+            // `val storePassword = ...` would shadow the signing config's
+            // `var storePassword` below and make `storePassword = storePassword`
+            // a "val cannot be reassigned" compile error in the Kotlin DSL.
+            val storeFileSetting = setting("storeFile", "SIGNING_KEY_PATH")
+            val storePasswordSetting = setting("storePassword", "SIGNING_KEY_PASSWORD")
+            val keyAliasSetting = setting("keyAlias", "SIGNING_KEY_ALIAS")
+            val keyPasswordSetting = setting("keyPassword", "SIGNING_KEY_PASSWORD")
 
-            if (storePath != null &&
-                storePassword != null &&
-                keyAlias != null &&
-                keyPassword != null
+            if (storeFileSetting != null &&
+                storePasswordSetting != null &&
+                keyAliasSetting != null &&
+                keyPasswordSetting != null
             ) {
-                storeFile = file(storePath)
-                storePassword = storePassword
-                keyAlias = keyAlias
-                keyPassword = keyPassword
+                storeFile = file(storeFileSetting)
+                storePassword = storePasswordSetting
+                keyAlias = keyAliasSetting
+                keyPassword = keyPasswordSetting
             } else {
                 // FAIL LOUDLY. Silently falling back to the debug key is what
                 // produced un-upgradeable APKs: the build "succeeded" and the
@@ -114,8 +120,7 @@ flutter {
 // version there is enough.
 android.applicationVariants.all {
     outputs.all {
-        val output = this as com.android.build.gradle.internal.tasks.BaseVariantOutputImpl
-        output.outputFileName =
-            "ClinCom-${variant.versionName}-${variant.buildType.name}.apk"
+        val output = this as com.android.build.gradle.internal.api.BaseVariantOutputImpl
+        output.outputFileName = "ClinCom-${versionName}-${buildType.name}.apk"
     }
 }

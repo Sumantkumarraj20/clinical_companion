@@ -13,6 +13,7 @@ import '../ai/document_ai_service.dart';
 import '../config/app_configuration.dart';
 import '../config/secure_config_service.dart';
 import '../database/daos/clinical_dao.dart';
+import '../database/daos/clinical_rule_dao.dart';
 import '../database/daos/pharmacopeia_dao.dart';
 import '../database/daos/cdss_dao.dart';
 import '../database/local_database.dart';
@@ -21,6 +22,7 @@ import '../models/document_task.dart';
 import '../services/clincom_audit_service.dart';
 import '../services/app_updater_service.dart';
 import '../services/extraction_pipeline_service.dart';
+import '../services/ambient_scribe_service.dart';
 import '../sync/catalog_sync_service.dart';
 import '../services/storage_retention_service.dart';
 import '../sync/sync_service.dart';
@@ -81,6 +83,9 @@ final clinicalDaoProvider = Provider<ClinicalDao>(
       appConfigurationProvider.select((configuration) => configuration.ownerId),
     ),
   ),
+);
+final clinicalRuleDaoProvider = Provider<ClinicalRuleDao>(
+  (ref) => ClinicalRuleDao(ref.watch(appDatabaseProvider)),
 );
 final pharmacopeiaDaoProvider = Provider<PharmacopeiaDao>(
   (ref) => PharmacopeiaDao(ref.watch(appDatabaseProvider)),
@@ -156,6 +161,12 @@ final documentAiServiceProvider = Provider<DocumentAiService>((ref) {
   const envKey = String.fromEnvironment('GEMINI_API_KEY', defaultValue: '');
   final apiKey = runtimeKey.isNotEmpty ? runtimeKey : envKey;
   return DocumentAiService(apiKey: apiKey);
+});
+
+final ambientScribeServiceProvider = Provider<AmbientScribeService>((ref) {
+  final service = AmbientScribeService();
+  ref.onDispose(() => unawaited(service.dispose()));
+  return service;
 });
 
 final clinComAuditServiceProvider = Provider<ClinComAuditService>(
@@ -283,7 +294,11 @@ class BatchExtractionNotifier extends Notifier<List<DocumentTask>> {
   }
 
   /// Enqueues clinician-pasted text for direct text-only ClinCom extraction.
-  void addText(String rawText, {String? activeCensusJson}) {
+  void addText(
+    String rawText, {
+    String? activeCensusJson,
+    bool isAmbientAudio = false,
+  }) {
     if (rawText.trim().isEmpty) {
       throw ArgumentError.value(rawText, 'rawText', 'Text cannot be empty');
     }
@@ -292,6 +307,7 @@ class BatchExtractionNotifier extends Notifier<List<DocumentTask>> {
       DocumentTask(
         id: _ids.v4(),
         isTextInput: true,
+        isAmbientAudio: isAmbientAudio,
         rawOcrText: rawText,
         source: ExtractionSource.text,
         activeCensusJson: activeCensusJson,
@@ -391,9 +407,10 @@ class BatchExtractionNotifier extends Notifier<List<DocumentTask>> {
       final rawText = task.rawOcrText ?? '';
       _update(task.id, status: ExtractionStatus.processingAi, clearError: true);
       try {
-        final extraction = await pipeline.processTextWithProvenance(
+        final extraction = await pipeline.processTextPayload(
           rawText,
           activeCensusJson: task.activeCensusJson,
+          ambientAudioTranscription: task.isAmbientAudio,
         );
         _update(
           task.id,

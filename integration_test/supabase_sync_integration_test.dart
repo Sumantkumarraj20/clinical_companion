@@ -53,6 +53,20 @@ import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:uuid/uuid.dart';
+
+// ---------------------------------------------------------------------------
+// Supabase is Postgres-backed and its primary keys are uuid. A literal like
+// 's175-itest-patient-sync' is not a uuid, so INSERTs fail with a 22P02
+// (invalid input syntax for type uuid) and any FK pointing at it fails too.
+// Every id the test creates goes through this generator instead.
+// ---------------------------------------------------------------------------
+const _uuid = Uuid();
+
+/// A 64-char lowercase SHA-256 hex string, matching what the app writes after
+/// hashing an image.
+const _fakeSha256 = '0123456789abcdef' '0123456789abcdef' '0123456789abcdef'
+    '0123456789abcdef';
 
 // ---- Compile-time configuration -------------------------------------------
 // `String.fromEnvironment` keeps credentials OUT of the source tree: they are
@@ -65,18 +79,6 @@ const _userAPassword = String.fromEnvironment('SUPABASE_TEST_USER_A_PASSWORD');
 const _userBEmail = String.fromEnvironment('SUPABASE_TEST_USER_B');
 const _userBPassword = String.fromEnvironment('SUPABASE_TEST_USER_B_PASSWORD');
 
-/// Every row these tests create carries this prefix so cleanup is unambiguous.
-const _tag = 's175-itest-';
-
-/// TEST 1 needs two distinct real users; without them isolation cannot be
-/// proven, so we skip loudly rather than report green for a test that ran
-/// nothing.
-final _canTestRls =
-    _canRun &&
-    _userAEmail.isNotEmpty &&
-    _userAPassword.isNotEmpty &&
-    _userBEmail.isNotEmpty &&
-    _userBPassword.isNotEmpty;
 
 Future<SupabaseClient> _client() async {
   await Supabase.initialize(url: _url, publishableKey: _anonKey);
@@ -129,6 +131,20 @@ final _itestExtraction = AiExtractionResult(
   clinicalSummary: 'ITest sync document',
 );
 
+
+/// Purges a row during teardown.
+///
+/// Cleanup must never fail the test it is cleaning up for: a row that is
+/// already gone, or one RLS refuses to delete, would otherwise turn a passing
+/// assertion into a teardown error.
+Future<void> _purge(Future<Object?> action) async {
+  try {
+    await action;
+  } catch (_) {
+    // Intentionally ignored — teardown is best-effort by design.
+  }
+}
+
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
@@ -153,25 +169,33 @@ void main() {
 
     // ---- TEST 1: RLS isolation --------------------------------------------
     testWidgets('TEST 1 — RLS isolates A\'s document from B', (tester) async {
-      if (!_canTestRls) {
-        // ignore: avoid_print
-        print(
-          '\n[SKIP] TEST 1 (RLS isolation) needs SUPABASE_TEST_USER_A/B. Run with:\n'
-          '  --dart-define=SUPABASE_TEST_USER_A=... '
-          '--dart-define=SUPABASE_TEST_USER_A_PASSWORD=... \\\n'
-          '  --dart-define=SUPABASE_TEST_USER_B=... '
-          '--dart-define=SUPABASE_TEST_USER_B_PASSWORD=...\n',
+      // Step 2 — graceful fallback. Integration tests must never hardcode
+      // credentials, and a missing define is a runner-config problem rather
+      // than a product defect: report/skip instead of failing or throwing.
+      if (_userAEmail.isEmpty ||
+          _userAPassword.isEmpty ||
+          _userBEmail.isEmpty ||
+          _userBPassword.isEmpty) {
+        markTestSkipped(
+          'Missing auth credentials — pass SUPABASE_TEST_USER_A and '
+          '_PASSWORD, and SUPABASE_TEST_USER_B and _PASSWORD via '
+          '--dart-define to run TEST 1.',
         );
         return;
       }
 
       final client = await _client();
+
+      // Ids are generated up front so the teardown knows exactly what to purge.
+      final patientId = _uuid.v4();
+      final docId = _uuid.v4();
       addTearDown(() async {
-        await client.from('document_registries').delete().like('id', '$_tag%');
+        await _purge(client.from('document_registries').delete().eq('id', docId));
+        await _purge(client.from('patients').delete().eq('id', patientId));
         await client.auth.signOut();
       });
 
-      // --- Sign in as User A and create a document.
+      // --- Sign in as User A.
       final aSignIn = await client.auth.signInWithPassword(
         email: _userAEmail,
         password: _userAPassword,
@@ -183,14 +207,21 @@ void main() {
       );
       final userA = client.auth.currentUser!.id;
 
-      final docId = '${_tag}rls-${DateTime.now().millisecondsSinceEpoch}';
+      // Step 1 — the parent patient must exist first, otherwise the document
+      // INSERT violates the foreign key on patients(id).
+      await client.from('patients').insert({
+        'id': patientId,
+        'owner_id': userA,
+        'full_name': 'Sprint 17.5 RLS Patient',
+      });
+
       await client.from('document_registries').insert({
         'id': docId,
-        'patient_id': '${_tag}patient-a',
+        'patient_id': patientId,
         'owner_id': userA,
         'document_category': 'Lab Report',
         'image_path': '/itest/$docId.jpg',
-        'image_hash': 'a' * 64,
+        'image_hash': _fakeSha256,
         'documented_at': DateTime.now().toUtc().toIso8601String(),
       });
 
@@ -266,26 +297,53 @@ void main() {
       }
 
       final client = await _client();
-      addTearDown(() async {
-        await client.from('document_registries').delete().like('id', '$_tag%');
-        await client.from('clinical_encounters').delete().like('id', '$_tag%');
-      });
 
       final db = await _localDb();
       final dao = ClinicalDao(db);
 
-      final patientId = '${_tag}patient-sync';
+      // Step 1 — create the parent patient FIRST. `processAiExtraction` writes
+      // document_registries and clinical_encounters with patient_id pointing
+      // at patients(id), and SQLite enforces that FK, so without this row every
+      // insert below fails with "FOREIGN KEY constraint failed".
+      final patient = await dao.insertPatient(
+        PatientsCompanion.insert(
+          ownerId: 'local-practitioner',
+          fullName: 'Sprint 17.5 Sync Patient',
+        ),
+      );
+      final patientId = patient.id;
+      expect(
+        RegExp(
+          r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$',
+        ).hasMatch(patientId),
+        isTrue,
+        reason: 'Patient ids must be valid UUIDs for Supabase.',
+      );
+
+      // Ids are generated as we go; teardown purges exactly what was created.
+      final createdPatients = <String>[patientId];
+      final createdDocs = <String>[];
+      final createdEncounters = <String>[];
+      addTearDown(() async {
+        await _purge(client.from('document_registries').delete().inFilter('id', createdDocs));
+        await _purge(client.from('clinical_encounters').delete().inFilter('id', createdEncounters));
+        await _purge(client.from('patients').delete().inFilter('id', createdPatients));
+      });
+
       // A real 64-char SHA-256, matching what the app actually writes.
-      final imageHash = 'b3f1a2c4d5e6' '7890' * 5;
-      final imagePath = '/itest/${_tag}page.jpg';
+      final imageHash = _fakeSha256;
+      final imagePath = '/itest/${_uuid.v4()}.jpg';
 
       // --- Save locally through the SAME code path a real capture uses, so the
-      // outbox is populated exactly as it is in production.
+      // outbox is populated exactly as it is in production. The hash travels
+      // with the save (rather than being stamped afterwards) so the queued
+      // document_registries payload already carries the dedup key.
       await dao.processAiExtraction(
         _itestExtraction,
         imagePath,
         patientIdOverride: patientId,
         clincomJson: '{"clinical_summary":"ITest sync"}',
+        imageHash: imageHash,
       );
 
       final pending = await dao.pendingQueue();
@@ -294,11 +352,27 @@ void main() {
         isNotEmpty,
         reason: 'A local save must enqueue at least one sync row.',
       );
+      // The patient row enqueued by insertPatient would make `isNotEmpty`
+      // pass on its own, so assert the document payload is queued too.
+      expect(
+        pending.map((entry) => entry.entityType).toSet(),
+        contains('document_registries'),
+        reason:
+            'The document save did not enqueue a document_registries row: '
+            '${pending.map((e) => e.entityType).join(', ')}',
+      );
 
-      // Stamp the hash the way the review screen does, then flush.
+      // The hash was written at creation time, so the queued payload already
+      // carries it — just confirm the row exists before flushing.
       final document = await dao.findDocumentByImagePath(imagePath);
       expect(document, isNotNull, reason: 'The saved document row is missing.');
-      await dao.attachImageHash(document!.id, imageHash);
+      expect(
+        document!.imageHash,
+        imageHash,
+        reason: 'The image hash was not persisted at save time.',
+      );
+      // Registered early so a failure before the flush cannot leak a row.
+      createdDocs.add(document.id);
 
       final service = SyncService(dao, client);
       addTearDown(service.dispose);
@@ -331,8 +405,6 @@ void main() {
       );
 
       // --- The encounter is where the Sprint 16 UUID/FK work lands: a TEXT FK
-      // against a UUID primary key fails here with 42804 / 23503.
-      // The encounter is where the Sprint 16 UUID/FK work lands: a TEXT FK
       // against a UUID primary key fails here with 42804 / 23503. The outbox
       // assertion above already proved the push succeeded; this only confirms
       // the row is genuinely queryable remotely.
@@ -343,6 +415,12 @@ void main() {
       // ignore: avoid_print
       print('[Sync] remote encounters for the test patient: '
           '${remoteEncounter.length}');
+
+      // Track the encounters that reached Supabase so teardown can purge them.
+      createdEncounters.addAll(
+        remoteEncounter.map((row) => row['id'] as String),
+      );
+
       // ignore: avoid_print
       print('[Sync] outbox drained; document ${document.id} is in Supabase.');
     });

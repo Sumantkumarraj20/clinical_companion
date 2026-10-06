@@ -15831,6 +15831,940 @@ class ClinicalAuditsCompanion extends UpdateCompanion<ClinicalAudit> {
   }
 }
 
+class $ClinicalRulesTable extends ClinicalRules
+    with TableInfo<$ClinicalRulesTable, CachedClinicalRule> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ClinicalRulesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    clientDefault: () => _uuid.v4(),
+  );
+  static const VerificationMeta _triggerTypeMeta = const VerificationMeta(
+    'triggerType',
+  );
+  @override
+  late final GeneratedColumn<String> triggerType = GeneratedColumn<String>(
+    'trigger_type',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _triggerValueMeta = const VerificationMeta(
+    'triggerValue',
+  );
+  @override
+  late final GeneratedColumn<String> triggerValue = GeneratedColumn<String>(
+    'trigger_value',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _suggestedActionMeta = const VerificationMeta(
+    'suggestedAction',
+  );
+  @override
+  late final GeneratedColumn<String> suggestedAction = GeneratedColumn<String>(
+    'suggested_action',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _evidenceRationaleMeta = const VerificationMeta(
+    'evidenceRationale',
+  );
+  @override
+  late final GeneratedColumn<String> evidenceRationale =
+      GeneratedColumn<String>(
+        'evidence_rationale',
+        aliasedName,
+        false,
+        type: DriftSqlType.string,
+        requiredDuringInsert: true,
+      );
+  @override
+  late final GeneratedColumnWithTypeConverter<List<String>, String>
+  contraindicatingConditions =
+      GeneratedColumn<String>(
+        'contraindicating_conditions',
+        aliasedName,
+        false,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+        defaultValue: const Constant('[]'),
+      ).withConverter<List<String>>(
+        $ClinicalRulesTable.$convertercontraindicatingConditions,
+      );
+  @override
+  late final GeneratedColumnWithTypeConverter<List<String>, String>
+  requiredMonitoring =
+      GeneratedColumn<String>(
+        'required_monitoring',
+        aliasedName,
+        false,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+        defaultValue: const Constant('[]'),
+      ).withConverter<List<String>>(
+        $ClinicalRulesTable.$converterrequiredMonitoring,
+      );
+  @override
+  late final GeneratedColumnWithTypeConverter<List<String>, String>
+  differentialDiagnoses =
+      GeneratedColumn<String>(
+        'differential_diagnoses',
+        aliasedName,
+        false,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+        defaultValue: const Constant('[]'),
+      ).withConverter<List<String>>(
+        $ClinicalRulesTable.$converterdifferentialDiagnoses,
+      );
+  @override
+  late final GeneratedColumnWithTypeConverter<List<String>, String>
+  recommendedInvestigations =
+      GeneratedColumn<String>(
+        'recommended_investigations',
+        aliasedName,
+        false,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+        defaultValue: const Constant('[]'),
+      ).withConverter<List<String>>(
+        $ClinicalRulesTable.$converterrecommendedInvestigations,
+      );
+  @override
+  late final GeneratedColumnWithTypeConverter<List<String>, String>
+  recommendedManagement =
+      GeneratedColumn<String>(
+        'recommended_management',
+        aliasedName,
+        false,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+        defaultValue: const Constant('[]'),
+      ).withConverter<List<String>>(
+        $ClinicalRulesTable.$converterrecommendedManagement,
+      );
+  static const VerificationMeta _sourceReferenceMeta = const VerificationMeta(
+    'sourceReference',
+  );
+  @override
+  late final GeneratedColumn<String> sourceReference = GeneratedColumn<String>(
+    'source_reference',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _isVerifiedMeta = const VerificationMeta(
+    'isVerified',
+  );
+  @override
+  late final GeneratedColumn<bool> isVerified = GeneratedColumn<bool>(
+    'is_verified',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_verified" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _isDismissedMeta = const VerificationMeta(
+    'isDismissed',
+  );
+  @override
+  late final GeneratedColumn<bool> isDismissed = GeneratedColumn<bool>(
+    'is_dismissed',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_dismissed" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    triggerType,
+    triggerValue,
+    suggestedAction,
+    evidenceRationale,
+    contraindicatingConditions,
+    requiredMonitoring,
+    differentialDiagnoses,
+    recommendedInvestigations,
+    recommendedManagement,
+    sourceReference,
+    isVerified,
+    isDismissed,
+    createdAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'clinical_rules';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<CachedClinicalRule> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('trigger_type')) {
+      context.handle(
+        _triggerTypeMeta,
+        triggerType.isAcceptableOrUnknown(
+          data['trigger_type']!,
+          _triggerTypeMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_triggerTypeMeta);
+    }
+    if (data.containsKey('trigger_value')) {
+      context.handle(
+        _triggerValueMeta,
+        triggerValue.isAcceptableOrUnknown(
+          data['trigger_value']!,
+          _triggerValueMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_triggerValueMeta);
+    }
+    if (data.containsKey('suggested_action')) {
+      context.handle(
+        _suggestedActionMeta,
+        suggestedAction.isAcceptableOrUnknown(
+          data['suggested_action']!,
+          _suggestedActionMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_suggestedActionMeta);
+    }
+    if (data.containsKey('evidence_rationale')) {
+      context.handle(
+        _evidenceRationaleMeta,
+        evidenceRationale.isAcceptableOrUnknown(
+          data['evidence_rationale']!,
+          _evidenceRationaleMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_evidenceRationaleMeta);
+    }
+    if (data.containsKey('source_reference')) {
+      context.handle(
+        _sourceReferenceMeta,
+        sourceReference.isAcceptableOrUnknown(
+          data['source_reference']!,
+          _sourceReferenceMeta,
+        ),
+      );
+    }
+    if (data.containsKey('is_verified')) {
+      context.handle(
+        _isVerifiedMeta,
+        isVerified.isAcceptableOrUnknown(data['is_verified']!, _isVerifiedMeta),
+      );
+    }
+    if (data.containsKey('is_dismissed')) {
+      context.handle(
+        _isDismissedMeta,
+        isDismissed.isAcceptableOrUnknown(
+          data['is_dismissed']!,
+          _isDismissedMeta,
+        ),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  CachedClinicalRule map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return CachedClinicalRule(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      triggerType: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}trigger_type'],
+      )!,
+      triggerValue: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}trigger_value'],
+      )!,
+      suggestedAction: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}suggested_action'],
+      )!,
+      evidenceRationale: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}evidence_rationale'],
+      )!,
+      contraindicatingConditions: $ClinicalRulesTable
+          .$convertercontraindicatingConditions
+          .fromSql(
+            attachedDatabase.typeMapping.read(
+              DriftSqlType.string,
+              data['${effectivePrefix}contraindicating_conditions'],
+            )!,
+          ),
+      requiredMonitoring: $ClinicalRulesTable.$converterrequiredMonitoring
+          .fromSql(
+            attachedDatabase.typeMapping.read(
+              DriftSqlType.string,
+              data['${effectivePrefix}required_monitoring'],
+            )!,
+          ),
+      differentialDiagnoses: $ClinicalRulesTable.$converterdifferentialDiagnoses
+          .fromSql(
+            attachedDatabase.typeMapping.read(
+              DriftSqlType.string,
+              data['${effectivePrefix}differential_diagnoses'],
+            )!,
+          ),
+      recommendedInvestigations: $ClinicalRulesTable
+          .$converterrecommendedInvestigations
+          .fromSql(
+            attachedDatabase.typeMapping.read(
+              DriftSqlType.string,
+              data['${effectivePrefix}recommended_investigations'],
+            )!,
+          ),
+      recommendedManagement: $ClinicalRulesTable.$converterrecommendedManagement
+          .fromSql(
+            attachedDatabase.typeMapping.read(
+              DriftSqlType.string,
+              data['${effectivePrefix}recommended_management'],
+            )!,
+          ),
+      sourceReference: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}source_reference'],
+      )!,
+      isVerified: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_verified'],
+      )!,
+      isDismissed: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_dismissed'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+    );
+  }
+
+  @override
+  $ClinicalRulesTable createAlias(String alias) {
+    return $ClinicalRulesTable(attachedDatabase, alias);
+  }
+
+  static JsonTypeConverter2<List<String>, String, List<Object?>>
+  $convertercontraindicatingConditions = const StringListConverter();
+  static JsonTypeConverter2<List<String>, String, List<Object?>>
+  $converterrequiredMonitoring = const StringListConverter();
+  static JsonTypeConverter2<List<String>, String, List<Object?>>
+  $converterdifferentialDiagnoses = const StringListConverter();
+  static JsonTypeConverter2<List<String>, String, List<Object?>>
+  $converterrecommendedInvestigations = const StringListConverter();
+  static JsonTypeConverter2<List<String>, String, List<Object?>>
+  $converterrecommendedManagement = const StringListConverter();
+}
+
+class CachedClinicalRule extends DataClass
+    implements Insertable<CachedClinicalRule> {
+  final String id;
+  final String triggerType;
+  final String triggerValue;
+  final String suggestedAction;
+  final String evidenceRationale;
+  final List<String> contraindicatingConditions;
+  final List<String> requiredMonitoring;
+  final List<String> differentialDiagnoses;
+  final List<String> recommendedInvestigations;
+  final List<String> recommendedManagement;
+  final String sourceReference;
+  final bool isVerified;
+  final bool isDismissed;
+  final DateTime createdAt;
+  const CachedClinicalRule({
+    required this.id,
+    required this.triggerType,
+    required this.triggerValue,
+    required this.suggestedAction,
+    required this.evidenceRationale,
+    required this.contraindicatingConditions,
+    required this.requiredMonitoring,
+    required this.differentialDiagnoses,
+    required this.recommendedInvestigations,
+    required this.recommendedManagement,
+    required this.sourceReference,
+    required this.isVerified,
+    required this.isDismissed,
+    required this.createdAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['trigger_type'] = Variable<String>(triggerType);
+    map['trigger_value'] = Variable<String>(triggerValue);
+    map['suggested_action'] = Variable<String>(suggestedAction);
+    map['evidence_rationale'] = Variable<String>(evidenceRationale);
+    {
+      map['contraindicating_conditions'] = Variable<String>(
+        $ClinicalRulesTable.$convertercontraindicatingConditions.toSql(
+          contraindicatingConditions,
+        ),
+      );
+    }
+    {
+      map['required_monitoring'] = Variable<String>(
+        $ClinicalRulesTable.$converterrequiredMonitoring.toSql(
+          requiredMonitoring,
+        ),
+      );
+    }
+    {
+      map['differential_diagnoses'] = Variable<String>(
+        $ClinicalRulesTable.$converterdifferentialDiagnoses.toSql(
+          differentialDiagnoses,
+        ),
+      );
+    }
+    {
+      map['recommended_investigations'] = Variable<String>(
+        $ClinicalRulesTable.$converterrecommendedInvestigations.toSql(
+          recommendedInvestigations,
+        ),
+      );
+    }
+    {
+      map['recommended_management'] = Variable<String>(
+        $ClinicalRulesTable.$converterrecommendedManagement.toSql(
+          recommendedManagement,
+        ),
+      );
+    }
+    map['source_reference'] = Variable<String>(sourceReference);
+    map['is_verified'] = Variable<bool>(isVerified);
+    map['is_dismissed'] = Variable<bool>(isDismissed);
+    map['created_at'] = Variable<DateTime>(createdAt);
+    return map;
+  }
+
+  ClinicalRulesCompanion toCompanion(bool nullToAbsent) {
+    return ClinicalRulesCompanion(
+      id: Value(id),
+      triggerType: Value(triggerType),
+      triggerValue: Value(triggerValue),
+      suggestedAction: Value(suggestedAction),
+      evidenceRationale: Value(evidenceRationale),
+      contraindicatingConditions: Value(contraindicatingConditions),
+      requiredMonitoring: Value(requiredMonitoring),
+      differentialDiagnoses: Value(differentialDiagnoses),
+      recommendedInvestigations: Value(recommendedInvestigations),
+      recommendedManagement: Value(recommendedManagement),
+      sourceReference: Value(sourceReference),
+      isVerified: Value(isVerified),
+      isDismissed: Value(isDismissed),
+      createdAt: Value(createdAt),
+    );
+  }
+
+  factory CachedClinicalRule.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return CachedClinicalRule(
+      id: serializer.fromJson<String>(json['id']),
+      triggerType: serializer.fromJson<String>(json['triggerType']),
+      triggerValue: serializer.fromJson<String>(json['triggerValue']),
+      suggestedAction: serializer.fromJson<String>(json['suggestedAction']),
+      evidenceRationale: serializer.fromJson<String>(json['evidenceRationale']),
+      contraindicatingConditions: $ClinicalRulesTable
+          .$convertercontraindicatingConditions
+          .fromJson(
+            serializer.fromJson<List<Object?>>(
+              json['contraindicatingConditions'],
+            ),
+          ),
+      requiredMonitoring: $ClinicalRulesTable.$converterrequiredMonitoring
+          .fromJson(
+            serializer.fromJson<List<Object?>>(json['requiredMonitoring']),
+          ),
+      differentialDiagnoses: $ClinicalRulesTable.$converterdifferentialDiagnoses
+          .fromJson(
+            serializer.fromJson<List<Object?>>(json['differentialDiagnoses']),
+          ),
+      recommendedInvestigations: $ClinicalRulesTable
+          .$converterrecommendedInvestigations
+          .fromJson(
+            serializer.fromJson<List<Object?>>(
+              json['recommendedInvestigations'],
+            ),
+          ),
+      recommendedManagement: $ClinicalRulesTable.$converterrecommendedManagement
+          .fromJson(
+            serializer.fromJson<List<Object?>>(json['recommendedManagement']),
+          ),
+      sourceReference: serializer.fromJson<String>(json['sourceReference']),
+      isVerified: serializer.fromJson<bool>(json['isVerified']),
+      isDismissed: serializer.fromJson<bool>(json['isDismissed']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'triggerType': serializer.toJson<String>(triggerType),
+      'triggerValue': serializer.toJson<String>(triggerValue),
+      'suggestedAction': serializer.toJson<String>(suggestedAction),
+      'evidenceRationale': serializer.toJson<String>(evidenceRationale),
+      'contraindicatingConditions': serializer.toJson<List<Object?>>(
+        $ClinicalRulesTable.$convertercontraindicatingConditions.toJson(
+          contraindicatingConditions,
+        ),
+      ),
+      'requiredMonitoring': serializer.toJson<List<Object?>>(
+        $ClinicalRulesTable.$converterrequiredMonitoring.toJson(
+          requiredMonitoring,
+        ),
+      ),
+      'differentialDiagnoses': serializer.toJson<List<Object?>>(
+        $ClinicalRulesTable.$converterdifferentialDiagnoses.toJson(
+          differentialDiagnoses,
+        ),
+      ),
+      'recommendedInvestigations': serializer.toJson<List<Object?>>(
+        $ClinicalRulesTable.$converterrecommendedInvestigations.toJson(
+          recommendedInvestigations,
+        ),
+      ),
+      'recommendedManagement': serializer.toJson<List<Object?>>(
+        $ClinicalRulesTable.$converterrecommendedManagement.toJson(
+          recommendedManagement,
+        ),
+      ),
+      'sourceReference': serializer.toJson<String>(sourceReference),
+      'isVerified': serializer.toJson<bool>(isVerified),
+      'isDismissed': serializer.toJson<bool>(isDismissed),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+    };
+  }
+
+  CachedClinicalRule copyWith({
+    String? id,
+    String? triggerType,
+    String? triggerValue,
+    String? suggestedAction,
+    String? evidenceRationale,
+    List<String>? contraindicatingConditions,
+    List<String>? requiredMonitoring,
+    List<String>? differentialDiagnoses,
+    List<String>? recommendedInvestigations,
+    List<String>? recommendedManagement,
+    String? sourceReference,
+    bool? isVerified,
+    bool? isDismissed,
+    DateTime? createdAt,
+  }) => CachedClinicalRule(
+    id: id ?? this.id,
+    triggerType: triggerType ?? this.triggerType,
+    triggerValue: triggerValue ?? this.triggerValue,
+    suggestedAction: suggestedAction ?? this.suggestedAction,
+    evidenceRationale: evidenceRationale ?? this.evidenceRationale,
+    contraindicatingConditions:
+        contraindicatingConditions ?? this.contraindicatingConditions,
+    requiredMonitoring: requiredMonitoring ?? this.requiredMonitoring,
+    differentialDiagnoses: differentialDiagnoses ?? this.differentialDiagnoses,
+    recommendedInvestigations:
+        recommendedInvestigations ?? this.recommendedInvestigations,
+    recommendedManagement: recommendedManagement ?? this.recommendedManagement,
+    sourceReference: sourceReference ?? this.sourceReference,
+    isVerified: isVerified ?? this.isVerified,
+    isDismissed: isDismissed ?? this.isDismissed,
+    createdAt: createdAt ?? this.createdAt,
+  );
+  CachedClinicalRule copyWithCompanion(ClinicalRulesCompanion data) {
+    return CachedClinicalRule(
+      id: data.id.present ? data.id.value : this.id,
+      triggerType: data.triggerType.present
+          ? data.triggerType.value
+          : this.triggerType,
+      triggerValue: data.triggerValue.present
+          ? data.triggerValue.value
+          : this.triggerValue,
+      suggestedAction: data.suggestedAction.present
+          ? data.suggestedAction.value
+          : this.suggestedAction,
+      evidenceRationale: data.evidenceRationale.present
+          ? data.evidenceRationale.value
+          : this.evidenceRationale,
+      contraindicatingConditions: data.contraindicatingConditions.present
+          ? data.contraindicatingConditions.value
+          : this.contraindicatingConditions,
+      requiredMonitoring: data.requiredMonitoring.present
+          ? data.requiredMonitoring.value
+          : this.requiredMonitoring,
+      differentialDiagnoses: data.differentialDiagnoses.present
+          ? data.differentialDiagnoses.value
+          : this.differentialDiagnoses,
+      recommendedInvestigations: data.recommendedInvestigations.present
+          ? data.recommendedInvestigations.value
+          : this.recommendedInvestigations,
+      recommendedManagement: data.recommendedManagement.present
+          ? data.recommendedManagement.value
+          : this.recommendedManagement,
+      sourceReference: data.sourceReference.present
+          ? data.sourceReference.value
+          : this.sourceReference,
+      isVerified: data.isVerified.present
+          ? data.isVerified.value
+          : this.isVerified,
+      isDismissed: data.isDismissed.present
+          ? data.isDismissed.value
+          : this.isDismissed,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('CachedClinicalRule(')
+          ..write('id: $id, ')
+          ..write('triggerType: $triggerType, ')
+          ..write('triggerValue: $triggerValue, ')
+          ..write('suggestedAction: $suggestedAction, ')
+          ..write('evidenceRationale: $evidenceRationale, ')
+          ..write('contraindicatingConditions: $contraindicatingConditions, ')
+          ..write('requiredMonitoring: $requiredMonitoring, ')
+          ..write('differentialDiagnoses: $differentialDiagnoses, ')
+          ..write('recommendedInvestigations: $recommendedInvestigations, ')
+          ..write('recommendedManagement: $recommendedManagement, ')
+          ..write('sourceReference: $sourceReference, ')
+          ..write('isVerified: $isVerified, ')
+          ..write('isDismissed: $isDismissed, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    triggerType,
+    triggerValue,
+    suggestedAction,
+    evidenceRationale,
+    contraindicatingConditions,
+    requiredMonitoring,
+    differentialDiagnoses,
+    recommendedInvestigations,
+    recommendedManagement,
+    sourceReference,
+    isVerified,
+    isDismissed,
+    createdAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is CachedClinicalRule &&
+          other.id == this.id &&
+          other.triggerType == this.triggerType &&
+          other.triggerValue == this.triggerValue &&
+          other.suggestedAction == this.suggestedAction &&
+          other.evidenceRationale == this.evidenceRationale &&
+          other.contraindicatingConditions == this.contraindicatingConditions &&
+          other.requiredMonitoring == this.requiredMonitoring &&
+          other.differentialDiagnoses == this.differentialDiagnoses &&
+          other.recommendedInvestigations == this.recommendedInvestigations &&
+          other.recommendedManagement == this.recommendedManagement &&
+          other.sourceReference == this.sourceReference &&
+          other.isVerified == this.isVerified &&
+          other.isDismissed == this.isDismissed &&
+          other.createdAt == this.createdAt);
+}
+
+class ClinicalRulesCompanion extends UpdateCompanion<CachedClinicalRule> {
+  final Value<String> id;
+  final Value<String> triggerType;
+  final Value<String> triggerValue;
+  final Value<String> suggestedAction;
+  final Value<String> evidenceRationale;
+  final Value<List<String>> contraindicatingConditions;
+  final Value<List<String>> requiredMonitoring;
+  final Value<List<String>> differentialDiagnoses;
+  final Value<List<String>> recommendedInvestigations;
+  final Value<List<String>> recommendedManagement;
+  final Value<String> sourceReference;
+  final Value<bool> isVerified;
+  final Value<bool> isDismissed;
+  final Value<DateTime> createdAt;
+  final Value<int> rowid;
+  const ClinicalRulesCompanion({
+    this.id = const Value.absent(),
+    this.triggerType = const Value.absent(),
+    this.triggerValue = const Value.absent(),
+    this.suggestedAction = const Value.absent(),
+    this.evidenceRationale = const Value.absent(),
+    this.contraindicatingConditions = const Value.absent(),
+    this.requiredMonitoring = const Value.absent(),
+    this.differentialDiagnoses = const Value.absent(),
+    this.recommendedInvestigations = const Value.absent(),
+    this.recommendedManagement = const Value.absent(),
+    this.sourceReference = const Value.absent(),
+    this.isVerified = const Value.absent(),
+    this.isDismissed = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  ClinicalRulesCompanion.insert({
+    this.id = const Value.absent(),
+    required String triggerType,
+    required String triggerValue,
+    required String suggestedAction,
+    required String evidenceRationale,
+    this.contraindicatingConditions = const Value.absent(),
+    this.requiredMonitoring = const Value.absent(),
+    this.differentialDiagnoses = const Value.absent(),
+    this.recommendedInvestigations = const Value.absent(),
+    this.recommendedManagement = const Value.absent(),
+    this.sourceReference = const Value.absent(),
+    this.isVerified = const Value.absent(),
+    this.isDismissed = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : triggerType = Value(triggerType),
+       triggerValue = Value(triggerValue),
+       suggestedAction = Value(suggestedAction),
+       evidenceRationale = Value(evidenceRationale);
+  static Insertable<CachedClinicalRule> custom({
+    Expression<String>? id,
+    Expression<String>? triggerType,
+    Expression<String>? triggerValue,
+    Expression<String>? suggestedAction,
+    Expression<String>? evidenceRationale,
+    Expression<String>? contraindicatingConditions,
+    Expression<String>? requiredMonitoring,
+    Expression<String>? differentialDiagnoses,
+    Expression<String>? recommendedInvestigations,
+    Expression<String>? recommendedManagement,
+    Expression<String>? sourceReference,
+    Expression<bool>? isVerified,
+    Expression<bool>? isDismissed,
+    Expression<DateTime>? createdAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (triggerType != null) 'trigger_type': triggerType,
+      if (triggerValue != null) 'trigger_value': triggerValue,
+      if (suggestedAction != null) 'suggested_action': suggestedAction,
+      if (evidenceRationale != null) 'evidence_rationale': evidenceRationale,
+      if (contraindicatingConditions != null)
+        'contraindicating_conditions': contraindicatingConditions,
+      if (requiredMonitoring != null) 'required_monitoring': requiredMonitoring,
+      if (differentialDiagnoses != null)
+        'differential_diagnoses': differentialDiagnoses,
+      if (recommendedInvestigations != null)
+        'recommended_investigations': recommendedInvestigations,
+      if (recommendedManagement != null)
+        'recommended_management': recommendedManagement,
+      if (sourceReference != null) 'source_reference': sourceReference,
+      if (isVerified != null) 'is_verified': isVerified,
+      if (isDismissed != null) 'is_dismissed': isDismissed,
+      if (createdAt != null) 'created_at': createdAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  ClinicalRulesCompanion copyWith({
+    Value<String>? id,
+    Value<String>? triggerType,
+    Value<String>? triggerValue,
+    Value<String>? suggestedAction,
+    Value<String>? evidenceRationale,
+    Value<List<String>>? contraindicatingConditions,
+    Value<List<String>>? requiredMonitoring,
+    Value<List<String>>? differentialDiagnoses,
+    Value<List<String>>? recommendedInvestigations,
+    Value<List<String>>? recommendedManagement,
+    Value<String>? sourceReference,
+    Value<bool>? isVerified,
+    Value<bool>? isDismissed,
+    Value<DateTime>? createdAt,
+    Value<int>? rowid,
+  }) {
+    return ClinicalRulesCompanion(
+      id: id ?? this.id,
+      triggerType: triggerType ?? this.triggerType,
+      triggerValue: triggerValue ?? this.triggerValue,
+      suggestedAction: suggestedAction ?? this.suggestedAction,
+      evidenceRationale: evidenceRationale ?? this.evidenceRationale,
+      contraindicatingConditions:
+          contraindicatingConditions ?? this.contraindicatingConditions,
+      requiredMonitoring: requiredMonitoring ?? this.requiredMonitoring,
+      differentialDiagnoses:
+          differentialDiagnoses ?? this.differentialDiagnoses,
+      recommendedInvestigations:
+          recommendedInvestigations ?? this.recommendedInvestigations,
+      recommendedManagement:
+          recommendedManagement ?? this.recommendedManagement,
+      sourceReference: sourceReference ?? this.sourceReference,
+      isVerified: isVerified ?? this.isVerified,
+      isDismissed: isDismissed ?? this.isDismissed,
+      createdAt: createdAt ?? this.createdAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (triggerType.present) {
+      map['trigger_type'] = Variable<String>(triggerType.value);
+    }
+    if (triggerValue.present) {
+      map['trigger_value'] = Variable<String>(triggerValue.value);
+    }
+    if (suggestedAction.present) {
+      map['suggested_action'] = Variable<String>(suggestedAction.value);
+    }
+    if (evidenceRationale.present) {
+      map['evidence_rationale'] = Variable<String>(evidenceRationale.value);
+    }
+    if (contraindicatingConditions.present) {
+      map['contraindicating_conditions'] = Variable<String>(
+        $ClinicalRulesTable.$convertercontraindicatingConditions.toSql(
+          contraindicatingConditions.value,
+        ),
+      );
+    }
+    if (requiredMonitoring.present) {
+      map['required_monitoring'] = Variable<String>(
+        $ClinicalRulesTable.$converterrequiredMonitoring.toSql(
+          requiredMonitoring.value,
+        ),
+      );
+    }
+    if (differentialDiagnoses.present) {
+      map['differential_diagnoses'] = Variable<String>(
+        $ClinicalRulesTable.$converterdifferentialDiagnoses.toSql(
+          differentialDiagnoses.value,
+        ),
+      );
+    }
+    if (recommendedInvestigations.present) {
+      map['recommended_investigations'] = Variable<String>(
+        $ClinicalRulesTable.$converterrecommendedInvestigations.toSql(
+          recommendedInvestigations.value,
+        ),
+      );
+    }
+    if (recommendedManagement.present) {
+      map['recommended_management'] = Variable<String>(
+        $ClinicalRulesTable.$converterrecommendedManagement.toSql(
+          recommendedManagement.value,
+        ),
+      );
+    }
+    if (sourceReference.present) {
+      map['source_reference'] = Variable<String>(sourceReference.value);
+    }
+    if (isVerified.present) {
+      map['is_verified'] = Variable<bool>(isVerified.value);
+    }
+    if (isDismissed.present) {
+      map['is_dismissed'] = Variable<bool>(isDismissed.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ClinicalRulesCompanion(')
+          ..write('id: $id, ')
+          ..write('triggerType: $triggerType, ')
+          ..write('triggerValue: $triggerValue, ')
+          ..write('suggestedAction: $suggestedAction, ')
+          ..write('evidenceRationale: $evidenceRationale, ')
+          ..write('contraindicatingConditions: $contraindicatingConditions, ')
+          ..write('requiredMonitoring: $requiredMonitoring, ')
+          ..write('differentialDiagnoses: $differentialDiagnoses, ')
+          ..write('recommendedInvestigations: $recommendedInvestigations, ')
+          ..write('recommendedManagement: $recommendedManagement, ')
+          ..write('sourceReference: $sourceReference, ')
+          ..write('isVerified: $isVerified, ')
+          ..write('isDismissed: $isDismissed, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class $OfflineSyncQueueTable extends OfflineSyncQueue
     with TableInfo<$OfflineSyncQueueTable, SyncQueueEntry> {
   @override
@@ -21789,6 +22723,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $ClinicalLearningLogsTable clinicalLearningLogs =
       $ClinicalLearningLogsTable(this);
   late final $ClinicalAuditsTable clinicalAudits = $ClinicalAuditsTable(this);
+  late final $ClinicalRulesTable clinicalRules = $ClinicalRulesTable(this);
   late final $OfflineSyncQueueTable offlineSyncQueue = $OfflineSyncQueueTable(
     this,
   );
@@ -21819,6 +22754,10 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final Index clinicalEncountersPatientOccurredIdx = Index(
     'clinical_encounters_patient_occurred_idx',
     'CREATE INDEX clinical_encounters_patient_occurred_idx ON clinical_encounters (patient_id, occurred_at)',
+  );
+  late final Index patientProblemsPatientStatusIdx = Index(
+    'patient_problems_patient_status_idx',
+    'CREATE INDEX patient_problems_patient_status_idx ON patient_problems (patient_id, current_status)',
   );
   late final Index probProgPatientIdx = Index(
     'prob_prog_patient_idx',
@@ -21876,6 +22815,10 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     'clinical_audits_patient_idx',
     'CREATE INDEX clinical_audits_patient_idx ON clinical_audits (patient_id)',
   );
+  late final Index clinicalRulesTriggerIdx = Index(
+    'clinical_rules_trigger_idx',
+    'CREATE INDEX clinical_rules_trigger_idx ON clinical_rules (trigger_type, trigger_value)',
+  );
   late final Index admissionsHospitalStatusIdx = Index(
     'admissions_hospital_status_idx',
     'CREATE INDEX admissions_hospital_status_idx ON admissions (hospital_id, status)',
@@ -21907,6 +22850,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     personalWiki,
     clinicalLearningLogs,
     clinicalAudits,
+    clinicalRules,
     offlineSyncQueue,
     cdssRules,
     ayushmanPackages,
@@ -21921,6 +22865,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     patientsFullNameIdx,
     patientHospMrnIdx,
     clinicalEncountersPatientOccurredIdx,
+    patientProblemsPatientStatusIdx,
     probProgPatientIdx,
     interventionsPatientIdx,
     prescriptionsPatientIdx,
@@ -21935,6 +22880,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     brandsNameIdx,
     personalWikiUpdatedIdx,
     clinicalAuditsPatientIdx,
+    clinicalRulesTriggerIdx,
     admissionsHospitalStatusIdx,
   ];
   @override
@@ -35711,6 +36657,423 @@ typedef $$ClinicalAuditsTableProcessedTableManager =
       ClinicalAudit,
       PrefetchHooks Function({bool patientId})
     >;
+typedef $$ClinicalRulesTableCreateCompanionBuilder =
+    ClinicalRulesCompanion Function({
+      Value<String> id,
+      required String triggerType,
+      required String triggerValue,
+      required String suggestedAction,
+      required String evidenceRationale,
+      Value<List<String>> contraindicatingConditions,
+      Value<List<String>> requiredMonitoring,
+      Value<List<String>> differentialDiagnoses,
+      Value<List<String>> recommendedInvestigations,
+      Value<List<String>> recommendedManagement,
+      Value<String> sourceReference,
+      Value<bool> isVerified,
+      Value<bool> isDismissed,
+      Value<DateTime> createdAt,
+      Value<int> rowid,
+    });
+typedef $$ClinicalRulesTableUpdateCompanionBuilder =
+    ClinicalRulesCompanion Function({
+      Value<String> id,
+      Value<String> triggerType,
+      Value<String> triggerValue,
+      Value<String> suggestedAction,
+      Value<String> evidenceRationale,
+      Value<List<String>> contraindicatingConditions,
+      Value<List<String>> requiredMonitoring,
+      Value<List<String>> differentialDiagnoses,
+      Value<List<String>> recommendedInvestigations,
+      Value<List<String>> recommendedManagement,
+      Value<String> sourceReference,
+      Value<bool> isVerified,
+      Value<bool> isDismissed,
+      Value<DateTime> createdAt,
+      Value<int> rowid,
+    });
+
+class $$ClinicalRulesTableFilterComposer
+    extends Composer<_$AppDatabase, $ClinicalRulesTable> {
+  $$ClinicalRulesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get triggerType => $composableBuilder(
+    column: $table.triggerType,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get triggerValue => $composableBuilder(
+    column: $table.triggerValue,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get suggestedAction => $composableBuilder(
+    column: $table.suggestedAction,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get evidenceRationale => $composableBuilder(
+    column: $table.evidenceRationale,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnWithTypeConverterFilters<List<String>, List<String>, String>
+  get contraindicatingConditions => $composableBuilder(
+    column: $table.contraindicatingConditions,
+    builder: (column) => ColumnWithTypeConverterFilters(column),
+  );
+
+  ColumnWithTypeConverterFilters<List<String>, List<String>, String>
+  get requiredMonitoring => $composableBuilder(
+    column: $table.requiredMonitoring,
+    builder: (column) => ColumnWithTypeConverterFilters(column),
+  );
+
+  ColumnWithTypeConverterFilters<List<String>, List<String>, String>
+  get differentialDiagnoses => $composableBuilder(
+    column: $table.differentialDiagnoses,
+    builder: (column) => ColumnWithTypeConverterFilters(column),
+  );
+
+  ColumnWithTypeConverterFilters<List<String>, List<String>, String>
+  get recommendedInvestigations => $composableBuilder(
+    column: $table.recommendedInvestigations,
+    builder: (column) => ColumnWithTypeConverterFilters(column),
+  );
+
+  ColumnWithTypeConverterFilters<List<String>, List<String>, String>
+  get recommendedManagement => $composableBuilder(
+    column: $table.recommendedManagement,
+    builder: (column) => ColumnWithTypeConverterFilters(column),
+  );
+
+  ColumnFilters<String> get sourceReference => $composableBuilder(
+    column: $table.sourceReference,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isVerified => $composableBuilder(
+    column: $table.isVerified,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isDismissed => $composableBuilder(
+    column: $table.isDismissed,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$ClinicalRulesTableOrderingComposer
+    extends Composer<_$AppDatabase, $ClinicalRulesTable> {
+  $$ClinicalRulesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get triggerType => $composableBuilder(
+    column: $table.triggerType,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get triggerValue => $composableBuilder(
+    column: $table.triggerValue,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get suggestedAction => $composableBuilder(
+    column: $table.suggestedAction,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get evidenceRationale => $composableBuilder(
+    column: $table.evidenceRationale,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get contraindicatingConditions => $composableBuilder(
+    column: $table.contraindicatingConditions,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get requiredMonitoring => $composableBuilder(
+    column: $table.requiredMonitoring,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get differentialDiagnoses => $composableBuilder(
+    column: $table.differentialDiagnoses,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get recommendedInvestigations => $composableBuilder(
+    column: $table.recommendedInvestigations,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get recommendedManagement => $composableBuilder(
+    column: $table.recommendedManagement,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get sourceReference => $composableBuilder(
+    column: $table.sourceReference,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get isVerified => $composableBuilder(
+    column: $table.isVerified,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get isDismissed => $composableBuilder(
+    column: $table.isDismissed,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$ClinicalRulesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $ClinicalRulesTable> {
+  $$ClinicalRulesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get triggerType => $composableBuilder(
+    column: $table.triggerType,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get triggerValue => $composableBuilder(
+    column: $table.triggerValue,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get suggestedAction => $composableBuilder(
+    column: $table.suggestedAction,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get evidenceRationale => $composableBuilder(
+    column: $table.evidenceRationale,
+    builder: (column) => column,
+  );
+
+  GeneratedColumnWithTypeConverter<List<String>, String>
+  get contraindicatingConditions => $composableBuilder(
+    column: $table.contraindicatingConditions,
+    builder: (column) => column,
+  );
+
+  GeneratedColumnWithTypeConverter<List<String>, String>
+  get requiredMonitoring => $composableBuilder(
+    column: $table.requiredMonitoring,
+    builder: (column) => column,
+  );
+
+  GeneratedColumnWithTypeConverter<List<String>, String>
+  get differentialDiagnoses => $composableBuilder(
+    column: $table.differentialDiagnoses,
+    builder: (column) => column,
+  );
+
+  GeneratedColumnWithTypeConverter<List<String>, String>
+  get recommendedInvestigations => $composableBuilder(
+    column: $table.recommendedInvestigations,
+    builder: (column) => column,
+  );
+
+  GeneratedColumnWithTypeConverter<List<String>, String>
+  get recommendedManagement => $composableBuilder(
+    column: $table.recommendedManagement,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get sourceReference => $composableBuilder(
+    column: $table.sourceReference,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get isVerified => $composableBuilder(
+    column: $table.isVerified,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get isDismissed => $composableBuilder(
+    column: $table.isDismissed,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+}
+
+class $$ClinicalRulesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $ClinicalRulesTable,
+          CachedClinicalRule,
+          $$ClinicalRulesTableFilterComposer,
+          $$ClinicalRulesTableOrderingComposer,
+          $$ClinicalRulesTableAnnotationComposer,
+          $$ClinicalRulesTableCreateCompanionBuilder,
+          $$ClinicalRulesTableUpdateCompanionBuilder,
+          (
+            CachedClinicalRule,
+            BaseReferences<
+              _$AppDatabase,
+              $ClinicalRulesTable,
+              CachedClinicalRule
+            >,
+          ),
+          CachedClinicalRule,
+          PrefetchHooks Function()
+        > {
+  $$ClinicalRulesTableTableManager(_$AppDatabase db, $ClinicalRulesTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ClinicalRulesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$ClinicalRulesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$ClinicalRulesTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> triggerType = const Value.absent(),
+                Value<String> triggerValue = const Value.absent(),
+                Value<String> suggestedAction = const Value.absent(),
+                Value<String> evidenceRationale = const Value.absent(),
+                Value<List<String>> contraindicatingConditions =
+                    const Value.absent(),
+                Value<List<String>> requiredMonitoring = const Value.absent(),
+                Value<List<String>> differentialDiagnoses =
+                    const Value.absent(),
+                Value<List<String>> recommendedInvestigations =
+                    const Value.absent(),
+                Value<List<String>> recommendedManagement =
+                    const Value.absent(),
+                Value<String> sourceReference = const Value.absent(),
+                Value<bool> isVerified = const Value.absent(),
+                Value<bool> isDismissed = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ClinicalRulesCompanion(
+                id: id,
+                triggerType: triggerType,
+                triggerValue: triggerValue,
+                suggestedAction: suggestedAction,
+                evidenceRationale: evidenceRationale,
+                contraindicatingConditions: contraindicatingConditions,
+                requiredMonitoring: requiredMonitoring,
+                differentialDiagnoses: differentialDiagnoses,
+                recommendedInvestigations: recommendedInvestigations,
+                recommendedManagement: recommendedManagement,
+                sourceReference: sourceReference,
+                isVerified: isVerified,
+                isDismissed: isDismissed,
+                createdAt: createdAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                required String triggerType,
+                required String triggerValue,
+                required String suggestedAction,
+                required String evidenceRationale,
+                Value<List<String>> contraindicatingConditions =
+                    const Value.absent(),
+                Value<List<String>> requiredMonitoring = const Value.absent(),
+                Value<List<String>> differentialDiagnoses =
+                    const Value.absent(),
+                Value<List<String>> recommendedInvestigations =
+                    const Value.absent(),
+                Value<List<String>> recommendedManagement =
+                    const Value.absent(),
+                Value<String> sourceReference = const Value.absent(),
+                Value<bool> isVerified = const Value.absent(),
+                Value<bool> isDismissed = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ClinicalRulesCompanion.insert(
+                id: id,
+                triggerType: triggerType,
+                triggerValue: triggerValue,
+                suggestedAction: suggestedAction,
+                evidenceRationale: evidenceRationale,
+                contraindicatingConditions: contraindicatingConditions,
+                requiredMonitoring: requiredMonitoring,
+                differentialDiagnoses: differentialDiagnoses,
+                recommendedInvestigations: recommendedInvestigations,
+                recommendedManagement: recommendedManagement,
+                sourceReference: sourceReference,
+                isVerified: isVerified,
+                isDismissed: isDismissed,
+                createdAt: createdAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$ClinicalRulesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $ClinicalRulesTable,
+      CachedClinicalRule,
+      $$ClinicalRulesTableFilterComposer,
+      $$ClinicalRulesTableOrderingComposer,
+      $$ClinicalRulesTableAnnotationComposer,
+      $$ClinicalRulesTableCreateCompanionBuilder,
+      $$ClinicalRulesTableUpdateCompanionBuilder,
+      (
+        CachedClinicalRule,
+        BaseReferences<_$AppDatabase, $ClinicalRulesTable, CachedClinicalRule>,
+      ),
+      CachedClinicalRule,
+      PrefetchHooks Function()
+    >;
 typedef $$OfflineSyncQueueTableCreateCompanionBuilder =
     OfflineSyncQueueCompanion Function({
       Value<String> id,
@@ -40025,6 +41388,8 @@ class $AppDatabaseManager {
       $$ClinicalLearningLogsTableTableManager(_db, _db.clinicalLearningLogs);
   $$ClinicalAuditsTableTableManager get clinicalAudits =>
       $$ClinicalAuditsTableTableManager(_db, _db.clinicalAudits);
+  $$ClinicalRulesTableTableManager get clinicalRules =>
+      $$ClinicalRulesTableTableManager(_db, _db.clinicalRules);
   $$OfflineSyncQueueTableTableManager get offlineSyncQueue =>
       $$OfflineSyncQueueTableTableManager(_db, _db.offlineSyncQueue);
   $$CdssRulesTableTableManager get cdssRules =>

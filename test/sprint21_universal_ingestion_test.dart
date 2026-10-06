@@ -124,6 +124,40 @@ void main() {
     expect(ai.receivedPrompt, contains('pomr_data'));
   });
 
+  test('ambient transcript uses the Omni-Schema scribe context', () async {
+    final ai = _TextOnlyAiService();
+    final container = ProviderContainer(
+      overrides: [
+        extractionPipelineProvider.overrideWith(
+          (ref) => ExtractionPipelineService(ai),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    const transcript = 'Doctor: BP is 138 over 86. Start amlodipine 5 mg.';
+    container
+        .read(batchExtractionProvider.notifier)
+        .addText(transcript, isAmbientAudio: true);
+    await _waitUntil(
+      () => container
+          .read(batchExtractionProvider)
+          .any((task) => task.status == ExtractionStatus.readyForReview),
+    );
+
+    final task = container.read(batchExtractionProvider).single;
+    expect(task.isAmbientAudio, isTrue);
+    expect(task.rawOcrText, transcript);
+    expect(
+      ai.receivedPrompt,
+      contains('raw, ambient audio transcription from an Indian hospital ward'),
+    );
+    expect(ai.receivedPrompt, contains('Hindi/Hinglish into standard English'));
+    expect(ai.receivedPrompt, contains('saans phool rahi hai'));
+    expect(ai.receivedPrompt, contains('Ignore conversational filler'));
+    expect(task.extractedData?.problems.single.diagnosis, 'Hypertension');
+  });
+
   test('universal DAO transaction files text and linked POMR rows', () async {
     final db = AppDatabase(NativeDatabase.memory());
     addTearDown(db.close);

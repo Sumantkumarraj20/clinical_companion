@@ -58,7 +58,7 @@ dependencies:
   # verify it really is an app database before the live one is overwritten.
   # Transitive via drift, but a direct runtime dependency now.
   sqlite3: ^3.5.2
-
+  speech_to_text: ^7.5.0
 dev_dependencies:
   flutter_test:
     sdk: flutter

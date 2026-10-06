@@ -29,6 +29,7 @@ void main() {
       addTearDown(() => tester.binding.setSurfaceSize(null));
       await tester.pumpWidget(
         MaterialApp(
+          theme: ThemeData(splashFactory: NoSplash.splashFactory),
           home: Scaffold(body: Center(child: badge)),
         ),
       );
@@ -164,7 +165,10 @@ void main() {
             pendingNotesProvider.overrideWith((ref) => Stream.value(drafts)),
             postOpDayProvider.overrideWith((ref, _) async => podDay),
           ],
-          child: MaterialApp.router(routerConfig: router),
+          child: MaterialApp.router(
+            routerConfig: router,
+            theme: ThemeData(splashFactory: NoSplash.splashFactory),
+          ),
         ),
       );
       await tester.pumpAndSettle();
@@ -470,7 +474,10 @@ void main() {
             ),
             postOpDayProvider.overrideWith((ref, _) async => null),
           ],
-          child: MaterialApp.router(routerConfig: router),
+          child: MaterialApp.router(
+            routerConfig: router,
+            theme: ThemeData(splashFactory: NoSplash.splashFactory),
+          ),
         ),
       );
       await tester.pumpAndSettle();
@@ -508,7 +515,12 @@ void main() {
         );
         addTearDown(router.dispose);
 
-        await tester.pumpWidget(MaterialApp.router(routerConfig: router));
+        await tester.pumpWidget(
+          MaterialApp.router(
+            routerConfig: router,
+            theme: ThemeData(splashFactory: NoSplash.splashFactory),
+          ),
+        );
         await tester.pumpAndSettle();
       }
 

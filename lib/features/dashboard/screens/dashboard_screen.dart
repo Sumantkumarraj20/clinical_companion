@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/providers/app_providers.dart';
 import '../../../core/services/app_updater_service.dart';
+import '../../ingestion/widgets/ambient_scribe_fab.dart';
 import '../widgets/update_download_banner.dart';
 
 /// Sprint 8 — CI/CD & In-App Binary Updates.
@@ -24,6 +25,7 @@ class DashboardScreen extends ConsumerWidget {
     final pending = ref.watch(pendingInvestigationsProvider);
     final notes = ref.watch(todayPatientNotesProvider);
     return Scaffold(
+      floatingActionButton: const AmbientScribeFab(),
       appBar: AppBar(
         title: const Text('Clinical dashboard'),
         actions: [

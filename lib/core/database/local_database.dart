@@ -254,6 +254,10 @@ typedef DailyNotesCompanion = ClinicalEncountersCompanion;
 // 4. PROBLEM TRAJECTORY & EVOLUTION (POMR CORE)
 // ==========================================
 @DataClassName('PatientProblem')
+@TableIndex(
+  name: 'patient_problems_patient_status_idx',
+  columns: {#patientId, #currentStatus},
+)
 class PatientProblems extends Table {
   @override
   String get tableName => 'patient_problems';
@@ -704,6 +708,44 @@ class CdssRules extends Table {
   Set<Column<Object>> get primaryKey => {id};
 }
 
+@DataClassName('CachedClinicalRule')
+@TableIndex(
+  name: 'clinical_rules_trigger_idx',
+  columns: {#triggerType, #triggerValue},
+)
+class ClinicalRules extends Table {
+  @override
+  String get tableName => 'clinical_rules';
+
+  TextColumn get id => text().clientDefault(() => _uuid.v4())();
+  TextColumn get triggerType => text()();
+  TextColumn get triggerValue => text()();
+  TextColumn get suggestedAction => text()();
+  TextColumn get evidenceRationale => text()();
+  TextColumn get contraindicatingConditions => text()
+      .map(const StringListConverter())
+      .withDefault(const Constant('[]'))();
+  TextColumn get requiredMonitoring => text()
+      .map(const StringListConverter())
+      .withDefault(const Constant('[]'))();
+  TextColumn get differentialDiagnoses => text()
+      .map(const StringListConverter())
+      .withDefault(const Constant('[]'))();
+  TextColumn get recommendedInvestigations => text()
+      .map(const StringListConverter())
+      .withDefault(const Constant('[]'))();
+  TextColumn get recommendedManagement => text()
+      .map(const StringListConverter())
+      .withDefault(const Constant('[]'))();
+  TextColumn get sourceReference => text().withDefault(const Constant(''))();
+  BoolColumn get isVerified => boolean().withDefault(const Constant(false))();
+  BoolColumn get isDismissed => boolean().withDefault(const Constant(false))();
+  DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
 // Reference Tables
 @DataClassName('AyushmanPackage')
 class AyushmanPackages extends Table {
@@ -919,6 +961,7 @@ class OfflineSyncQueue extends Table {
     PersonalWiki,
     ClinicalLearningLogs,
     ClinicalAudits,
+    ClinicalRules,
     OfflineSyncQueue,
     CdssRules,
     AyushmanPackages,
@@ -940,7 +983,7 @@ class AppDatabase extends _$AppDatabase {
     : super(executor ?? openAppDatabaseExecutor());
 
   @override
-  int get schemaVersion => 31;
+  int get schemaVersion => 35;
 
   /// Tables that must exist for the drug catalog and POMR to function.
   ///
@@ -1013,6 +1056,9 @@ class AppDatabase extends _$AppDatabase {
         } catch (_) {}
         try {
           await m.createTable(cdssRules);
+        } catch (_) {}
+        try {
+          await m.createTable(clinicalRules);
         } catch (_) {}
         try {
           await m.createTable(ayushmanPackages);
@@ -1303,6 +1349,31 @@ class AppDatabase extends _$AppDatabase {
         }
         if (from < 31) {
           await m.createTable(clinicalAudits);
+        }
+        if (from < 32) {
+          await m.createTable(clinicalRules);
+        }
+        if (from >= 32 && from < 33) {
+          await m.addColumn(
+            clinicalRules,
+            clinicalRules.contraindicatingConditions,
+          );
+          await m.addColumn(clinicalRules, clinicalRules.requiredMonitoring);
+          await m.addColumn(clinicalRules, clinicalRules.sourceReference);
+        }
+        if (from < 34) {
+          await customStatement(
+            'CREATE INDEX IF NOT EXISTS patient_problems_patient_status_idx '
+            'ON patient_problems (patient_id, current_status)',
+          );
+        }
+        if (from >= 32 && from < 35) {
+          await m.addColumn(clinicalRules, clinicalRules.differentialDiagnoses);
+          await m.addColumn(
+            clinicalRules,
+            clinicalRules.recommendedInvestigations,
+          );
+          await m.addColumn(clinicalRules, clinicalRules.recommendedManagement);
         }
         if (from < 28) {
           // Sprint 17 — provenance for semantic merging. Nullable, no default,
