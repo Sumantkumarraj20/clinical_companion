@@ -546,6 +546,16 @@ class _DynamicEncounterScreenState
 
   @override
   Widget build(BuildContext context) {
+    // Sprint 27 — AI failures (400/500 INVALID_ARGUMENT from a rogue legacy
+    // parameter, quota, outage) reach the clinician as a non-blocking toast
+    // instead of crashing or silently vanishing from the Encounter UI.
+    ref.listen<String?>(aiErrorNoticeProvider, (previous, message) {
+      if (message == null || !mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
+      ref.read(aiErrorNoticeProvider.notifier).clear();
+    });
     ref.listen<List<PendingOrder>>(stagedOrdersProvider, (previous, next) {
       final priorMedicationNames = (previous ?? const <PendingOrder>[])
           .where((order) => order.isMedication)

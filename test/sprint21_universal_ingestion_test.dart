@@ -21,6 +21,7 @@ class _TextOnlyAiService extends DocumentAiService {
   Future<AiExtractionResult> extractDocument({
     required File? image,
     required String prompt,
+    ThinkingLevel? thinkingLevel,
   }) async {
     receivedImage = image != null;
     receivedPrompt = prompt;

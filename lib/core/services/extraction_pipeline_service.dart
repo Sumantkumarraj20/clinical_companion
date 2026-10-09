@@ -174,6 +174,10 @@ class ExtractionPipelineService {
         await _historicalAssociationsLoader?.call() ?? const <String>[];
     final result = await _aiService.extractDocument(
       image: null,
+      // Sprint 27 (adaptive compute): Sprint 21 Omni-Schema text routing is
+      // text normalization + demographic extraction — `low` keeps the cheap,
+      // fast path cheap.
+      thinkingLevel: ThinkingLevel.low,
       prompt: _polishPrompt(
         rawText,
         activeCensusJson: activeCensusJson,
@@ -249,6 +253,10 @@ class ExtractionPipelineService {
 
     final aiResult = await _aiService.extractDocument(
       image: payload,
+      // Sprint 27 (adaptive compute): Sprint 19 POMR structuring — linking
+      // medications to problems needs solid reasoning, but not the deep
+      // literature tier reserved for DDx/guardrails.
+      thinkingLevel: ThinkingLevel.medium,
       prompt: prompt,
     );
     return PipelineExtraction(result: aiResult, source: PipelineSource.ai);

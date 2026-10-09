@@ -1,4 +1,4 @@
-import 'package:google_generative_ai/google_generative_ai.dart';
+import 'ai_schema.dart';
 
 enum ClinicalDocumentCategory {
   admissionNote,

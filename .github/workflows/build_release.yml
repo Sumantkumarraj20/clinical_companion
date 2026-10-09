@@ -124,7 +124,10 @@ jobs:
 
           BUILD_TOOLS=$(ls "$ANDROID_HOME/build-tools" | sort -V | tail -n1)
           APKSIGNER="$ANDROID_HOME/build-tools/$BUILD_TOOLS/apksigner"
-          APK=$(ls build/app/outputs/flutter-apk/ClinCom-*-release.apk | head -n 1)
+          # Flutter's gradle plugin drops the release artifact in flutter-apk/
+          # under its default name; there is no ClinCom-<version> rename on this
+          # path (a ClinCom-* glob fails with "No such file or directory").
+          APK=$(ls build/app/outputs/flutter-apk/app-release.apk | head -n 1)
           echo "Verifying: $APK"
 
           # Fingerprint of the keystore we INTENDED to sign with.
@@ -158,5 +161,6 @@ jobs:
         with:
           name: ClinCom ${{ github.ref_name }}
           generate_release_notes: true
-          # Renamed by build.gradle.kts to ClinCom-<version>-release.apk.
-          files: build/app/outputs/flutter-apk/ClinCom-*-release.apk
+          # Flutter emits a single fat release APK named app-release.apk
+          # (see the in-app updater note at the top of this file).
+          files: build/app/outputs/flutter-apk/app-release.apk

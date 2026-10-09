@@ -14,8 +14,9 @@ class _FakeAuditAi extends DocumentAiService {
 
   @override
   Future<List<ClinicalInsight>> generateClinicalInsights(
-    String chartSummary,
-  ) async {
+    String chartSummary, {
+    ThinkingLevel? thinkingLevel,
+  }) async {
     summary = chartSummary;
     return const [
       ClinicalInsight(

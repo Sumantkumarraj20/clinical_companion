@@ -13,13 +13,16 @@ class _FakeRuleAi extends DocumentAiService {
   _FakeRuleAi() : super(apiKey: 'unused-in-test');
 
   int calls = 0;
+  ThinkingLevel? lastThinkingLevel;
 
   @override
   Future<ClinicalRuleSuggestion> generateClinicalRule({
     required String triggerType,
     required String triggerValue,
+    ThinkingLevel thinkingLevel = ThinkingLevel.high,
   }) async {
     calls++;
+    lastThinkingLevel = thinkingLevel;
     return ClinicalRuleSuggestion(
       triggerType: triggerType,
       triggerValue: triggerValue,
@@ -153,6 +156,9 @@ void main() {
       expect(generated!.isVerified, isFalse);
       expect(generated.triggerValue, 'Transverse Myelitis');
       expect(ai.calls, 1);
+      // Sprint 27 — the engine routes rule generation to the deep-reasoning
+      // tier (Sprint 25 DDx + Sprint 24 guardrails).
+      expect(ai.lastThinkingLevel, ThinkingLevel.high);
 
       final cached = await engine.evaluate(
         triggerType: 'diagnosis',

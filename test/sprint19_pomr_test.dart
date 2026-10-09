@@ -18,6 +18,7 @@ class _PromptCapturingAiService extends DocumentAiService {
   Future<AiExtractionResult> extractDocument({
     required File? image,
     required String prompt,
+    ThinkingLevel? thinkingLevel,
   }) async {
     this.prompt = prompt;
     return const AiExtractionResult();

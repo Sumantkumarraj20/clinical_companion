@@ -3,13 +3,17 @@ import 'dart:io';
 import 'dart:isolate';
 import 'package:path/path.dart' as path;
 
-import 'package:google_generative_ai/google_generative_ai.dart';
+import 'package:http/http.dart' as http;
 
 import '../database/daos/pharmacopeia_dao.dart';
 import '../models/ai_extraction_result.dart';
 import '../models/clinical_insight.dart';
 import '../models/clinical_rule_suggestion.dart';
+import 'ai_schema.dart';
 import 'clinical_prompts.dart';
+import 'interactions_api_client.dart';
+
+export 'interactions_api_client.dart' show ThinkingLevel;
 
 /// JSON decoding is CPU work and can be substantial for multi-page results.
 /// Keep it off the UI isolate after the network response has arrived.
@@ -76,21 +80,33 @@ class DocumentAiException implements Exception {
 }
 
 class DocumentAiService {
-  DocumentAiService({this.apiKey = ''});
+  /// [httpClient] lets tests inject a mock Interactions transport; production
+  /// code relies on the default `http.Client`.
+  DocumentAiService({this.apiKey = '', http.Client? httpClient})
+    : _interactions = InteractionsApiClient(apiKey: apiKey, client: httpClient);
 
-  // Updated to active free-tier models
-  static const String defaultModel = 'gemini-3.6-flash';
-  static const String fallbackModel = 'gemini-2.5-flash';
+  // Sprint 27 — GA Interactions API targets. `gemini-3.8-flash` is the latest
+  // Flash release; `gemini-3.7-flash` is on the stable /v1 model list, so a
+  // model-specific failure on the primary always has somewhere to escalate
+  // (see [shouldEscalateToFallback]).
+  static const String defaultModel = 'gemini-3.8-flash';
+  static const String fallbackModel = 'gemini-3.7-flash';
   static const int maxAttempts = 3;
 
   final String apiKey;
+  final InteractionsApiClient _interactions;
 
   /// Audits a chart summary and returns concise, evidence-grounded
   /// recommendations. The caller runs this asynchronously and surfaces any
   /// configuration/network errors to the clinician.
+  ///
+  /// [thinkingLevel] routes adaptive compute (Sprint 27). Chart audits
+  /// default to `medium`: standard POMR linkage without the deep-literature
+  /// cost of `high`.
   Future<List<ClinicalInsight>> generateClinicalInsights(
-    String chartSummary,
-  ) async {
+    String chartSummary, {
+    ThinkingLevel thinkingLevel = ThinkingLevel.medium,
+  }) async {
     if (chartSummary.trim().isEmpty) {
       throw ArgumentError.value(
         chartSummary,
@@ -128,6 +144,7 @@ class DocumentAiService {
     );
     final response = await _extractStructuredJson(
       image: null,
+      thinkingLevel: thinkingLevel,
       prompt:
           '''
 You are an elite academic attending physician auditing a patient's chart.
@@ -180,9 +197,15 @@ $chartSummary
 
   /// Generates a reusable, patient-independent rule for a single clinical
   /// trigger. The caller only invokes this after a local cache miss.
+  ///
+  /// [thinkingLevel] defaults to `high` — this call powers the Proactive
+  /// Clinical Navigator's DDx generation (Sprint 25) and the Multi-Variable
+  /// Guardrails' contraindication reasoning (Sprint 24), both of which need
+  /// deep clinical-literature reasoning.
   Future<ClinicalRuleSuggestion> generateClinicalRule({
     required String triggerType,
     required String triggerValue,
+    ThinkingLevel thinkingLevel = ThinkingLevel.high,
   }) async {
     final normalizedType = triggerType.trim().toLowerCase();
     final value = triggerValue.trim();
@@ -223,6 +246,7 @@ $chartSummary
     );
     final response = await _extractStructuredJson(
       image: null,
+      thinkingLevel: thinkingLevel,
       prompt:
           '''
 You are an elite clinical informatician. The clinician just logged the
@@ -276,9 +300,15 @@ Return JSON with exactly these fields:
 
   /// Extracts reusable contraindication and monitoring rules from clinician-
   /// supplied medical literature.
+  ///
+  /// [thinkingLevel] defaults to `high`: mining contraindication thresholds
+  /// and monitoring parameters from source literature is a Multi-Variable
+  /// Guardrails task (Sprint 24) that must not be truncated by shallow
+  /// reasoning.
   Future<List<ClinicalRuleSuggestion>> generateClinicalRulesFromGuideline(
-    String sourceText,
-  ) async {
+    String sourceText, {
+    ThinkingLevel thinkingLevel = ThinkingLevel.high,
+  }) async {
     if (sourceText.trim().isEmpty) {
       throw ArgumentError.value(sourceText, 'sourceText');
     }
@@ -355,6 +385,7 @@ MEDICAL LITERATURE:
 $sourceText
 ''',
       schema: schema,
+      thinkingLevel: thinkingLevel,
       validator: (json) {
         final rawRules = json['rules'];
         if (rawRules is! List) {
@@ -487,7 +518,10 @@ $sourceText
 
     if (error is SocketException ||
         text.contains('socket') ||
-        text.contains('failed host lookup')) {
+        text.contains('failed host lookup') ||
+        // Sprint 27: the Interactions client prefixes wrapped transport
+        // failures with 'network:' so they never fall through to `unknown`.
+        text.contains('network')) {
       return DocumentAiException(
         'Network connectivity failed. Please verify internet connection.',
         type: DocumentAiErrorType.network,
@@ -523,6 +557,59 @@ $sourceText
       return DocumentAiException(
         'AI access is not authorized. Check your API key credentials.',
         type: DocumentAiErrorType.authentication,
+        cause: error,
+      );
+    }
+    // Sprint 27 — authoritative HTTP status carried by the Interactions
+    // transport. 400 INVALID_ARGUMENT is how the GA API reports a removed
+    // parameter (temperature, top_p, top_k, thinking_budget) or any other
+    // malformed field. Classify it as an invalid request so callers surface
+    // a clean, non-blocking message instead of crashing the Encounter UI.
+    if (error is InteractionsApiException && error.statusCode != null) {
+      final status = error.statusCode!;
+      if (status == 400) {
+        return DocumentAiException(
+          "ClinCom's AI request was rejected as invalid (400 INVALID_ARGUMENT). "
+          'A legacy sampling parameter (temperature, top_p, top_k, '
+          'thinking_budget) is no longer accepted by the Interactions API.',
+          type: DocumentAiErrorType.invalidRequest,
+          cause: error,
+        );
+      }
+      if (status == 401 || status == 403) {
+        return DocumentAiException(
+          'AI access is not authorized. Check your API key credentials.',
+          type: DocumentAiErrorType.authentication,
+          cause: error,
+        );
+      }
+      if (status == 429) {
+        return DocumentAiException(
+          'AI rate limit or quota reached. Please wait a moment.',
+          type: DocumentAiErrorType.rateLimited,
+          cause: error,
+          retryable: true,
+          retryAfterMs: 2000,
+        );
+      }
+      if (status >= 500) {
+        return DocumentAiException(
+          'AI service is temporarily unavailable.',
+          type: DocumentAiErrorType.server,
+          cause: error,
+          retryable: true,
+        );
+      }
+      // 404 falls through: only a model-flavoured 404 escalates the fallback.
+    } else if (error is! InteractionsApiException &&
+        (text.contains('invalid_argument') || text.contains('400'))) {
+      // Plain-string simulation of an INVALID_ARGUMENT failure (tests and
+      // any transport that lost its status code).
+      return DocumentAiException(
+        "ClinCom's AI request was rejected as invalid (400 INVALID_ARGUMENT). "
+        'A legacy sampling parameter (temperature, top_p, top_k, '
+        'thinking_budget) is no longer accepted by the Interactions API.',
+        type: DocumentAiErrorType.invalidRequest,
         cause: error,
       );
     }
@@ -655,6 +742,7 @@ $sourceText
     required File? image,
     required String prompt,
     required Schema schema,
+    required ThinkingLevel thinkingLevel,
     required Map<String, dynamic> Function(Map<String, dynamic>) validator,
   }) async {
     if (apiKey.trim().isEmpty) {
@@ -673,29 +761,28 @@ $sourceText
 
     Future<Map<String, dynamic>> request(String modelName) async {
       try {
-        final model = GenerativeModel(
+        // Sprint 27 — one GA Interactions call replaces the legacy
+        // `GenerativeModel.generateContent` flow. The payload carries NO
+        // sampling knobs (temperature/top_p/top_k/thinking_budget are gone);
+        // structured output rides in `response_format` and reasoning depth in
+        // `generation_config.thinking_level`.
+        final interaction = await _interactions.create(
           model: modelName,
-          apiKey: apiKey,
-          generationConfig: GenerationConfig(
-            responseMimeType: 'application/json',
-            responseSchema: schema,
-          ),
+          prompt:
+              '$prompt\n'
+              'Return only valid JSON matching the requested schema. '
+              'Do not invent or infer values that are not visible in the source. '
+              'Use null for missing values and preserve the original source wording.',
+          imageBytes: preparedImage == null
+              ? null
+              : await preparedImage.readAsBytes(),
+          imageMimeType: mimeType,
+          jsonSchema: schema.toJson(),
+          thinkingLevel: thinkingLevel,
         );
-        final parts = <Part>[
-          TextPart(
-            '$prompt\n'
-            'Return only valid JSON matching the requested schema. '
-            'Do not invent or infer values that are not visible in the source. '
-            'Use null for missing values and preserve the original source wording.',
-          ),
-        ];
-        if (preparedImage != null) {
-          parts.add(DataPart(mimeType!, await preparedImage.readAsBytes()));
-        }
-        final response = await model.generateContent([Content.multi(parts)]);
 
-        final text = response.text;
-        if (text == null || text.trim().isEmpty) {
+        final text = interaction.text;
+        if (text.trim().isEmpty) {
           throw const DocumentAiException(
             'AI returned an empty document result.',
             type: DocumentAiErrorType.emptyResponse,
@@ -725,9 +812,14 @@ $sourceText
   }
 
   /// Sprint 17 — nullable [image] enables ClinCom's text-only path.
+  ///
+  /// [thinkingLevel] routes adaptive compute: defaults to `medium` for
+  /// Sprint 19 POMR structuring (linking medications to known problems);
+  /// the Sprint 21 Omni-Schema text/OCR routing passes `low` explicitly.
   Future<AiExtractionResult> extractDocument({
     required File? image,
     required String prompt,
+    ThinkingLevel thinkingLevel = ThinkingLevel.medium,
   }) async {
     final schema = Schema.object(
       properties: {
@@ -843,14 +935,18 @@ $sourceText
       image: image,
       prompt: prompt,
       schema: schema,
+      thinkingLevel: thinkingLevel,
       validator: (value) => value,
     );
     return AiExtractionResult.fromJson(raw);
   }
 
+  /// Structured digest of a single clinical document category.
+  /// [thinkingLevel] defaults to `medium` (standard document structuring).
   Future<Map<String, dynamic>> extractClinicalDocument({
     required File image,
     required ClinicalDocumentCategory category,
+    ThinkingLevel thinkingLevel = ThinkingLevel.medium,
   }) async {
     final prompt = ClinicalPromptContracts.promptFor(category);
     final schema = ClinicalPromptContracts.responseSchemaFor(category);
@@ -859,6 +955,7 @@ $sourceText
       image: image,
       prompt: prompt,
       schema: schema,
+      thinkingLevel: thinkingLevel,
       validator: (value) => value,
     );
   }

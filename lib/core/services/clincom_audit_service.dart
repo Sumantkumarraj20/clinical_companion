@@ -18,6 +18,10 @@ class ClinComAuditService {
 
   Future<List<ClinicalInsight>> auditPatient(String patientId) async {
     final summary = await _clinicalDao.buildClinicalAuditSummary(patientId);
-    return _aiService.generateClinicalInsights(summary);
+    return _aiService.generateClinicalInsights(
+      summary,
+      // Sprint 27 (adaptive compute): standard POMR/chart linkage — `medium`.
+      thinkingLevel: ThinkingLevel.medium,
+    );
   }
 }

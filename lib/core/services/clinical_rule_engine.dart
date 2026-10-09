@@ -72,6 +72,11 @@ class ClinicalRuleEngine {
     final generated = await _aiService.generateClinicalRule(
       triggerType: normalizedType,
       triggerValue: value,
+      // Sprint 27 (adaptive compute): `high` exclusively for the Proactive
+      // Clinical Navigator's DDx generation (Sprint 25) and Multi-Variable
+      // Guardrails' contraindication checks (Sprint 24) — deep clinical
+      // literature reasoning only.
+      thinkingLevel: ThinkingLevel.high,
     );
     final saved = await _ruleDao.saveGeneratedRule(
       triggerType: generated.triggerType,

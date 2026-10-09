@@ -205,6 +205,25 @@ class OfflineNoticeNotifier extends Notifier<String?> {
   void clear() => state = null;
 }
 
+/// Sprint 27 — one-shot AI failure notice for the Encounter UI.
+///
+/// Mirrors [offlineNoticeProvider]: services that cannot show UI themselves
+/// (e.g. the clinical rule guardian's async AI calls) publish here, and the
+/// Encounter screen listens and raises a non-blocking SnackBar. A rogue
+/// legacy parameter that slips through as a 400/500 must degrade to a toast,
+/// never a crash of the Encounter UI.
+final aiErrorNoticeProvider = NotifierProvider<AiErrorNoticeNotifier, String?>(
+  AiErrorNoticeNotifier.new,
+);
+
+class AiErrorNoticeNotifier extends Notifier<String?> {
+  @override
+  String? build() => null;
+
+  void show(String message) => state = message;
+  void clear() => state = null;
+}
+
 /// FIFO extraction queue shared by the capture and review screens.
 ///
 /// Adding files flips each task through `processingOcr` → (optionally)

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/ai/document_ai_service.dart';
 import '../../../core/database/local_database.dart';
 import '../../../core/providers/app_providers.dart';
 
@@ -38,7 +39,13 @@ class _TextIngestionScreenState extends ConsumerState<TextIngestionScreen> {
       if (_processAsGuideline) {
         final suggestions = await ref
             .read(documentAiServiceProvider)
-            .generateClinicalRulesFromGuideline(text);
+            .generateClinicalRulesFromGuideline(
+              text,
+              // Sprint 27 (adaptive compute): mining contraindication and
+              // monitoring rules from literature is a Multi-Variable
+              // Guardrails task (Sprint 24) — `high`.
+              thinkingLevel: ThinkingLevel.high,
+            );
         final result = await ref
             .read(clinicalRuleDaoProvider)
             .saveGuidelineRules(suggestions);

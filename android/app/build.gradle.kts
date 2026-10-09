@@ -9,7 +9,11 @@ plugins {
 android {
     namespace = "com.example.clinical_companion"
     compileSdk = flutter.compileSdkVersion
-    ndkVersion = flutter.ndkVersion
+    // Sprint 27 (CI): pin the NDK to the version pre-installed on GitHub
+    // Actions Ubuntu runners. Leaving this as flutter.ndkVersion makes Gradle
+    // download NDK 28.2 (~1.5 GB) and re-solve the toolchain on every build;
+    // an exact match lets the build use the runner's local NDK instead.
+    ndkVersion = "26.1.10909125"
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -112,15 +116,8 @@ flutter {
     source = "../.."
 }
 
-// Sprint 17.6 — release APKs are published as "ClinCom-<version>.apk" so a
-// clinician can tell two downloaded builds apart at a glance, and so the
-// in-app updater's asset link is unambiguous.
-//
-// The version is read from pubspec.yaml (flutter.versionName), so bumping the
-// version there is enough.
-android.applicationVariants.all {
-    outputs.all {
-        val output = this as com.android.build.gradle.internal.api.BaseVariantOutputImpl
-        output.outputFileName = "ClinCom-${versionName}-${buildType.name}.apk"
-    }
-}
+// Sprint 27 (CI) — no custom APK rename: the release workflows verify and
+// publish `build/app/outputs/flutter-apk/app-release.apk` exactly, so the
+// Flutter/Gradle default filename must be preserved. (A ClinCom-<version>
+// rename here would re-break the `ls .../app-release.apk` verification step
+// with "No such file or directory".)
