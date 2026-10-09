@@ -1,0 +1,19 @@
+# Copy this file to `android/key.properties` (git-ignored) to sign a LOCAL
+# release build with the same key CI uses.
+#
+#   cp android/key.properties.example android/key.properties
+#
+# Without it, `flutter build apk --release` fails loudly:
+#   "ClinCom release signing is not configured."
+#
+# That loud failure is deliberate. Silently falling back to the machine's debug
+# key is exactly what produced APKs that Android then refused to upgrade
+# ("App not installed as package conflicts with an existing package") —
+# an app can only be updated in place by an APK signed with the SAME key.
+#
+# CI never reads this file; it injects the equivalent SIGNING_* environment
+# variables instead (see .github/workflows/build_release.yml).
+storeFile=../release.keystore
+keyAlias=release
+storePassword=CHANGE_ME
+keyPassword=CHANGE_ME

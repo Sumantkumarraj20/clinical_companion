@@ -6,12 +6,26 @@ on:
     - cron: '0 0 * * *'
   workflow_dispatch: # Allows you to click a "Run" button manually in GitHub
 
+# Without this the workflow can READ but not PUSH. The token defaults to
+# read-only, so `git push` at the end dies with:
+#   remote: Permission ... denied to github-actions[bot]
+# after the SQLite compile already succeeded.
+permissions:
+  contents: write
+
 jobs:
   update-database:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
+        with:
+          # Default fetch-depth is 1; a shallow checkout can make `git push`
+          # reject with "shallow update not allowed" on some remotes.
+          fetch-depth: 0
+          # Needed so the pushed commit is attributed to github-actions[bot]
+          # with a token that still carries write permission.
+          persist-credentials: true
 
       - name: Setup Python
         uses: actions/setup-python@v5
