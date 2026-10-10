@@ -6,7 +6,7 @@ publish_to: "none"
 # for every shipped APK or the package installer refuses the upgrade.
 # It also feeds the in-app updater, which compares this value against the
 # latest GitHub release tag — a mismatch makes it offer the same update forever.
-version: 1.0.12+12
+version: 1.0.13+13
 
 environment:
   sdk: "^3.8.0"
