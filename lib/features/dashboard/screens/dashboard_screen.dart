@@ -138,7 +138,7 @@ class DashboardScreen extends ConsumerWidget {
                           label: const Text('Start OPD consult'),
                         ),
                         OutlinedButton.icon(
-                          onPressed: () => context.go('/ward-dashboard'),
+                          onPressed: () => context.go('/rounds'),
                           icon: const Icon(Icons.local_hospital_outlined),
                           label: const Text('Ward round'),
                         ),
@@ -257,10 +257,13 @@ class _IngestionInboxBannerState extends ConsumerState<_IngestionInboxBanner> {
   Future<void> _restoreInbox() async {
     try {
       await ref.read(batchExtractionProvider.notifier).restoreInbox();
-    } catch (error) {
+    } catch (error, stackTrace) {
+      debugPrint('Could not restore saved clinical data: $error\n$stackTrace');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not restore saved clinical data: $error')),
+        const SnackBar(
+          content: Text('Saved clinical data could not be loaded. Please try again.'),
+        ),
       );
     }
   }
@@ -321,12 +324,15 @@ class _IngestionInboxBannerState extends ConsumerState<_IngestionInboxBanner> {
                     if (context.mounted) {
                       context.push('/adaptive-review');
                     }
-                  } catch (error) {
+                  } catch (error, stackTrace) {
+                    debugPrint(
+                      'Could not open saved clinical data: $error\n$stackTrace',
+                    );
                     if (context.mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
+                        const SnackBar(
                           content: Text(
-                            'Could not open saved clinical data: $error',
+                            'Saved clinical data could not be opened. Please try again.',
                           ),
                         ),
                       );
@@ -346,11 +352,14 @@ class _IngestionInboxBannerState extends ConsumerState<_IngestionInboxBanner> {
                     )) {
                       await notifier.retryTask(item.id);
                     }
-                  } catch (error) {
+                  } catch (error, stackTrace) {
+                    debugPrint('Could not retry saved data: $error\n$stackTrace');
                     if (context.mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('Could not retry saved data: $error'),
+                        const SnackBar(
+                          content: Text(
+                            'The saved data could not be retried. Please try again.',
+                          ),
                         ),
                       );
                     }

@@ -185,13 +185,16 @@ class _AdaptiveReviewScreenState extends ConsumerState<AdaptiveReviewScreen> {
       rehydrated = await ref
           .read(clinicalDaoProvider)
           .hydratePomrForDocument(document: document, extraction: rehydrated);
-    } catch (error) {
-      debugPrint('[ClinCom] Could not hydrate POMR links from SQLite: $error');
+    } catch (error, stackTrace) {
+      debugPrint(
+        '[ClinCom] Could not hydrate POMR links from SQLite: $error\n$stackTrace',
+      );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Could not load problem links: $error'),
-            backgroundColor: Colors.red,
+          const SnackBar(
+            content: Text(
+              'Some saved problem links could not be loaded. Please verify the details before saving.',
+            ),
           ),
         );
       }
@@ -342,12 +345,14 @@ class _AdaptiveReviewScreenState extends ConsumerState<AdaptiveReviewScreen> {
           backgroundColor: Colors.green,
         ),
       );
-    } catch (error) {
+    } catch (error, stackTrace) {
+      debugPrint('Could not save clinical document: $error\n$stackTrace');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Could not save this document: $error'),
-          backgroundColor: Colors.red,
+        const SnackBar(
+          content: Text(
+            'Could not save this document. Your changes are still available; please try again.',
+          ),
         ),
       );
     } finally {
@@ -466,12 +471,12 @@ class _AdaptiveReviewScreenState extends ConsumerState<AdaptiveReviewScreen> {
       _index = ref.read(batchExtractionProvider).length - 1;
       _clampIndex();
       setState(() {});
-    } catch (error) {
+    } catch (error, stackTrace) {
+      debugPrint('Could not add page to review: $error\n$stackTrace');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Could not add a page: $error'),
-          backgroundColor: Colors.red,
+        const SnackBar(
+          content: Text('Could not add this page. Please select it again.'),
         ),
       );
     }
@@ -712,15 +717,15 @@ class _AdaptiveReviewScreenState extends ConsumerState<AdaptiveReviewScreen> {
         'This page will be read on-device next.',
       ),
       ExtractionStatus.processingOcr => (
-        'Extracting text locally…',
-        'Running on-device OCR and matching labs, vitals and medications.',
+        'Reading this page…',
+        'Checking the text for medicines, measurements, and investigations.',
       ),
       ExtractionStatus.processingAiFallback ||
       ExtractionStatus.processingAi => (
-        'Normalizing with ClinCom…',
+        'Preparing your clinical review…',
         task.isTextInput
-            ? 'Sending pasted text directly to ClinCom. OCR is not used.'
-            : 'ClinCom is cleaning and structuring this page now.',
+            ? 'Organizing your text into a clinical note.'
+            : 'Organizing information from this page into a clinical note.',
       ),
       _ => ('Working…', ''),
     };
@@ -770,22 +775,30 @@ class _AdaptiveReviewScreenState extends ConsumerState<AdaptiveReviewScreen> {
             const Icon(Icons.error_outline, size: 48, color: Colors.red),
             const SizedBox(height: 12),
             Text(
-              'Could not extract this page',
+              'This item is not ready to review',
               style: Theme.of(context).textTheme.titleMedium,
             ),
             const SizedBox(height: 8),
-            Text(
-              task.errorMessage ??
-                  'Extraction failed for an unknown reason. Return to the '
-                      'dashboard to retry from the inbox.',
+            const Text(
+              'Your original content is still saved. Check the source and try again.',
               textAlign: TextAlign.center,
-              style: const TextStyle(color: Colors.grey, fontSize: 13),
+              style: TextStyle(color: Colors.grey, fontSize: 13),
             ),
             const SizedBox(height: 24),
             FilledButton.icon(
+              onPressed: _saving
+                  ? null
+                  : () => ref
+                        .read(batchExtractionProvider.notifier)
+                        .retryTask(task.id),
+              icon: const Icon(Icons.refresh),
+              label: const Text('Try again'),
+            ),
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
               onPressed: _saving ? null : () => context.go('/dashboard'),
               icon: const Icon(Icons.dashboard_outlined),
-              label: const Text('Return to dashboard'),
+              label: const Text('Back to dashboard'),
             ),
           ],
         ),
@@ -957,28 +970,28 @@ class _AdaptiveReviewScreenState extends ConsumerState<AdaptiveReviewScreen> {
   Widget _provenanceBanner(DocumentTask task) {
     final (label, icon, bg, fg, border) = switch (task.source) {
       ExtractionSource.local => (
-        'Locally Extracted (Free) — on-device OCR matched this page.',
+        'Prepared on this device — verify every detail against the source.',
         Icons.offline_bolt_outlined,
         Colors.green.shade50,
         Colors.green.shade900,
         Colors.green.shade700,
       ),
       ExtractionSource.ai => (
-        'ClinCom extracted this — it read an otherwise unreadable local scan.',
+        'Clinical assistant helped organize this page — verify every detail before saving.',
         Icons.auto_awesome_outlined,
         Colors.purple.shade50,
         Colors.purple.shade900,
         Colors.purple.shade700,
       ),
       ExtractionSource.text => (
-        'ClinCom processed pasted text directly. No image or OCR was used.',
+        'Clinical assistant organized this text — verify every detail before saving.',
         Icons.content_paste_go_outlined,
         Colors.blue.shade50,
         Colors.blue.shade900,
         Colors.blue.shade700,
       ),
       ExtractionSource.unknown => (
-        'Extraction source unknown — verify fields before saving.',
+        'Source details are unavailable — verify every detail before saving.',
         Icons.help_outline,
         Colors.grey.shade200,
         Colors.grey.shade800,
@@ -1296,7 +1309,7 @@ class _AdaptiveReviewScreenState extends ConsumerState<AdaptiveReviewScreen> {
       ),
       if (values.isEmpty)
         Text(
-          'ClinCom found no $hint on this page.',
+          'No supported $hint were found on this page.',
           style: Theme.of(
             context,
           ).textTheme.bodySmall?.copyWith(color: Colors.grey),
@@ -2199,7 +2212,7 @@ class _AdaptiveReviewScreenState extends ConsumerState<AdaptiveReviewScreen> {
     return ExpansionTile(
       tilePadding: EdgeInsets.zero,
       title: Text(
-        'Raw OCR transcript',
+        'Text read from the source',
         style: Theme.of(
           context,
         ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),

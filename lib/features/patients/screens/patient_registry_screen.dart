@@ -30,6 +30,12 @@ class _PatientRegistryScreenState extends ConsumerState<PatientRegistryScreen> {
   /// Cohort tags per patient id, loaded asynchronously because deriving them
   /// needs the patient's problems and procedures.
   Map<String, List<CohortTag>> _tagsByPatient = const {};
+  Object? _cohortPatientKey;
+  Future<
+    ({Map<String, List<CohortTag>> byPatient, Map<CohortTag, int> counts})
+  >?
+  _cohortsFuture;
+  final Map<String, Future<String>> _hospitalRegNoFutures = {};
 
   @override
   void dispose() {
@@ -61,19 +67,26 @@ class _PatientRegistryScreenState extends ConsumerState<PatientRegistryScreen> {
 
   bool _matchesFilters(
     Patient patient,
-    Map<String, List<CohortTag>> byPatient,
-  ) {
+    Map<String, List<CohortTag>> byPatient, {
+    bool applyCohortFilters = true,
+  }) {
     if (_searchQuery.isNotEmpty) {
       final name = patient.fullName.toLowerCase();
       final residence = patient.residence?.toLowerCase() ?? '';
       final occupation = patient.occupation?.toLowerCase() ?? '';
+      final phone = '${patient.phone ?? ''} ${patient.alternatePhone ?? ''}'
+          .toLowerCase();
+      final digitsQuery = _searchQuery.replaceAll(RegExp(r'\D'), '');
+      final phoneDigits = phone.replaceAll(RegExp(r'\D'), '');
       if (!(name.contains(_searchQuery) ||
           residence.contains(_searchQuery) ||
-          occupation.contains(_searchQuery))) {
+          occupation.contains(_searchQuery) ||
+          phone.contains(_searchQuery) ||
+          (digitsQuery.isNotEmpty && phoneDigits.contains(digitsQuery)))) {
         return false;
       }
     }
-    if (_selectedCohorts.isEmpty) return true;
+    if (!applyCohortFilters || _selectedCohorts.isEmpty) return true;
     // Intersection, not union: tapping two chips narrows the cohort, which is
     // what someone assembling a research set expects.
     final tags = byPatient[patient.id] ?? const <CohortTag>[];
@@ -134,11 +147,27 @@ class _PatientRegistryScreenState extends ConsumerState<PatientRegistryScreen> {
         stream: dao.watchAllPatients(),
         builder: (context, snapshot) {
           if (snapshot.hasError) {
+            debugPrint('Patient registry load failed: ${snapshot.error}');
             return Center(
-              child: SelectableText(
-                'Unable to load registry:\n${snapshot.error}',
-                textAlign: TextAlign.center,
-                style: const TextStyle(color: Colors.red),
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.folder_off_outlined, size: 48),
+                    const SizedBox(height: 12),
+                    const Text(
+                      'The patient list is temporarily unavailable.',
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 8),
+                    TextButton.icon(
+                      onPressed: () => setState(() {}),
+                      icon: const Icon(Icons.refresh),
+                      label: const Text('Try again'),
+                    ),
+                  ],
+                ),
               ),
             );
           }
@@ -173,13 +202,23 @@ class _PatientRegistryScreenState extends ConsumerState<PatientRegistryScreen> {
           // Cohort tags need per-patient POMR reads, so the filter row waits on
           // a second pass. The list itself renders immediately — a clinician
           // searching by name never waits on cohort derivation.
+          final today = DateUtils.dateOnly(DateTime.now());
+          final patientKey = Object.hashAll([
+            today,
+            for (final patient in allPatients)
+              Object.hash(patient.id, patient.dateOfBirth),
+          ]);
+          if (_cohortPatientKey != patientKey) {
+            _cohortPatientKey = patientKey;
+            _cohortsFuture = _loadCohorts(dao, allPatients);
+          }
           return FutureBuilder<
             ({
               Map<String, List<CohortTag>> byPatient,
               Map<CohortTag, int> counts,
             })
           >(
-            future: _loadCohorts(dao, allPatients),
+            future: _cohortsFuture,
             builder: (context, cohortSnapshot) {
               final byPatient =
                   cohortSnapshot.data?.byPatient ?? _tagsByPatient;
@@ -187,7 +226,13 @@ class _PatientRegistryScreenState extends ConsumerState<PatientRegistryScreen> {
               _tagsByPatient = byPatient;
 
               final patients = allPatients
-                  .where((patient) => _matchesFilters(patient, byPatient))
+                  .where(
+                    (patient) => _matchesFilters(
+                      patient,
+                      byPatient,
+                      applyCohortFilters: !cohortSnapshot.hasError,
+                    ),
+                  )
                   .toList();
 
               return Column(
@@ -240,6 +285,14 @@ class _PatientRegistryScreenState extends ConsumerState<PatientRegistryScreen> {
                         ),
                       ),
                   ],
+                  if (cohortSnapshot.hasError)
+                    const Padding(
+                      padding: EdgeInsets.fromLTRB(16, 8, 16, 0),
+                      child: Text(
+                        'Patient groups are temporarily unavailable. Search is still available.',
+                        style: TextStyle(fontSize: 12),
+                      ),
+                    ),
                   Expanded(
                     child: patients.isEmpty
                         ? Center(
@@ -258,6 +311,10 @@ class _PatientRegistryScreenState extends ConsumerState<PatientRegistryScreen> {
                               final patient = patients[index];
                               return _PatientCard(
                                 patient: patient,
+                                hospitalRegNo: _hospitalRegNoFor(
+                                  dao,
+                                  patient.id,
+                                ),
                                 cohortTags:
                                     byPatient[patient.id] ??
                                     const <CohortTag>[],
@@ -296,6 +353,12 @@ class _PatientRegistryScreenState extends ConsumerState<PatientRegistryScreen> {
     return 'No patients to show.';
   }
 
+  Future<String> _hospitalRegNoFor(ClinicalDao dao, String patientId) =>
+      _hospitalRegNoFutures.putIfAbsent(
+        patientId,
+        () => dao.getPatientHospitalRegNo(patientId),
+      );
+
   Future<void> _showPatientEditor(
     BuildContext context,
     WidgetRef ref, {
@@ -325,187 +388,182 @@ class _PatientRegistryScreenState extends ConsumerState<PatientRegistryScreen> {
   }
 }
 
-class _PatientCard extends ConsumerWidget {
+class _PatientCard extends StatelessWidget {
   const _PatientCard({
     required this.patient,
     required this.onEdit,
+    required this.hospitalRegNo,
     this.onSelectForOpd,
     this.cohortTags = const [],
   });
 
   final Patient patient;
   final VoidCallback onEdit;
+  final Future<String> hospitalRegNo;
   final VoidCallback? onSelectForOpd;
 
   /// Derived research cohorts shown on the card (Sprint 11).
   final List<CohortTag> cohortTags;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final dao = ref.watch(clinicalDaoProvider);
-
-    return Card(
-      elevation: 0.5,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(
-          color: Theme.of(context).dividerColor.withValues(alpha: 0.2),
-        ),
+  Widget build(BuildContext context) => Card(
+    elevation: 0.5,
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(12),
+      side: BorderSide(
+        color: Theme.of(context).dividerColor.withValues(alpha: 0.2),
       ),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap:
-            onSelectForOpd ??
-            () => context.go('/patients/${patient.id}', extra: patient),
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              CircleAvatar(
-                radius: 24,
-                backgroundColor: Theme.of(context).colorScheme.primaryContainer,
-                foregroundColor: Theme.of(
-                  context,
-                ).colorScheme.onPrimaryContainer,
-                child: Text(
-                  patient.fullName.trim().isNotEmpty
-                      ? patient.fullName.trim()[0].toUpperCase()
-                      : '?',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 18,
-                  ),
+    ),
+    child: InkWell(
+      borderRadius: BorderRadius.circular(12),
+      onTap:
+          onSelectForOpd ??
+          () => context.go('/patients/${patient.id}', extra: patient),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            CircleAvatar(
+              radius: 24,
+              backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+              foregroundColor: Theme.of(context).colorScheme.onPrimaryContainer,
+              child: Text(
+                patient.fullName.trim().isNotEmpty
+                    ? patient.fullName.trim()[0].toUpperCase()
+                    : '?',
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 18,
                 ),
               ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      patient.fullName,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                      ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    patient.fullName,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
                     ),
+                  ),
+                  const SizedBox(height: 4),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 4,
+                    children: [
+                      FutureBuilder<String>(
+                        future: hospitalRegNo,
+                        builder: (context, snapshot) {
+                          final crNo =
+                              snapshot.data ?? (snapshot.hasError ? '—' : '…');
+                          return Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.surfaceContainerHighest,
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              'CR: $crNo',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: Theme.of(context).colorScheme.primary,
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                      Text(
+                        '${patient.gender ?? 'Unspecified'} · ${DateTimeUtils.ageOn(patient.dateOfBirth, DateTime.now()) != null ? '${DateTimeUtils.ageOn(patient.dateOfBirth, DateTime.now())}y' : '--'}',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (patient.residence?.isNotEmpty == true) ...[
                     const SizedBox(height: 4),
+                    Text(
+                      patient.residence!,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.onSurfaceVariant.withValues(alpha: 0.8),
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                  if (cohortTags.isNotEmpty) ...[
+                    const SizedBox(height: 6),
+                    // Research cohorts, derived from the POMR — the same
+                    // tags the filter bar above is built from.
                     Wrap(
-                      spacing: 8,
+                      spacing: 4,
                       runSpacing: 4,
                       children: [
-                        FutureBuilder<String>(
-                          future: dao.getPatientHospitalRegNo(patient.id),
-                          builder: (context, snapshot) {
-                            final crNo = snapshot.data ?? '…';
-                            return Container(
+                        for (final tag in cohortTags.take(4))
+                          Tooltip(
+                            message: tag.source,
+                            child: Container(
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 6,
                                 vertical: 2,
                               ),
                               decoration: BoxDecoration(
-                                color: Theme.of(
-                                  context,
-                                ).colorScheme.surfaceContainerHighest,
+                                color: tag.chipColor.withValues(alpha: 0.10),
                                 borderRadius: BorderRadius.circular(6),
                               ),
                               child: Text(
-                                'CR: $crNo',
+                                tag.display,
                                 style: TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w600,
-                                  color: Theme.of(context).colorScheme.primary,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700,
+                                  color: tag.chipColor,
                                 ),
                               ),
-                            );
-                          },
-                        ),
-                        Text(
-                          '${patient.gender ?? 'Unspecified'} · ${DateTimeUtils.ageOn(patient.dateOfBirth, DateTime.now()) != null ? '${DateTimeUtils.ageOn(patient.dateOfBirth, DateTime.now())}y' : '--'}',
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: Theme.of(
-                              context,
-                            ).colorScheme.onSurfaceVariant,
+                            ),
                           ),
-                        ),
+                        if (cohortTags.length > 4)
+                          Text(
+                            '+${cohortTags.length - 4}',
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: Theme.of(context).colorScheme.outline,
+                            ),
+                          ),
                       ],
                     ),
-                    if (patient.residence?.isNotEmpty == true) ...[
-                      const SizedBox(height: 4),
-                      Text(
-                        patient.residence!,
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Theme.of(
-                            context,
-                          ).colorScheme.onSurfaceVariant.withValues(alpha: 0.8),
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
-                    if (cohortTags.isNotEmpty) ...[
-                      const SizedBox(height: 6),
-                      // Research cohorts, derived from the POMR — the same
-                      // tags the filter bar above is built from.
-                      Wrap(
-                        spacing: 4,
-                        runSpacing: 4,
-                        children: [
-                          for (final tag in cohortTags.take(4))
-                            Tooltip(
-                              message: tag.source,
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 6,
-                                  vertical: 2,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: tag.chipColor.withValues(alpha: 0.10),
-                                  borderRadius: BorderRadius.circular(6),
-                                ),
-                                child: Text(
-                                  tag.display,
-                                  style: TextStyle(
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.w700,
-                                    color: tag.chipColor,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          if (cohortTags.length > 4)
-                            Text(
-                              '+${cohortTags.length - 4}',
-                              style: TextStyle(
-                                fontSize: 10,
-                                color: Theme.of(context).colorScheme.outline,
-                              ),
-                            ),
-                        ],
-                      ),
-                    ],
                   ],
-                ),
-              ),
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  IconButton(
-                    tooltip: 'Edit Profile',
-                    icon: const Icon(Icons.edit_outlined, size: 20),
-                    onPressed: onEdit,
-                  ),
                 ],
               ),
-            ],
-          ),
+            ),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                IconButton(
+                  tooltip: 'Edit Profile',
+                  icon: const Icon(Icons.edit_outlined, size: 20),
+                  onPressed: onEdit,
+                ),
+              ],
+            ),
+          ],
         ),
       ),
-    );
-  }
+    ),
+  );
 }
 
 class _PatientEditor extends ConsumerStatefulWidget {
@@ -553,6 +611,7 @@ class _PatientEditorState extends ConsumerState<_PatientEditor> {
 
   String? _gender;
   String? _selectedHospitalId;
+  String? _loadError;
   bool _saving = false;
   bool _loadingInitial = true;
 
@@ -564,37 +623,44 @@ class _PatientEditorState extends ConsumerState<_PatientEditor> {
   }
 
   Future<void> _loadPrerequisites() async {
-    final dao = ref.read(clinicalDaoProvider);
-    final hospitalList = await (dao.select(
-      dao.hospitals,
-    )..where((t) => t.isActive.equals(true))).get();
+    try {
+      final dao = ref.read(clinicalDaoProvider);
+      final hospitalList = await (dao.select(
+        dao.hospitals,
+      )..where((t) => t.isActive.equals(true))).get();
 
-    // Sprint 14.5 — [HospitalPickerField] owns the hospital list and can add
-    // new facilities inline, so the editor only needs a sensible default.
-    final defaultHospId = hospitalList.isEmpty
-        ? await dao.ensureDefaultHospitalId()
-        : hospitalList.first.id;
+      // The picker owns the hospital list and can add facilities inline, so
+      // the editor only needs a sensible default.
+      final defaultHospId = hospitalList.isEmpty
+          ? await dao.ensureDefaultHospitalId()
+          : hospitalList.first.id;
 
-    _selectedHospitalId = defaultHospId;
+      _selectedHospitalId = defaultHospId;
 
-    if (widget.patient != null) {
-      final existingReg = await dao.getPatientHospitalRegNo(widget.patient!.id);
-      if (existingReg != 'No Reg No') {
-        _regNo.text = existingReg;
+      if (widget.patient != null) {
+        final existingReg = await dao.getPatientHospitalRegNo(
+          widget.patient!.id,
+        );
+        if (existingReg != 'No Reg No') {
+          _regNo.text = existingReg;
+        }
+
+        // Pre-fill the active admission so editing demographics does not
+        // silently blank the bed board.
+        final admission = await dao.getActiveAdmission(widget.patient!.id);
+        if (admission != null) {
+          _isAdmitted = true;
+          _ward.text = admission.wardName ?? '';
+          _bed.text = admission.bedNumber ?? '';
+        }
       }
-
-      // Pre-fill from the active admission so editing demographics does not
-      // silently blank the bed board.
-      final admission = await dao.getActiveAdmission(widget.patient!.id);
-      if (admission != null) {
-        _isAdmitted = true;
-        _ward.text = admission.wardName ?? '';
-        _bed.text = admission.bedNumber ?? '';
-      }
-    }
-
-    if (mounted) {
-      setState(() => _loadingInitial = false);
+    } catch (error, stackTrace) {
+      debugPrint(
+        'Could not load patient registration details: $error\n$stackTrace',
+      );
+      _loadError = 'Patient registration details could not be loaded.';
+    } finally {
+      if (mounted) setState(() => _loadingInitial = false);
     }
   }
 
@@ -627,7 +693,7 @@ class _PatientEditorState extends ConsumerState<_PatientEditor> {
         title: Text(isNew ? 'New Patient Profile' : 'Edit Demographics'),
       ),
       // Rides above the soft keyboard; the body scrolls beneath it.
-      bottomNavigationBar: _loadingInitial
+      bottomNavigationBar: _loadingInitial || _loadError != null
           ? null
           : SafeArea(
               minimum: const EdgeInsets.fromLTRB(16, 8, 16, 12),
@@ -654,6 +720,30 @@ class _PatientEditorState extends ConsumerState<_PatientEditor> {
             ),
       body: _loadingInitial
           ? const Center(child: CircularProgressIndicator())
+          : _loadError != null
+          ? Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(_loadError!, textAlign: TextAlign.center),
+                    const SizedBox(height: 12),
+                    OutlinedButton.icon(
+                      onPressed: () async {
+                        setState(() {
+                          _loadingInitial = true;
+                          _loadError = null;
+                        });
+                        await _loadPrerequisites();
+                      },
+                      icon: const Icon(Icons.refresh),
+                      label: const Text('Try again'),
+                    ),
+                  ],
+                ),
+              ),
+            )
           : Form(
               key: _formKey,
               child: SingleChildScrollView(
@@ -970,11 +1060,14 @@ class _PatientEditorState extends ConsumerState<_PatientEditor> {
 
       if (mounted) Navigator.pop(context, widget.patient);
     } catch (e) {
+      debugPrint('Could not save patient profile: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to save profile: $e'),
-            backgroundColor: Colors.red,
+            content: const Text(
+              'Could not save this profile. Your changes are still here; please try again.',
+            ),
+            backgroundColor: Theme.of(context).colorScheme.error,
           ),
         );
       }

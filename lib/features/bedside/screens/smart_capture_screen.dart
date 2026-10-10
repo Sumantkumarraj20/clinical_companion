@@ -61,12 +61,12 @@ class _SmartCaptureScreenState extends ConsumerState<SmartCaptureScreen> {
       if (!mounted) return;
 
       context.go('/dashboard');
-    } catch (error) {
+    } catch (error, stackTrace) {
+      debugPrint('Could not open clinical image picker: $error\n$stackTrace');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Could not open the image picker: $error'),
-            backgroundColor: Colors.red,
+          const SnackBar(
+            content: Text('Could not open your images. Please try again.'),
           ),
         );
       }
@@ -78,7 +78,7 @@ class _SmartCaptureScreenState extends ConsumerState<SmartCaptureScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('ClinCom Smart Capture')),
+      appBar: AppBar(title: const Text('Capture a Clinical Document')),
       body: Center(
         child: _busy
             ? const Column(
@@ -124,9 +124,9 @@ class _SmartCaptureScreenState extends ConsumerState<SmartCaptureScreen> {
                   ),
                   const SizedBox(height: 16),
                   const Text(
-                    'Works with lab reports, ECGs, and handwritten notes.\n'
-                    'Pages are read on-device first, then polished with ClinCom '
-                    'only when needed.',
+                    'Capture lab reports, ECGs, and handwritten notes.\n'
+                    'Information is prepared locally first; any suggested details '
+                    'are for your review.',
                     textAlign: TextAlign.center,
                     style: TextStyle(color: Colors.grey),
                   ),

@@ -5,17 +5,18 @@ import '../../../core/cds/decision_support_engine.dart';
 import '../../../core/database/local_database.dart';
 import '../../../core/providers/app_providers.dart';
 
-final _navigatorRulesProvider = StreamProvider.family<
-  List<CachedClinicalRule>,
-  ({String triggerType, String triggerValue})
->((ref, trigger) {
-  return ref
-      .watch(clinicalRuleDaoProvider)
-      .watchRulesForTrigger(
-        triggerType: trigger.triggerType,
-        triggerValue: trigger.triggerValue,
-      );
-});
+final _navigatorRulesProvider =
+    StreamProvider.family<
+      List<CachedClinicalRule>,
+      ({String triggerType, String triggerValue})
+    >((ref, trigger) {
+      return ref
+          .watch(clinicalRuleDaoProvider)
+          .watchRulesForTrigger(
+            triggerType: trigger.triggerType,
+            triggerValue: trigger.triggerValue,
+          );
+    });
 
 class ClinicalRuleNavigator extends ConsumerWidget {
   const ClinicalRuleNavigator({
@@ -32,10 +33,7 @@ class ClinicalRuleNavigator extends ConsumerWidget {
     final value = triggerValue.trim();
     if (value.isEmpty) return const SizedBox.shrink();
     final rules = ref.watch(
-      _navigatorRulesProvider((
-        triggerType: triggerType,
-        triggerValue: value,
-      )),
+      _navigatorRulesProvider((triggerType: triggerType, triggerValue: value)),
     );
 
     return rules.when(
@@ -70,10 +68,10 @@ class ClinicalRuleNavigator extends ConsumerWidget {
           margin: const EdgeInsets.only(top: 8, bottom: 4),
           child: ExpansionTile(
             leading: const Icon(Icons.explore_outlined),
-            title: const Text('ClinCom Navigator'),
+            title: const Text('Clinical Pathway Navigator'),
             subtitle: Text(
               pathway == null
-                  ? 'A generated pathway is awaiting verification in Knowledge Hub.'
+                  ? 'A pathway suggestion is awaiting verification in Knowledge Hub.'
                   : 'Evidence-informed suggestions for $value',
               maxLines: 2,
               overflow: TextOverflow.ellipsis,

@@ -177,8 +177,8 @@ class _AmbientScribeFabState extends ConsumerState<AmbientScribeFab>
           child: FloatingActionButton.extended(
             heroTag: 'ambient-scribe-${widget.patient?.id ?? 'dashboard'}',
             tooltip:
-                'Speech recognition runs on-device. The transcript is '
-                'sent to ClinCom for chart structuring.',
+                'Your recording is transcribed on this device, then organized '
+                'into a clinical note for your review.',
             onPressed: transcribing ? null : _toggleScribe,
             backgroundColor: recording ? theme.colorScheme.error : null,
             foregroundColor: recording ? theme.colorScheme.onError : null,

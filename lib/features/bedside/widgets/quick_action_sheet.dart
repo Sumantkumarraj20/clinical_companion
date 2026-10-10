@@ -69,10 +69,10 @@ class QuickActionSheet extends StatelessWidget {
       ),
       QuickAction(
         label: 'Ward Round Note',
-        caption: 'Quick IPD bedside entry',
+        caption: 'Swipe bed to bed',
         icon: Icons.local_hospital_outlined,
         tint: const Color(0xFF6A1B9A),
-        onTap: () => go('/ward-dashboard'),
+        onTap: () => go('/rounds'),
       ),
       QuickAction(
         label: 'Order Meds / Labs',
@@ -102,6 +102,13 @@ class QuickActionSheet extends StatelessWidget {
         icon: Icons.monitor_heart_outlined,
         tint: const Color(0xFFAD1457),
         onTap: () => go('/vitals'),
+      ),
+      QuickAction(
+        label: 'Procedure / OT note',
+        caption: 'Templates, ready to copy',
+        icon: Icons.content_paste_outlined,
+        tint: const Color(0xFF6A1B9A),
+        onTap: () => go('/note-templates'),
       ),
       QuickAction(
         label: 'Ward Board',

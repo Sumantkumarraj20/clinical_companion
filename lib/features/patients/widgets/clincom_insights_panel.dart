@@ -156,7 +156,7 @@ class _ClinComInsightsPanelState extends ConsumerState<ClinComInsightsPanel> {
           ListTile(
             leading: Icon(Icons.auto_awesome, color: theme.colorScheme.primary),
             title: const Text(
-              'ClinCom Insights',
+              'Clinical Insights',
               style: TextStyle(fontWeight: FontWeight.w700),
             ),
             subtitle: const Text(
@@ -165,7 +165,7 @@ class _ClinComInsightsPanelState extends ConsumerState<ClinComInsightsPanel> {
             trailing: IconButton(
               tooltip: _auditing
                   ? 'Generating insights'
-                  : 'Generate ClinCom Insights',
+                  : 'Review clinical insights',
               onPressed: _auditing ? null : _runAudit,
               icon: _auditing
                   ? const SizedBox.square(

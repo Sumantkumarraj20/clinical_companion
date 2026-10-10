@@ -38,7 +38,7 @@ class SubtleGuardianBanner extends ConsumerWidget {
       child: Row(
         children: [
           Icon(
-            verified ? Icons.shield_outlined : Icons.smart_toy_outlined,
+            verified ? Icons.shield_outlined : Icons.lightbulb_outline,
             size: 20,
             color: verified ? colors.primary : colors.tertiary,
           ),
@@ -51,7 +51,7 @@ class SubtleGuardianBanner extends ConsumerWidget {
                 Text(
                   verified
                       ? 'Standard of Care: ${rule.suggestedAction}'
-                      : 'ClinCom Suggestion: ${rule.suggestedAction}',
+                      : 'Suggested pathway: ${rule.suggestedAction}',
                   style: Theme.of(
                     context,
                   ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),

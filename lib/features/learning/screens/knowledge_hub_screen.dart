@@ -330,7 +330,7 @@ class _BlindSpotsTab extends ConsumerWidget {
           return const _HubEmpty(
             icon: Icons.error_outline,
             title: 'Could not load audit history',
-            body: 'Accepted ClinCom suggestions are stored locally.',
+            body: 'Accepted suggestions are stored on this device.',
           );
         }
         final rows = snapshot.data ?? const [];

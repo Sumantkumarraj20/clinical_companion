@@ -181,12 +181,14 @@ class _ExtractionReviewScreenState
         ),
       );
       Navigator.of(context).pop(true);
-    } catch (error) {
+    } catch (error, stackTrace) {
+      debugPrint('Could not save clinical document: $error\n$stackTrace');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Could not commit extraction: $error'),
-            backgroundColor: Colors.red,
+          const SnackBar(
+            content: Text(
+              'Could not save this document. Your changes are still available; please try again.',
+            ),
           ),
         );
       }
@@ -232,7 +234,7 @@ class _ExtractionReviewScreenState
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Review ClinCom Extraction'),
+        title: const Text('Review Clinical Details'),
         actions: [
           IconButton(
             icon: const Icon(Icons.add_chart_outlined),
@@ -622,7 +624,7 @@ class _ExtractionReviewScreenState
 
                         // 6. CLINICAL SUMMARY
                         Text(
-                          'ClinCom Summary & Findings',
+                          'Clinical Summary & Findings',
                           style: Theme.of(context).textTheme.titleSmall
                               ?.copyWith(fontWeight: FontWeight.bold),
                         ),
@@ -838,28 +840,28 @@ class _ExtractionSourceBanner extends StatelessWidget {
   Widget build(BuildContext context) {
     final (label, icon, bg, fg, border) = switch (source) {
       ExtractionSource.local => (
-        'Locally Extracted (Free) — on-device OCR matched labs/demographics.',
+        'Prepared on this device — verify every detail against the source.',
         Icons.offline_bolt_outlined,
         Colors.green.shade50,
         Colors.green.shade900,
         Colors.green.shade700,
       ),
       ExtractionSource.ai => (
-        'ClinCom extracted this — escalated after the on-device read was insufficient.',
+        'Clinical assistant helped organize this page — verify every detail before saving.',
         Icons.auto_awesome_outlined,
         Colors.purple.shade50,
         Colors.purple.shade900,
         Colors.purple.shade700,
       ),
       ExtractionSource.text => (
-        'ClinCom processed pasted text directly without OCR.',
+        'Clinical assistant organized this text — verify every detail before saving.',
         Icons.content_paste_go_outlined,
         Colors.blue.shade50,
         Colors.blue.shade900,
         Colors.blue.shade700,
       ),
       ExtractionSource.unknown => (
-        'Extraction source unknown — verify fields before saving.',
+        'Source details are unavailable — verify every detail before saving.',
         Icons.help_outline,
         Colors.grey.shade200,
         Colors.grey.shade800,

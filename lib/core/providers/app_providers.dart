@@ -88,6 +88,9 @@ final clinicalDaoProvider = Provider<ClinicalDao>(
     ),
   ),
 );
+final patientByIdProvider = FutureProvider.family<Patient?, String>(
+  (ref, patientId) => ref.watch(clinicalDaoProvider).findPatient(patientId),
+);
 final clinicalRuleDaoProvider = Provider<ClinicalRuleDao>(
   (ref) => ClinicalRuleDao(ref.watch(appDatabaseProvider)),
 );
@@ -631,7 +634,8 @@ class BatchExtractionNotifier extends Notifier<List<DocumentTask>> {
           },
           rawOcrText: result.rawText ?? task.rawOcrText,
         );
-      } catch (error) {
+      } catch (error, stackTrace) {
+        debugPrint('Clinical data preparation failed: $error\n$stackTrace');
         final message = _describe(error);
         try {
           await ref.read(ingestionInboxDaoProvider).markError(task.id, message);
@@ -663,7 +667,8 @@ class BatchExtractionNotifier extends Notifier<List<DocumentTask>> {
           source: ExtractionSource.text,
           rawOcrText: rawText,
         );
-      } catch (error) {
+      } catch (error, stackTrace) {
+        debugPrint('Pasted note preparation failed: $error\n$stackTrace');
         _update(
           task.id,
           status: ExtractionStatus.error,
@@ -688,13 +693,13 @@ class BatchExtractionNotifier extends Notifier<List<DocumentTask>> {
     var rawText = '';
     try {
       rawText = await pipeline.recognizeRawText(image);
-    } catch (error) {
+    } catch (error, stackTrace) {
+      debugPrint('Could not read captured document: $error\n$stackTrace');
       _update(
         task.id,
         status: ExtractionStatus.error,
         errorMessage:
-            'Local OCR could not read this image (${_short(error)}). '
-            'Try re-capturing with better lighting.',
+            'We could not read this image. Try capturing it again with better lighting.',
       );
       return;
     }
@@ -730,7 +735,8 @@ class BatchExtractionNotifier extends Notifier<List<DocumentTask>> {
         source: extraction.taskSource,
         rawOcrText: rawText,
       );
-    } catch (error) {
+    } catch (error, stackTrace) {
+      debugPrint('Clinical document refinement failed: $error\n$stackTrace');
       if (error is DocumentAiException &&
           error.type == DocumentAiErrorType.network) {
         await ref
@@ -792,14 +798,12 @@ class BatchExtractionNotifier extends Notifier<List<DocumentTask>> {
         : ImagePayload(file, activeCensusJson: task.activeCensusJson);
   }
 
-  static String _short(Object error) {
-    final text = error.toString();
-    return text.length > 140 ? '${text.substring(0, 140)}…' : text;
-  }
-
   static String _describe(Object error) {
-    if (error is DocumentAiException) return error.message;
-    return _short(error);
+    if (error is DocumentAiException &&
+        error.type == DocumentAiErrorType.network) {
+      return 'Connection unavailable. Your content remains saved; reconnect and retry.';
+    }
+    return 'We could not prepare this clinical note. Your content remains saved; please try again.';
   }
 
   void _update(

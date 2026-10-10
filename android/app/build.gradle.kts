@@ -13,7 +13,7 @@ android {
     // Actions Ubuntu runners. Leaving this as flutter.ndkVersion makes Gradle
     // download NDK 28.2 (~1.5 GB) and re-solve the toolchain on every build;
     // an exact match lets the build use the runner's local NDK instead.
-    ndkVersion = "26.1.10909125"
+    ndkVersion = "28.2.13676358"
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17

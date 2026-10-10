@@ -64,8 +64,21 @@ jobs:
           path: /usr/local/lib/android/sdk/ndk/28.2.13676358
           key: android-ndk-28.2.13676358-v1
 
-      - name: Build release APK
-        run: flutter build apk --release --build-name="${GITHUB_REF_NAME#v}" --build-number="${{ github.run_number }}"
+      - name: Build Android APK (with Network Retry)
+        run: |
+          n=0
+          until [ "$n" -ge 3 ]
+          do
+            echo "Attempt $((n+1)) of 3..."
+            flutter build apk --release --build-name="${GITHUB_REF_NAME#v}" --build-number="${{ github.run_number }}" && break
+            n=$((n+1))
+            if [ "$n" -ge 3 ]; then
+              echo "Build failed after 3 attempts due to network/compilation errors."
+              exit 1
+            fi
+            echo "Network flake detected. Retrying in 15 seconds..."
+            sleep 15
+          done
         env:
           SIGNING_KEY_PATH: ${{ github.workspace }}/android/app/release.keystore
           SIGNING_KEY_ALIAS: ${{ vars.RELEASE_KEY_ALIAS || 'release' }}
@@ -103,7 +116,7 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: app-release.apk
+          name: android-release
           path: build/app/outputs/flutter-apk/app-release.apk
           if-no-files-found: error
 
@@ -205,17 +218,19 @@ jobs:
       - name: Download APK
         uses: actions/download-artifact@v4
         with:
-          name: app-release.apk
+          name: android-release
           path: release-assets
 
       - name: Download Linux bundle
         uses: actions/download-artifact@v4
+        continue-on-error: true
         with:
           name: clinical-companion-linux.zip
           path: release-assets
 
       - name: Download Windows bundle
         uses: actions/download-artifact@v4
+        continue-on-error: true
         with:
           name: clinical-companion-windows.zip
           path: release-assets
@@ -223,6 +238,7 @@ jobs:
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ github.ref_name }}
           name: ClinCom ${{ github.ref_name }}
           generate_release_notes: true
           files: |

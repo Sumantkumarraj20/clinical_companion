@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../features/rounds/screens/note_templates_screen.dart';
+import '../../features/rounds/screens/rounds_mode_screen.dart';
 import '../database/local_database.dart';
 import '../providers/app_providers.dart';
 import '../widgets/main_navigation_scaffold.dart';
@@ -33,7 +35,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       configuration.hasGemini &&
       configuration.hasSupabase &&
       configuration.hasDatabasePassword;
-  return GoRouter(
+  final router = GoRouter(
     initialLocation: isConfigured ? '/dashboard' : '/configuration',
     routes: [
       GoRoute(
@@ -100,6 +102,16 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             ),
           ),
           GoRoute(
+            path: '/rounds',
+            builder: (context, state) => const RoundsModeScreen(),
+          ),
+          GoRoute(
+            path: '/note-templates',
+            builder: (context, state) => NoteTemplatesScreen(
+              patient: state.extra is Patient ? state.extra as Patient : null,
+            ),
+          ),
+          GoRoute(
             path: '/ward-dashboard',
             builder: (context, state) => const WardDashboardScreen(),
           ),
@@ -134,8 +146,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               final patient = state.extra;
               return patient is Patient
                   ? DynamicEncounterScreen(patient: patient)
-                  : const _RouteMessage(
+                  : _RouteMessage(
                       message: 'Select a patient to start an encounter.',
+                      actionLabel: 'Choose patient',
+                      onAction: () => context.go(
+                        '/patients',
+                        extra: const {'opdFlow': true},
+                      ),
                     );
             },
           ),
@@ -146,33 +163,33 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               final data = patient is Map ? patient : null;
               final selectedPatient = data?['patient'] ?? patient;
               final heroTag = data?['heroTag'] as String?;
-              return selectedPatient is Patient
-                  ? PatientTimelineScreen(
-                      patient: selectedPatient,
-                      heroTag: heroTag,
-                    )
-                  : const _RouteMessage(
-                      message:
-                          'Patient timeline is unavailable without a patient.',
-                    );
+              return PatientRouteResolver(
+                patientId: state.pathParameters['id']!,
+                patient: selectedPatient is Patient ? selectedPatient : null,
+                title: 'Patient record',
+                builder: (patient) =>
+                    PatientTimelineScreen(patient: patient, heroTag: heroTag),
+              );
             },
           ),
           GoRoute(
             path: '/patients/:id/problems',
             builder: (context, state) {
               final patient = state.extra;
-              return patient is Patient
-                  ? ProblemDashboardScreen(patient: patient)
-                  : const _RouteMessage(
-                      message:
-                          'Problem record is unavailable without a patient.',
-                    );
+              return PatientRouteResolver(
+                patientId: state.pathParameters['id']!,
+                patient: patient is Patient ? patient : null,
+                title: 'Problem record',
+                builder: (patient) => ProblemDashboardScreen(patient: patient),
+              );
             },
           ),
         ],
       ),
     ],
   );
+  ref.onDispose(router.dispose);
+  return router;
 });
 
 /// Backwards-compatible alias: the shell was renamed in Sprint 11 to
@@ -181,13 +198,118 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 typedef AdaptiveScaffold = MainNavigationScaffold;
 
 class _RouteMessage extends StatelessWidget {
-  const _RouteMessage({required this.message});
+  const _RouteMessage({required this.message, this.actionLabel, this.onAction});
+
   final String message;
+  final String? actionLabel;
+  final VoidCallback? onAction;
+
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(title: const Text('Clinical companion')),
     body: Center(
-      child: Padding(padding: const EdgeInsets.all(24), child: Text(message)),
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(message, textAlign: TextAlign.center),
+            if (actionLabel != null && onAction != null) ...[
+              const SizedBox(height: 16),
+              FilledButton(onPressed: onAction, child: Text(actionLabel!)),
+            ],
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+class PatientRouteResolver extends ConsumerWidget {
+  const PatientRouteResolver({
+    required this.patientId,
+    required this.title,
+    required this.builder,
+    this.patient,
+    super.key,
+  });
+
+  final String patientId;
+  final String title;
+  final Patient? patient;
+  final Widget Function(Patient patient) builder;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    if (patient case final resolved?) return builder(resolved);
+
+    return ref
+        .watch(patientByIdProvider(patientId))
+        .when(
+          data: (resolved) => resolved == null
+              ? _patientUnavailable(
+                  context,
+                  message: 'This patient record could not be found.',
+                )
+              : builder(resolved),
+          error: (error, stackTrace) {
+            debugPrint(
+              'Could not load patient $patientId from the local record: $error',
+            );
+            return _patientUnavailable(
+              context,
+              message:
+                  'This patient record is temporarily unavailable. Please try again.',
+              onRetry: () => ref.invalidate(patientByIdProvider(patientId)),
+            );
+          },
+          loading: () => Scaffold(
+            appBar: AppBar(title: Text(title)),
+            body: const Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  CircularProgressIndicator(),
+                  SizedBox(height: 12),
+                  Text('Loading patient record…'),
+                ],
+              ),
+            ),
+          ),
+        );
+  }
+
+  Widget _patientUnavailable(
+    BuildContext context, {
+    required String message,
+    VoidCallback? onRetry,
+  }) => Scaffold(
+    appBar: AppBar(title: Text(title)),
+    body: Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.person_search_outlined, size: 48),
+            const SizedBox(height: 12),
+            Text(message, textAlign: TextAlign.center),
+            if (onRetry != null) ...[
+              const SizedBox(height: 16),
+              OutlinedButton.icon(
+                onPressed: onRetry,
+                icon: const Icon(Icons.refresh),
+                label: const Text('Try again'),
+              ),
+            ],
+            const SizedBox(height: 8),
+            TextButton(
+              onPressed: () => context.go('/patients'),
+              child: const Text('Return to patients'),
+            ),
+          ],
+        ),
+      ),
     ),
   );
 }

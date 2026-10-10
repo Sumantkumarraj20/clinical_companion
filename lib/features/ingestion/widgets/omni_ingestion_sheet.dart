@@ -46,7 +46,17 @@ class _OmniIngestionSheetState extends ConsumerState<OmniIngestionSheet> {
       return await BatchExtractionNotifier.buildActiveCensusJson(
         ref.read(clinicalDaoProvider),
       );
-    } catch (_) {
+    } catch (error, stackTrace) {
+      debugPrint('Could not load the current ward list: $error\n$stackTrace');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'The current ward list is unavailable. Please confirm the patient during review.',
+            ),
+          ),
+        );
+      }
       return null;
     }
   }
@@ -58,9 +68,12 @@ class _OmniIngestionSheetState extends ConsumerState<OmniIngestionSheet> {
 
   void _fail(Object error) {
     if (!mounted) return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text('Could not add data: $error')));
+    debugPrint('Could not add clinical data: $error');
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Could not add clinical data. Please try again.'),
+      ),
+    );
   }
 
   Future<void> _listen() => _withBusy(() async {

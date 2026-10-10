@@ -1,7 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/ai/document_ai_service.dart';
 import '../../../core/database/local_database.dart';
 import '../../../core/providers/app_providers.dart';
 import '../../../core/services/clinical_rule_engine.dart';
@@ -52,12 +51,11 @@ class ClinicalRuleGuardianNotifier extends Notifier<CachedClinicalRule?> {
       );
       // Sprint 27 — surface AI failures (400/500 INVALID_ARGUMENT etc.) as a
       // non-blocking toast instead of letting the Encounter UI swallow them.
-      final friendly = error is DocumentAiException
-          ? error.message
-          : error.toString();
       ref
           .read(aiErrorNoticeProvider.notifier)
-          .show('ClinCom could not generate this pathway: $friendly');
+          .show(
+            'A clinical pathway could not be prepared right now. You can continue and try again later.',
+          );
     } finally {
       _inFlight.remove(key);
     }

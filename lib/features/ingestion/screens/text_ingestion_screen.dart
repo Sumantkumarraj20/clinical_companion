@@ -55,7 +55,7 @@ class _TextIngestionScreenState extends ConsumerState<TextIngestionScreen> {
           SnackBar(
             content: Text(
               suggestions.isEmpty
-                  ? 'ClinCom found no supported clinical rules in this text.'
+                  ? 'No supported clinical pathways were found in this text.'
                   : 'Saved ${result.insertedCount} new rule'
                         '${result.insertedCount == 1 ? '' : 's'}. '
                         'Review each suggestion before it becomes active.',
@@ -72,10 +72,15 @@ class _TextIngestionScreenState extends ConsumerState<TextIngestionScreen> {
           .read(batchExtractionProvider.notifier)
           .addOmniText(text, activeCensusJson: census);
       context.go('/dashboard');
-    } catch (error) {
+    } catch (error, stackTrace) {
+      debugPrint('Could not prepare pasted clinical text: $error\n$stackTrace');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not prepare text for ClinCom: $error')),
+        const SnackBar(
+          content: Text(
+            'Could not prepare this text. Your original text is still here; please try again.',
+          ),
+        ),
       );
     } finally {
       if (mounted) setState(() => _submitting = false);
@@ -105,10 +110,13 @@ class _TextIngestionScreenState extends ConsumerState<TextIngestionScreen> {
           );
         }
       }
-    } catch (error) {
+    } catch (error, stackTrace) {
+      debugPrint('Could not update clinical pathway: $error\n$stackTrace');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not update clinical rule: $error')),
+          const SnackBar(
+            content: Text('Could not update this pathway. Please try again.'),
+          ),
         );
       }
     }
@@ -127,7 +135,7 @@ class _TextIngestionScreenState extends ConsumerState<TextIngestionScreen> {
                 child: CircularProgressIndicator(strokeWidth: 2),
               )
             : const Icon(Icons.auto_awesome),
-        label: Text(_submitting ? 'Preparing…' : 'Process with ClinCom'),
+        label: Text(_submitting ? 'Preparing…' : 'Prepare for review'),
       ),
       body: SafeArea(
         child: Padding(
@@ -137,10 +145,10 @@ class _TextIngestionScreenState extends ConsumerState<TextIngestionScreen> {
             children: [
               Text(
                 _processAsGuideline
-                    ? 'Paste guideline or trial text. ClinCom will extract '
-                          'reusable rules for clinician review.'
+                    ? 'Paste guideline or trial text to identify clinical '
+                          'pathways for your review.'
                     : 'Paste clinical text from an EHR, message, or note. '
-                          'ClinCom will organize it for your review.',
+                          'It will be organized into a clinical note for your review.',
                 style: Theme.of(context).textTheme.bodyMedium,
               ),
               const SizedBox(height: 12),
