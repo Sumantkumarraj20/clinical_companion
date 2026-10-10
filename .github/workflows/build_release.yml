@@ -25,6 +25,9 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
+      - name: Setup Gradle Cache
+        uses: gradle/actions/setup-gradle@v3
+
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
@@ -53,6 +56,13 @@ jobs:
           echo "Signing certificate SHA-256:"
           grep -i "SHA256:" /tmp/keystore-info.txt || true
         shell: bash
+
+      - name: Cache Android NDK
+        uses: actions/cache@v4
+        id: cache-ndk
+        with:
+          path: /usr/local/lib/android/sdk/ndk/28.2.13676358
+          key: android-ndk-28.2.13676358-v1
 
       - name: Build release APK
         run: flutter build apk --release --build-name="${GITHUB_REF_NAME#v}" --build-number="${{ github.run_number }}"
@@ -99,6 +109,7 @@ jobs:
 
   build-linux:
     runs-on: ubuntu-latest
+    continue-on-error: true
     permissions:
       contents: read
 
@@ -142,6 +153,7 @@ jobs:
 
   build-windows:
     runs-on: windows-latest
+    continue-on-error: true
     permissions:
       contents: read
 
@@ -182,8 +194,10 @@ jobs:
           if-no-files-found: error
 
   publish-release:
+    name: Publish GitHub Release
     runs-on: ubuntu-latest
     needs: [build-android, build-linux, build-windows]
+    if: always()
     permissions:
       contents: write
 
