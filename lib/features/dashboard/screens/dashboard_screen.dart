@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../core/providers/app_providers.dart';
 import '../../../core/services/app_updater_service.dart';
 import '../../ingestion/widgets/omni_ingestion_sheet.dart';
@@ -9,7 +11,7 @@ import '../widgets/update_download_banner.dart';
 /// Sprint 8 — CI/CD & In-App Binary Updates.
 ///
 /// Fires one silent GitHub release probe per session (plain, cached
-/// `FutureProvider`). [AppUpdaterService.checkForUpdate] swallows every
+/// `FutureProvider`). [AppUpdaterService.checkForUpdates] swallows every
 /// network/parse failure and resolves `null`, so offline starts simply
 /// resolve with "no update" and the dashboard never waits on the network.
 final appUpdateCheckProvider = FutureProvider<AppUpdateInfo?>(
@@ -250,11 +252,24 @@ class _UpdateBanner extends ConsumerStatefulWidget {
 class _UpdateBannerState extends ConsumerState<_UpdateBanner> {
   bool _dismissed = false;
 
-  void _startUpdate(String apkUrl) {
+  Future<void> _startUpdate(AppUpdateInfo update) async {
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) {
+      final opened = await launchUrl(
+        Uri.parse(update.releaseUrl),
+        mode: LaunchMode.externalApplication,
+      );
+      if (!opened && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not open the release page.')),
+        );
+      }
+      return;
+    }
+
     // Sprint 14.5 — no modal. The download now runs in a provider-backed banner
     // so the clinician can keep working; the banner stays visible with live
     // progress until the installer launches.
-    ref.read(updateDownloadProvider.notifier).start(apkUrl);
+    ref.read(updateDownloadProvider.notifier).start(update.apkUrl);
   }
 
   @override
@@ -264,11 +279,14 @@ class _UpdateBannerState extends ConsumerState<_UpdateBanner> {
     // download is in flight this renders progress instead of the prompt, so
     // navigating away and back never loses the running transfer.
     final update = ref.watch(appUpdateCheckProvider).asData?.value;
-    final downloading = ref.watch(updateDownloadProvider) is UpdateDownloading;
+    final downloadState = ref.watch(updateDownloadProvider);
 
-    if (downloading && update != null) {
+    if (update != null &&
+        (downloadState is UpdateDownloading ||
+            downloadState is UpdateFailed)) {
       return UpdateProgressBanner(apkUrl: update.apkUrl);
     }
+    if (downloadState is UpdateInstalling) return const SizedBox.shrink();
 
     if (_dismissed) return const SizedBox.shrink();
     if (update == null) return const SizedBox.shrink();
@@ -278,7 +296,7 @@ class _UpdateBannerState extends ConsumerState<_UpdateBanner> {
       backgroundColor: colors.secondaryContainer,
       leading: Icon(Icons.system_update, color: colors.onSecondaryContainer),
       content: Text(
-        'Update Available: v${update.remoteVersion} '
+        '🚀 Update v${update.remoteVersion} Available '
         '(Current: v${update.localVersion})',
         style: TextStyle(
           color: colors.onSecondaryContainer,
@@ -287,7 +305,7 @@ class _UpdateBannerState extends ConsumerState<_UpdateBanner> {
       ),
       actions: [
         TextButton(
-          onPressed: () => _startUpdate(update.apkUrl),
+          onPressed: () => _startUpdate(update),
           child: const Text('Update Now'),
         ),
         TextButton(

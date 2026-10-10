@@ -67,13 +67,22 @@ final updateDownloadProvider =
 
 class UpdateDownloadNotifier extends Notifier<UpdateDownloadState> {
   final InAppUpdateManager _manager = InAppUpdateManager();
+  bool _installFailureReceived = false;
 
   @override
   UpdateDownloadState build() {
     // Riverpod's Notifier has no dispose(); registering here guarantees the
     // transfer is cancelled when the provider is torn down, so an orphaned
     // download can never keep running in the background.
-    ref.onDispose(_manager.cancel);
+    _manager.onInstallStatus = (success, pendingUserAction, message) {
+      if (!success && !pendingUserAction) {
+        _installFailureReceived = true;
+        state = UpdateFailed(
+          message ?? 'Android could not complete the app update.',
+        );
+      }
+    };
+    ref.onDispose(_manager.dispose);
     return const UpdateIdle();
   }
 
@@ -85,6 +94,7 @@ class UpdateDownloadNotifier extends Notifier<UpdateDownloadState> {
   Future<void> start(String apkUrl) async {
     if (state is UpdateDownloading) return;
 
+    _installFailureReceived = false;
     state = const UpdateDownloading(
       progress: 0,
       receivedBytes: 0,
@@ -110,7 +120,9 @@ class UpdateDownloadNotifier extends Notifier<UpdateDownloadState> {
         },
       );
       // Success means 100% reached AND the installer intent already fired.
-      state = const UpdateInstalling();
+      if (!_installFailureReceived) {
+        state = const UpdateInstalling();
+      }
     } on InAppUpdateException catch (error) {
       state = UpdateFailed(
         error.message,
@@ -186,85 +198,41 @@ class UpdateProgressBanner extends ConsumerWidget {
           ),
         ],
       ),
-      UpdateInstalling() => MaterialBanner(
-        backgroundColor: colors.tertiaryContainer,
-        leading: Icon(
-          Icons.install_mobile_outlined,
-          color: colors.onTertiaryContainer,
-        ),
-        content: Text(
-          'Download complete. Opening the Android installer…',
-          style: TextStyle(color: colors.onTertiaryContainer),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () =>
-                ref.read(updateDownloadProvider.notifier).acknowledge(),
-            child: Text(
-              'OK',
-              style: TextStyle(color: colors.onTertiaryContainer),
-            ),
-          ),
-        ],
-      ),
+      UpdateInstalling() => const SizedBox.shrink(),
       UpdateDownloading(
         :final progress,
-        :final receivedBytes,
         :final totalBytes,
       ) =>
-        MaterialBanner(
-          backgroundColor: colors.secondaryContainer,
-          leading: Icon(
-            Icons.system_update,
-            color: colors.onSecondaryContainer,
-          ),
-          content: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+          child: Row(
             children: [
-              Text(
-                'Downloading update in the background — you can keep working.',
-                style: TextStyle(
-                  color: colors.onSecondaryContainer,
-                  fontWeight: FontWeight.w600,
+              SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  value: totalBytes > 0 ? progress : null,
                 ),
               ),
-              const SizedBox(height: 8),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(4),
-                child: LinearProgressIndicator(
-                  // A null value renders the indeterminate bar, which is the
-                  // honest state while Content-Length is unknown.
-                  value: (totalBytes <= 0 && progress == 0) ? null : progress,
-                  minHeight: 6,
-                  color: colors.onSecondaryContainer,
-                  backgroundColor: colors.surfaceContainerHighest,
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  totalBytes > 0
+                      ? 'Update downloading… '
+                            '${((progress ?? 0) * 100).round()}%'
+                      : 'Update downloading…',
+                  style: Theme.of(context).textTheme.bodyMedium,
                 ),
               ),
-              const SizedBox(height: 6),
-              Text(
-                totalBytes > 0
-                    ? '${formatUpdateBytes(receivedBytes)} of '
-                          '${formatUpdateBytes(totalBytes)} · '
-                          '${((progress ?? 0) * 100).round()}%'
-                    : 'Downloading… ${formatUpdateBytes(receivedBytes)}',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: colors.onSecondaryContainer,
-                ),
+              IconButton(
+                tooltip: 'Cancel update download',
+                onPressed: () =>
+                    ref.read(updateDownloadProvider.notifier).cancel(),
+                icon: const Icon(Icons.close),
               ),
             ],
           ),
-          actions: [
-            TextButton(
-              onPressed: () =>
-                  ref.read(updateDownloadProvider.notifier).cancel(),
-              child: Text(
-                'Cancel',
-                style: TextStyle(color: colors.onSecondaryContainer),
-              ),
-            ),
-          ],
         ),
     };
   }

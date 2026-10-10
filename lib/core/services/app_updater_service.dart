@@ -8,13 +8,24 @@ import 'package:pub_semver/pub_semver.dart';
 class AppUpdateInfo {
   const AppUpdateInfo({
     required this.apkUrl,
+    required this.releaseUrl,
     required this.remoteVersion,
     required this.localVersion,
   });
 
   final String apkUrl;
+  final String releaseUrl;
   final String remoteVersion;
   final String localVersion;
+}
+
+class UpdateAvailable extends AppUpdateInfo {
+  const UpdateAvailable({
+    required super.apkUrl,
+    required super.releaseUrl,
+    required super.remoteVersion,
+    required super.localVersion,
+  });
 }
 
 /// Sprint 8 — CI/CD & In-App Binary Updates: GitHub Release update probe.
@@ -23,11 +34,11 @@ class AppUpdateInfo {
 /// `.github/workflows/build_release.yml` when a `v*` tag is pushed) and
 /// compares its `tag_name` (e.g. `v1.0.5`) against the version baked into
 /// this binary by `pubspec.yaml`. When the release is strictly newer, the
-/// `browser_download_url` of its APK asset is returned so the UI can hand
-/// it to `url_launcher` with `LaunchMode.externalApplication` — Android's
-/// browser/OS then performs an in-place upgrade. Because the package name
-/// and signing key are unchanged, the `/data/data` SQLite sandbox (Drift,
-/// all patient data) is preserved by the platform during the install.
+/// `browser_download_url` of its APK asset and the release page URL are
+/// returned. Android downloads the APK and submits it to the native installer;
+/// desktop platforms open the release page in the system browser. Because the
+/// package name and signing key are unchanged, Android preserves the app data
+/// sandbox (Drift and clinical records) during an in-place upgrade.
 ///
 /// The check is deliberately fail-soft: any transport error, timeout,
 /// non-200 status (e.g. GitHub rate limiting) or malformed payload logs a
@@ -65,12 +76,15 @@ class AppUpdaterService {
   /// no `.apk` asset attached, or any network/parse failure. This method
   /// never throws so it is safe to call from a `FutureProvider` at startup.
   Future<String?> checkForUpdate() async {
-    return (await checkForUpdateInfo())?.apkUrl;
+    return (await checkForUpdates())?.apkUrl;
   }
 
   /// Returns update details for UI surfaces that need to show the version
   /// change, or `null` when no update is available.
-  Future<AppUpdateInfo?> checkForUpdateInfo() async {
+  Future<AppUpdateInfo?> checkForUpdateInfo() => checkForUpdates();
+
+  /// Checks GitHub's latest published Release for a newer APK release.
+  Future<UpdateAvailable?> checkForUpdates() async {
     try {
       final info = await _packageInfoLoader();
 
@@ -109,26 +123,29 @@ class AppUpdaterService {
         return null;
       }
 
+      final releasePage = payload['html_url'];
+      final releaseUrl = releasePage is String && releasePage.isNotEmpty
+          ? releasePage
+          : 'https://github.com/Sumantkumarraj20/clinical_companion/'
+                'releases/tag/${Uri.encodeComponent(tagName)}';
       final assets = payload['assets'];
       if (assets is! List) return null;
       for (final asset in assets) {
         if (asset is! Map<String, dynamic>) continue;
-        final name = asset['name'];
-        if (name is! String || !name.toLowerCase().endsWith('.apk')) {
-          continue;
-        }
+        if (asset['name'] != 'app-release.apk') continue;
         final downloadUrl = asset['browser_download_url'];
         if (downloadUrl is String && downloadUrl.isNotEmpty) {
           debugPrint('[AppUpdater] Update $tagName available: $downloadUrl');
-          return AppUpdateInfo(
+          return UpdateAvailable(
             apkUrl: downloadUrl,
+            releaseUrl: releaseUrl,
             remoteVersion: _displayVersion(tagName),
             localVersion: _displayVersion(info.version),
           );
         }
       }
 
-      debugPrint('[AppUpdater] $tagName is newer but has no APK asset.');
+      debugPrint('[AppUpdater] $tagName is newer but has no app-release.apk asset.');
       return null;
     } catch (error) {
       // Offline, DNS failure, timeout, malformed JSON … all fail silently

@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
@@ -35,7 +37,8 @@ class InAppUpdateException implements Exception {
 }
 
 /// Downloads a release APK inside the app and hands it to Android's package
-/// installer.
+/// installer. Android uses PackageInstaller sessions on Android 12+ and the
+/// system APK installer on earlier releases.
 ///
 /// **Why in-app rather than a browser.** A clinician on a weak connection
 /// should see real progress instead of a blank browser tab, and — more
@@ -52,16 +55,30 @@ class InAppUpdateManager {
     Dio? dio,
     Future<Directory> Function()? directoryProvider,
     Future<OpenResult> Function(String path)? opener,
+    Future<void> Function(String path)? installer,
     this.fileName = 'update.apk',
   }) : _dio = dio ?? Dio(),
-       _directoryProvider = directoryProvider ?? getTemporaryDirectory,
-       _opener = opener ?? OpenFilex.open;
+       _directoryProvider = directoryProvider ?? getApplicationSupportDirectory,
+       _opener = opener ?? OpenFilex.open,
+       _installer = installer;
 
   final Dio _dio;
   final Future<Directory> Function() _directoryProvider;
   final Future<OpenResult> Function(String path) _opener;
+  final Future<void> Function(String path)? _installer;
+  StreamSubscription<dynamic>? _installStatusSubscription;
 
-  /// Name of the downloaded APK inside the cache directory.
+  void Function(bool success, bool pendingUserAction, String? message)?
+  onInstallStatus;
+
+  static const MethodChannel _installerChannel = MethodChannel(
+    'clincom/ota_installer',
+  );
+  static const EventChannel _installerEventsChannel = EventChannel(
+    'clincom/ota_installer/events',
+  );
+
+  /// Name of the downloaded APK inside app-private support storage.
   final String fileName;
 
   CancelToken? _cancelToken;
@@ -72,7 +89,13 @@ class InAppUpdateManager {
     _cancelToken = null;
   }
 
-  /// Downloads [apkUrl] and opens it with the platform installer.
+  void dispose() {
+    cancel();
+    unawaited(_installStatusSubscription?.cancel());
+    _installStatusSubscription = null;
+  }
+
+  /// Downloads [apkUrl] and submits it to the platform's package installer.
   ///
   /// [onProgress] receives a 0.0–1.0 fraction. It is called with 0.0 before
   /// the transfer starts and exactly 1.0 once the bytes are on disk, so a UI
@@ -94,7 +117,9 @@ class InAppUpdateManager {
     }
 
     final directory = await _directoryProvider();
-    final savePath = p.join(directory.path, fileName);
+    final updateDirectory = Directory(p.join(directory.path, 'ota'));
+    await updateDirectory.create(recursive: true);
+    final savePath = p.join(updateDirectory.path, fileName);
     final target = File(savePath);
 
     onProgress(0);
@@ -144,14 +169,23 @@ class InAppUpdateManager {
 
       onProgress(1);
 
-      final result = await _opener(savePath);
-      if (result.type != ResultType.done) {
-        throw InAppUpdateException(
-          InAppUpdateErrorKind.install,
-          'Android could not open the installer. You may need to allow '
-          '"Install unknown apps" for ClinCom.',
-          cause: result.message,
+      if (_installer != null) {
+        await _installer(savePath);
+      } else if (Platform.isAndroid) {
+        _listenForInstallStatus();
+        await _installerChannel.invokeMethod<void>(
+          'installApkSilently',
+          {'filePath': savePath},
         );
+      } else {
+        final result = await _opener(savePath);
+        if (result.type != ResultType.done) {
+          throw InAppUpdateException(
+            InAppUpdateErrorKind.install,
+            'The platform could not open the installer.',
+            cause: result.message,
+          );
+        }
       }
     } on DioException catch (error) {
       _deleteQuietly(savePath);
@@ -169,6 +203,27 @@ class InAppUpdateManager {
     } finally {
       _cancelToken = null;
     }
+  }
+
+  void _listenForInstallStatus() {
+    _installStatusSubscription ??= _installerEventsChannel
+        .receiveBroadcastStream()
+        .listen(
+          (dynamic event) {
+            if (event is! Map) {
+              debugPrint('[InAppUpdate] Ignoring malformed install status.');
+              return;
+            }
+            onInstallStatus?.call(
+              event['success'] == true,
+              event['pendingUserAction'] == true,
+              event['message'] is String ? event['message'] as String : null,
+            );
+          },
+          onError: (Object error) {
+            debugPrint('[InAppUpdate] Install status stream failed: $error');
+          },
+        );
   }
 
   /// Removes a partial download.
@@ -190,7 +245,7 @@ class InAppUpdateManager {
   Future<void> cleanup() async {
     try {
       final directory = await _directoryProvider();
-      final file = File(p.join(directory.path, fileName));
+      final file = File(p.join(directory.path, 'ota', fileName));
       if (file.existsSync()) await file.delete();
     } catch (error) {
       debugPrint('[InAppUpdate] Cleanup skipped: $error');

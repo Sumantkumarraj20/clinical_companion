@@ -20,6 +20,8 @@ void main() {
   }) => jsonEncode({
     'tag_name': tag,
     'name': 'Clinical Companion $tag',
+    'html_url':
+        'https://github.com/Sumantkumarraj20/clinical_companion/releases/tag/$tag',
     'assets':
         assets ??
         [
@@ -47,6 +49,21 @@ void main() {
   );
 
   group('checkForUpdate', () {
+    test('checkForUpdates exposes the APK and release page', () async {
+      final service = serviceWith(
+        version: '1.0.4',
+        client: MockClient(
+          (_) async => http.Response(releaseJson(tag: 'v1.0.5'), 200),
+        ),
+      );
+
+      final update = await service.checkForUpdates();
+
+      expect(update, isA<UpdateAvailable>());
+      expect(update?.apkUrl, contains('app-release.apk'));
+      expect(update?.releaseUrl, contains('/releases/tag/v1.0.5'));
+    });
+
     test('returns the APK browser_download_url when remote is newer', () async {
       final requested = <http.Request>[];
       final service = serviceWith(
@@ -90,6 +107,7 @@ void main() {
         expect(update?.localVersion, '1.0.4');
         expect(update?.remoteVersion, '1.0.5');
         expect(update?.apkUrl, contains('.apk'));
+        expect(update?.releaseUrl, contains('/releases/tag/'));
       },
     );
 

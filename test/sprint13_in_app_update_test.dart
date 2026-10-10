@@ -94,7 +94,7 @@ void main() {
       onProgress: progress.add,
     );
 
-    final saved = File('${tempDir.path}/update.apk');
+    final saved = File('${tempDir.path}/ota/update.apk');
     expect(saved.existsSync(), isTrue);
     expect(saved.lengthSync(), 8192);
     expect(opened, [saved.path]);
@@ -125,8 +125,29 @@ void main() {
     expect(totals.every((total) => total == 4096), isTrue);
   });
 
+  test(
+    'submits the private APK path to the injected native installer',
+    () async {
+      final server = _FakeReleaseServer(List.filled(1024, 9));
+      await server.start();
+      addTearDown(server.stop);
+
+      String? submittedPath;
+      await InAppUpdateManager(
+        directoryProvider: () async => tempDir,
+        installer: (path) async {
+          submittedPath = path;
+        },
+      ).downloadAndInstall(apkUrl: server.uri!.toString(), onProgress: (_) {});
+
+      expect(submittedPath, '${tempDir.path}/ota/update.apk');
+      expect(File(submittedPath!).existsSync(), isTrue);
+    },
+  );
+
   test('a cached APK is opened without downloading it again', () async {
-    final cached = File('${tempDir.path}/update.apk')
+    final cached = File('${tempDir.path}/ota/update.apk')
+      ..createSync(recursive: true)
       ..writeAsBytesSync(List.filled(10, 0));
     final opened = <String>[];
 
@@ -145,7 +166,9 @@ void main() {
   });
 
   test('an empty partial APK is cleared before downloading again', () async {
-    final partial = File('${tempDir.path}/update.apk')..writeAsBytesSync([]);
+    final partial = File('${tempDir.path}/ota/update.apk')
+      ..createSync(recursive: true)
+      ..writeAsBytesSync([]);
     final server = _FakeReleaseServer(List.filled(2048, 7));
     await server.start();
     addTearDown(server.stop);
@@ -161,7 +184,8 @@ void main() {
   test(
     'a failed cached install clears the APK so the next attempt downloads',
     () async {
-      final cached = File('${tempDir.path}/update.apk')
+      final cached = File('${tempDir.path}/ota/update.apk')
+        ..createSync(recursive: true)
         ..writeAsBytesSync(List.filled(10, 0));
 
       await expectLater(
@@ -302,14 +326,15 @@ void main() {
       ),
     );
     expect(
-      File('${tempDir.path}/update.apk').existsSync(),
+      File('${tempDir.path}/ota/update.apk').existsSync(),
       isFalse,
       reason: 'deleteOnError must not leave a truncated APK behind',
     );
   });
 
   test('cleanup removes a previously downloaded APK', () async {
-    final file = File('${tempDir.path}/update.apk')
+    final file = File('${tempDir.path}/ota/update.apk')
+      ..createSync(recursive: true)
       ..writeAsBytesSync([1, 2, 3]);
     await managerFor().cleanup();
     expect(file.existsSync(), isFalse);

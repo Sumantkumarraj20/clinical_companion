@@ -1,16 +1,5 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <!--
-      Sprint 13 — in-app APK installation.
-
-      REQUEST_INSTALL_PACKAGES is required from API 26 (Android 8.0) for the
-      package installer to accept an APK handed over by OpenFilex. The user
-      still has to grant the "Install unknown apps" permission for this app the
-      first time; the installer prompts for it.
-
-      QUERY_ALL_PACKAGES is deliberately NOT requested. <queries> below is the
-      scoped alternative and keeps the app inside Play's package-visibility
-      rules while remaining able to resolve the install intent.
-    -->
+    <!-- Required for the app to request installation of a downloaded release APK. -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES"/>
     <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.RECORD_AUDIO"/>
@@ -19,6 +8,18 @@
         android:label="ClinCom"
         android:name="${applicationName}"
         android:icon="@mipmap/launcher_icon">
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/ota_file_paths" />
+        </provider>
+        <receiver
+            android:name=".OtaInstallStatusReceiver"
+            android:exported="false" />
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -60,12 +61,7 @@
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
         </intent>
-        <!--
-          Package visibility for the update installer. On API 30+ the package
-          installer lives in a separate app that this process cannot see
-          without declaring the intent, which would otherwise make OpenFilex
-          fail with "no activity found" even though the APK is valid.
-        -->
+        <!-- Package visibility for the system installer fallback on older Android. -->
         <intent>
             <action android:name="android.intent.action.INSTALL_PACKAGE"/>
             <data android:mimeType="application/vnd.android.package-archive"/>

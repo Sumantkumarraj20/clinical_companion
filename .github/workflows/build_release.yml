@@ -1,13 +1,4 @@
-# =============================================================================
-# Sprint 8 — CI/CD & In-App Binary Updates
-#
-# Push a version tag (e.g. `git tag v1.0.5 && git push --tags`) and this
-# workflow builds the release APK and publishes it as a GitHub Release. The
-# in-app updater (lib/core/services/app_updater_service.dart) then polls
-# GET /releases/latest, notices the new `tag_name`, and offers the clinician
-# a direct download of the attached app-release.apk asset.
-# =============================================================================
-name: Build & Release APK
+name: Build & Release
 
 on:
   push:
@@ -19,30 +10,14 @@ permissions:
   contents: write
 
 jobs:
-  build-release:
+  build-android:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
 
     steps:
-      - name: Checkout Code
+      - name: Checkout code
         uses: actions/checkout@v4
-
-      # Fail fast if the tag and pubspec disagree. If they drift, the APK is
-      # stamped with a version that is not the tag, so the in-app updater keeps
-      # reporting "newer release available" after the user installs it — an
-      # update loop. Keep pubspec's `version:` equal to the tag minus the "v".
-      - name: Verify Tag Matches pubspec Version
-        run: |
-          set -euo pipefail
-          TAG="${GITHUB_REF_NAME}"                 # e.g. v1.0.11
-          PUBSPEC_VERSION="$(grep -m1 '^version:' pubspec.yaml | sed 's/^version:[[:space:]]*//')"
-          PUBSPEC_NAME="${PUBSPEC_VERSION%%+*}"    # strip build number -> 1.0.11
-          echo "git tag      : ${TAG}"
-          echo "pubspec      : ${PUBSPEC_VERSION}"
-          if [ "v${PUBSPEC_NAME}" != "${TAG}" ]; then
-            echo "::error::Tag ${TAG} does not match pubspec version ${PUBSPEC_NAME}. Update pubspec.yaml 'version:' to match, or retag."
-            exit 1
-          fi
-          echo "OK: tag and pubspec agree."
 
       - name: Setup Java
         uses: actions/setup-java@v4
@@ -56,38 +31,19 @@ jobs:
           channel: 'stable'
           cache: true
 
-      - name: Install Dependencies
+      - name: Install dependencies
         run: flutter pub get
 
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-
-      - name: Generate Clinical SQLite Database
-        run: python scripts/build_drug_db.py
-
-      # Sprint 17.6 — the same keystore that every earlier release used. It MUST
-      # be stable: a different key produces an APK Android refuses to install
-      # over the existing app ("package conflicts with an existing package").
-      #
-      # The file MUST be decoded into android/app/, not the repo root.
-      # `storeFile = file(...)` in android/app/build.gradle.kts resolves relative
-      # to the MODULE directory (android/app/), so a root-level release.keystore
-      # is invisible to Gradle and the build dies after ~7 min with
-      # "Keystore file '.../android/app/release.keystore' not found".
-      - name: Decode and Setup Keystore
+      - name: Decode release keystore
         run: |
           echo "${{ secrets.RELEASE_KEYSTORE }}" | base64 --decode --ignore-garbage > android/app/release.keystore
           test -s android/app/release.keystore || {
             echo "::error::RELEASE_KEYSTORE secret is empty or did not decode to a non-empty file."
             exit 1
           }
-          ls -l android/app/release.keystore
+        shell: bash
 
-      # Fail fast (seconds, not minutes) if the keystore/alias/password are
-      # wrong, instead of discovering it at the end of a full Flutter build.
-      - name: Verify Keystore is Loadable
+      - name: Verify release keystore
         run: |
           keytool -list -v \
             -keystore android/app/release.keystore \
@@ -96,54 +52,32 @@ jobs:
             > /tmp/keystore-info.txt
           echo "Signing certificate SHA-256:"
           grep -i "SHA256:" /tmp/keystore-info.txt || true
-          echo ""
-          echo "Compare the SHA-256 above against the key currently installed on"
-          echo "the device. They MUST match or Android rejects the update with"
-          echo "\"App not installed as package conflicts with an existing package\":"
-          echo "  adb shell dumpsys package com.example.clinical_companion | grep -A2 -i signatures"
+        shell: bash
 
-      - name: Build Release APK
-        run: flutter build apk --release
+      - name: Build release APK
+        run: flutter build apk --release --build-name="${GITHUB_REF_NAME#v}" --build-number="${{ github.run_number }}"
         env:
-          # Absolute path so Gradle's file() cannot mis-resolve it against the
-          # android/app module directory.
           SIGNING_KEY_PATH: ${{ github.workspace }}/android/app/release.keystore
           SIGNING_KEY_ALIAS: ${{ vars.RELEASE_KEY_ALIAS || 'release' }}
           SIGNING_KEY_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
+        shell: bash
 
-      # THE REGRESSION GUARD for "package conflicts with an existing package".
-      #
-      # A green build is not proof of the right key: if the SIGNING_* env vars
-      # are missing/mistyped, Gradle can still emit an APK signed with a
-      # different cert, and that only surfaces on the clinician's phone as an
-      # install failure. So compare the fingerprint ON the APK against the
-      # fingerprint of the keystore we intended to use. They must be identical.
-      - name: Verify APK Signature Matches Release Keystore
+      - name: Verify APK signature
         run: |
           set -euo pipefail
-
           BUILD_TOOLS=$(ls "$ANDROID_HOME/build-tools" | sort -V | tail -n1)
           APKSIGNER="$ANDROID_HOME/build-tools/$BUILD_TOOLS/apksigner"
-          # Flutter's gradle plugin drops the release artifact in flutter-apk/
-          # under its default name; there is no ClinCom-<version> rename on this
-          # path (a ClinCom-* glob fails with "No such file or directory").
-          APK=$(ls build/app/outputs/flutter-apk/app-release.apk | head -n 1)
+          APK="build/app/outputs/flutter-apk/app-release.apk"
           echo "Verifying: $APK"
-
-          # Fingerprint of the keystore we INTENDED to sign with.
           KS_FP=$(keytool -list -v \
               -keystore android/app/release.keystore \
               -storepass "${{ secrets.RELEASE_KEYSTORE_PASSWORD }}" \
               -alias "${{ vars.RELEASE_KEY_ALIAS || 'release' }}" 2>/dev/null \
             | grep -i 'SHA256:' | head -n 1 | tr -d ':' | awk '{print tolower($2)}')
-
-          # Fingerprint of the cert actually embedded in the APK.
           APK_FP=$("$APKSIGNER" verify --print-certs "$APK" \
             | grep -i 'certificate SHA-256 digest' | head -n 1 | awk '{print tolower($NF)}')
-
           echo "keystore SHA-256 : ${KS_FP:-<unreadable>}"
           echo "apk     SHA-256 : ${APK_FP:-<unreadable>}"
-
           if [ -z "$KS_FP" ] || [ -z "$APK_FP" ]; then
             echo "::error::Could not read a signing fingerprint. Refusing to publish an APK we cannot prove the identity of."
             exit 1
@@ -153,14 +87,131 @@ jobs:
             echo "::error::APK was NOT signed with the release keystore. Publishing it would break every in-place update ('package conflicts with an existing package')."
             exit 1
           fi
-
           echo "OK: APK signer matches the release keystore (in-place updates will work)."
+        shell: bash
 
-      - name: Create GitHub Release
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release.apk
+          path: build/app/outputs/flutter-apk/app-release.apk
+          if-no-files-found: error
+
+  build-linux:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Linux build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Build Linux release
+        run: |
+          flutter build linux --release \
+            --build-name="${GITHUB_REF_NAME#v}" \
+            --build-number="${{ github.run_number }}"
+        shell: bash
+
+      - name: Package Linux bundle
+        run: |
+          cd build/linux/x64/release/bundle
+          zip -r "$GITHUB_WORKSPACE/clinical-companion-linux.zip" .
+        shell: bash
+
+      - name: Upload Linux bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: clinical-companion-linux.zip
+          path: clinical-companion-linux.zip
+          if-no-files-found: error
+
+  build-windows:
+    runs-on: windows-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Build Windows release
+        shell: pwsh
+        run: |
+          $version = $env:GITHUB_REF_NAME -replace '^v', ''
+          flutter build windows --release `
+            "--build-name=$version" `
+            "--build-number=${{ github.run_number }}"
+
+      - name: Package Windows bundle
+        shell: pwsh
+        run: |
+          Compress-Archive `
+            -Path "build/windows/x64/runner/Release/*" `
+            -DestinationPath "clinical-companion-windows.zip" `
+            -CompressionLevel Optimal
+
+      - name: Upload Windows bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: clinical-companion-windows.zip
+          path: clinical-companion-windows.zip
+          if-no-files-found: error
+
+  publish-release:
+    runs-on: ubuntu-latest
+    needs: [build-android, build-linux, build-windows]
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download APK
+        uses: actions/download-artifact@v4
+        with:
+          name: app-release.apk
+          path: release-assets
+
+      - name: Download Linux bundle
+        uses: actions/download-artifact@v4
+        with:
+          name: clinical-companion-linux.zip
+          path: release-assets
+
+      - name: Download Windows bundle
+        uses: actions/download-artifact@v4
+        with:
+          name: clinical-companion-windows.zip
+          path: release-assets
+
+      - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           name: ClinCom ${{ github.ref_name }}
           generate_release_notes: true
-          # Flutter emits a single fat release APK named app-release.apk
-          # (see the in-app updater note at the top of this file).
-          files: build/app/outputs/flutter-apk/app-release.apk
+          files: |
+            release-assets/app-release.apk
+            release-assets/clinical-companion-linux.zip
+            release-assets/clinical-companion-windows.zip
