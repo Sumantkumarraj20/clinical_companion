@@ -376,9 +376,10 @@ class _RoundPageState extends ConsumerState<_RoundPage>
             ),
           ),
         SilentBrainPanel(
-          input: BrainInput(
+          refresh: Listenable.merge([_s, _o, _a, _p]),
+          inputBuilder: () => BrainInput(
             complaints: last?.chiefComplaints ?? '',
-            history: last?.historyOfPresentIllness ?? '',
+            history: '${last?.historyOfPresentIllness ?? ''} ${_s.text}',
             examination: '${last?.examinationFindings ?? ''} ${_o.text}',
             assessment: '${last?.clinicalAssessment ?? ''} ${_a.text}',
             plan: '${last?.consultantAdvice ?? ''} ${_p.text}',
@@ -455,7 +456,6 @@ class _RoundPageState extends ConsumerState<_RoundPage>
         minLines: 2,
         maxLines: 6,
         textCapitalization: TextCapitalization.sentences,
-        onChanged: (_) => setState(() {}),
         decoration: InputDecoration(
           labelText: label,
           hintText: hint,

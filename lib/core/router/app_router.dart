@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../features/opd/screens/opd_encounter_screen.dart';
 import '../../features/rounds/screens/note_templates_screen.dart';
 import '../../features/rounds/screens/rounds_mode_screen.dart';
 import '../database/local_database.dart';
@@ -100,6 +101,22 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               selectForOpd:
                   state.extra is Map && (state.extra as Map)['opdFlow'] == true,
             ),
+          ),
+          GoRoute(
+            path: '/opd',
+            builder: (context, state) {
+              final patient = state.extra;
+              return patient is Patient
+                  ? OpdEncounterScreen(patient: patient)
+                  : _RouteMessage(
+                      message: 'Select a patient to start an OPD consult.',
+                      actionLabel: 'Choose patient',
+                      onAction: () => context.go(
+                        '/patients',
+                        extra: const {'opdFlow': true},
+                      ),
+                    );
+            },
           ),
           GoRoute(
             path: '/rounds',

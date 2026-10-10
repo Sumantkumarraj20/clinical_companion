@@ -59,6 +59,49 @@ class ClinicalNoteFormatter {
     return b.toString().trimRight();
   }
 
+  /// Standard OPD note: C/O, H/O, vitals, O/E, investigations, impression and
+  /// numbered advice. Empty sections are omitted.
+  static String opdNote({
+    required String patientLine,
+    required DateTime when,
+    List<String> complaints = const [],
+    List<String> history = const [],
+    String vitals = '',
+    List<String> examination = const [],
+    List<String> investigations = const [],
+    String impression = '',
+    List<String> advice = const [],
+  }) {
+    final b = StringBuffer()
+      ..writeln('OPD NOTE')
+      ..writeln(patientLine)
+      ..writeln(_stamp(when));
+    void line(String label, Iterable<String> items) {
+      final list = items.map((e) => e.trim()).where((e) => e.isNotEmpty);
+      if (list.isEmpty) return;
+      b
+        ..writeln()
+        ..writeln('$label: ${list.join('; ')}');
+    }
+
+    line('C/O', complaints);
+    line('H/O', history);
+    line('Vitals', [vitals]);
+    line('O/E', examination);
+    line('Investigations', investigations);
+    line('Impression', [impression]);
+    final adv = advice.map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
+    if (adv.isNotEmpty) {
+      b
+        ..writeln()
+        ..writeln('Advice:');
+      for (var i = 0; i < adv.length; i++) {
+        b.writeln('${i + 1}. ${adv[i]}');
+      }
+    }
+    return b.toString().trimRight();
+  }
+
   static String _stamp(DateTime t) {
     String two(int n) => n.toString().padLeft(2, '0');
     return '${two(t.day)}/${two(t.month)}/${t.year} '

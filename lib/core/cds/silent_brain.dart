@@ -5,6 +5,8 @@
 /// Every item carries a short rationale and is labelled as a prompt for review.
 library;
 
+import '../database/local_database.dart';
+
 class BrainInput {
   const BrainInput({
     this.complaints = '',
@@ -40,6 +42,9 @@ class BrainInput {
 
   String get _all =>
       '$complaints $history $examination $assessment $plan'.toLowerCase();
+
+  /// Everything the clinician has typed, for keyword search.
+  String get allText => _all;
 }
 
 enum BrainKind { missingData, safety, nextStep, differential }
@@ -50,11 +55,179 @@ class BrainInsight {
     this.title,
     this.rationale, {
     this.urgent = false,
+    this.source,
+    this.verified,
   });
   final BrainKind kind;
   final String title;
   final String rationale;
   final bool urgent;
+
+  /// Where a learned insight came from, when known.
+  final String? source;
+
+  /// null for built-in prompts; otherwise whether the clinician has verified
+  /// the learned protocol it came from.
+  final bool? verified;
+}
+
+/// Turns typed text into search keywords and picks the learned protocols that
+/// are genuinely relevant. Pure, so it is cheap to test and safe to call from
+/// anywhere.
+class LearnedRuleMatcher {
+  const LearnedRuleMatcher._();
+
+  static const _stop = {
+    'with',
+    'without',
+    'from',
+    'that',
+    'this',
+    'there',
+    'have',
+    'has',
+    'been',
+    'since',
+    'days',
+    'day',
+    'week',
+    'weeks',
+    'months',
+    'years',
+    'for',
+    'and',
+    'the',
+    'advice',
+    'normal',
+    'noted',
+    'patient',
+    'history',
+    'past',
+  };
+  static const _generic = {
+    'syndrome',
+    'disease',
+    'disorder',
+    'acute',
+    'chronic',
+    'type',
+    'primary',
+    'secondary',
+    'severe',
+    'mild',
+    'moderate',
+  };
+
+  static List<String> tokens(String text) => RegExp(r'[a-z][a-z0-9]{2,}')
+      .allMatches(text.toLowerCase())
+      .map((m) => m.group(0)!)
+      .where((t) => !_stop.contains(t))
+      .toList();
+
+  /// Distinct, bounded keyword set (single words plus adjacent pairs).
+  static List<String> keywords(String text) {
+    final t = tokens(text);
+    final out = <String>{};
+    for (var i = 0; i < t.length; i++) {
+      if (t[i].length >= 4 && !_generic.contains(t[i])) out.add(t[i]);
+      if (i + 1 < t.length) out.add('${t[i]} ${t[i + 1]}');
+    }
+    return out.take(16).toList();
+  }
+
+  static bool _wordHit(String word, Set<String> textTokens) => textTokens.any(
+    (t) =>
+        t == word ||
+        (t.length >= 4 && word.startsWith(t)) ||
+        (word.length >= 4 && t.startsWith(word)),
+  );
+
+  /// Relevant when the whole trigger phrase appears, or at least half of its
+  /// meaningful words do (so "nephrotic" finds "Nephrotic syndrome" but a bare
+  /// "syndrome" finds nothing).
+  static bool isRelevant(CachedClinicalRule rule, String text) {
+    final trigger = rule.triggerValue.trim().toLowerCase();
+    if (trigger.isEmpty) return false;
+    if (text.contains(trigger)) return true;
+    final words = tokens(
+      trigger,
+    ).where((w) => w.length >= 4 && !_generic.contains(w)).toList();
+    if (words.isEmpty) return false;
+    final textTokens = tokens(text).toSet();
+    final hits = words.where((w) => _wordHit(w, textTokens)).length;
+    return hits > 0 && hits / words.length >= 0.5;
+  }
+
+  static List<CachedClinicalRule> relevant(
+    List<CachedClinicalRule> candidates,
+    String text,
+  ) {
+    final seen = <String>{};
+    final list = candidates
+        .where((r) => !r.isDismissed && isRelevant(r, text) && seen.add(r.id))
+        .toList();
+    list.sort((a, b) {
+      if (a.isVerified != b.isVerified) return a.isVerified ? -1 : 1;
+      return b.createdAt.compareTo(a.createdAt);
+    });
+    return list.take(4).toList();
+  }
+
+  static List<BrainInsight> insightsFor(CachedClinicalRule r) {
+    final tag = r.isVerified
+        ? 'Verified protocol'
+        : 'Awaiting your verification';
+    final ref = r.sourceReference.trim();
+    final source = ref.isEmpty ? tag : '$tag · $ref';
+    final out = <BrainInsight>[
+      BrainInsight(
+        BrainKind.nextStep,
+        '${r.triggerValue}: ${r.suggestedAction}',
+        r.evidenceRationale,
+        source: source,
+        verified: r.isVerified,
+      ),
+    ];
+    void list(BrainKind k, String title, List<String> items) {
+      if (items.isEmpty) return;
+      out.add(
+        BrainInsight(
+          k,
+          title,
+          items.take(6).map((e) => '• $e').join('\n'),
+          source: source,
+          verified: r.isVerified,
+        ),
+      );
+    }
+
+    list(
+      BrainKind.differential,
+      '${r.triggerValue}: differentials to weigh',
+      r.differentialDiagnoses,
+    );
+    list(
+      BrainKind.nextStep,
+      '${r.triggerValue}: investigations',
+      r.recommendedInvestigations,
+    );
+    list(
+      BrainKind.nextStep,
+      '${r.triggerValue}: management',
+      r.recommendedManagement,
+    );
+    list(
+      BrainKind.nextStep,
+      '${r.triggerValue}: monitoring',
+      r.requiredMonitoring,
+    );
+    list(
+      BrainKind.safety,
+      '${r.triggerValue}: avoid or use caution if',
+      r.contraindicatingConditions,
+    );
+    return out;
+  }
 }
 
 class _Syndrome {
@@ -187,8 +360,14 @@ class SilentBrain {
     ),
   ];
 
-  static List<BrainInsight> evaluate(BrainInput i) {
+  static List<BrainInsight> evaluate(
+    BrainInput i, {
+    List<CachedClinicalRule> learned = const [],
+  }) {
     final out = <BrainInsight>[];
+    for (final r in LearnedRuleMatcher.relevant(learned, i.allText)) {
+      out.addAll(LearnedRuleMatcher.insightsFor(r));
+    }
     final text = i._all;
 
     _vitalFlags(i, out);

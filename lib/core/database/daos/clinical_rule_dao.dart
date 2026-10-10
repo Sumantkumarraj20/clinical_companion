@@ -341,4 +341,39 @@ class ClinicalRuleDao extends DatabaseAccessor<AppDatabase>
       (update(clinicalRules)..where((rule) => rule.id.equals(id))).write(
         const ClinicalRulesCompanion(isDismissed: Value(false)),
       );
+
+  /// Fast candidate lookup for the live safety net. One indexed-free LIKE scan
+  /// over a small table; callers debounce and run it off the typing path.
+  /// Verified rules sort first. Dismissed rules are never returned.
+  Future<List<CachedClinicalRule>> searchByKeywords(
+    Iterable<String> keywords, {
+    int limit = 24,
+  }) {
+    final terms = keywords
+        .map((k) => k.trim().toLowerCase())
+        .where((k) => k.length >= 3)
+        .toSet()
+        .take(16)
+        .toList();
+    if (terms.isEmpty) return Future.value(const []);
+    String escape(String t) =>
+        t.replaceAll(r'\', r'\\').replaceAll('%', r'\%').replaceAll('_', r'\_');
+    Expression<bool> any = const Constant(false);
+    for (final t in terms) {
+      any =
+          any |
+          clinicalRules.triggerValue.lower().like(
+            '%${escape(t)}%',
+            escapeChar: r'\',
+          );
+    }
+    return (select(clinicalRules)
+          ..where((rule) => rule.isDismissed.equals(false) & any)
+          ..orderBy([
+            (rule) => OrderingTerm.desc(rule.isVerified),
+            (rule) => OrderingTerm.desc(rule.createdAt),
+          ])
+          ..limit(limit))
+        .get();
+  }
 }

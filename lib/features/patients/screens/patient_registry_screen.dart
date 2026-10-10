@@ -320,7 +320,7 @@ class _PatientRegistryScreenState extends ConsumerState<PatientRegistryScreen> {
                                     const <CohortTag>[],
                                 onSelectForOpd: widget.selectForOpd
                                     ? () => context.go(
-                                        '/encounter',
+                                        '/opd',
                                         extra: patient,
                                       )
                                     : null,
@@ -373,7 +373,7 @@ class _PatientRegistryScreenState extends ConsumerState<PatientRegistryScreen> {
     );
     if (saved != null && context.mounted) {
       if (widget.selectForOpd) {
-        context.go('/encounter', extra: saved);
+        context.go('/opd', extra: saved);
         return;
       }
       ScaffoldMessenger.of(context).showSnackBar(
