@@ -17,8 +17,33 @@ export 'interactions_api_client.dart' show ThinkingLevel;
 
 /// JSON decoding is CPU work and can be substantial for multi-page results.
 /// Keep it off the UI isolate after the network response has arrived.
+///
+/// Sprint 28 — the Interactions model sometimes wraps the payload in
+/// markdown fences (```json ... ```) or prepends prose; both present as
+/// "malformed or schema-invalid data". The sanitizer strips fences and
+/// extracts the outermost JSON object before decoding.
+String sanitizeStructuredJsonText(String source) {
+  var text = source.trim();
+  if (text.isEmpty) return text;
+  // Strip ```json ... ``` / ``` ... ``` fences (possibly multiple).
+  final fence = RegExp(r'```(?:json)?\s*([\s\S]*?)\s*```');
+  final fenceMatch = fence.firstMatch(text);
+  if (fenceMatch != null) {
+    text = fenceMatch.group(1)!.trim();
+  }
+  if (text.startsWith('{') && text.endsWith('}')) return text;
+  // Fall back to the outermost {...} span when prose surrounds the payload.
+  final start = text.indexOf('{');
+  final end = text.lastIndexOf('}');
+  if (start >= 0 && end > start) {
+    return text.substring(start, end + 1).trim();
+  }
+  return text;
+}
+
 Map<String, dynamic> _decodeStructuredJson(String source) {
-  final decoded = jsonDecode(source);
+  final sanitized = sanitizeStructuredJsonText(source);
+  final decoded = jsonDecode(sanitized);
   if (decoded is! Map) {
     throw const FormatException('Expected a JSON object.');
   }
@@ -502,7 +527,7 @@ $sourceText
 
     if (sizeInBytes > 20 * 1024 * 1024) {
       throw const DocumentAiException(
-        'The selected image is too large for reliable AI extraction.',
+        'The selected image is too large for reliable ClinCom extraction.',
         type: DocumentAiErrorType.imageTooLarge,
       );
     }
@@ -627,7 +652,7 @@ $sourceText
             text.contains('unsupported model') ||
             text.contains('not_found'))) {
       return DocumentAiException(
-        'The configured AI model ($model) is unavailable.',
+        'The configured ClinCom model ($model) is unavailable.',
         type: DocumentAiErrorType.modelNotFound,
         cause: error,
       );
@@ -770,9 +795,11 @@ $sourceText
           model: modelName,
           prompt:
               '$prompt\n'
-              'Return only valid JSON matching the requested schema. '
-              'Do not invent or infer values that are not visible in the source. '
-              'Use null for missing values and preserve the original source wording.',
+              'STRICT OUTPUT CONTRACT: Return ONLY raw JSON matching the requested schema. '
+              'Do not wrap the payload in markdown fences, do not prepend or append prose, '
+              'and do not invent or infer values that are not visible in the source. '
+              'Use null for missing values and preserve the original source wording. '
+              'The response MIME type is application/json.',
           imageBytes: preparedImage == null
               ? null
               : await preparedImage.readAsBytes(),
@@ -784,7 +811,7 @@ $sourceText
         final text = interaction.text;
         if (text.trim().isEmpty) {
           throw const DocumentAiException(
-            'AI returned an empty document result.',
+            'ClinCom returned an empty document result.',
             type: DocumentAiErrorType.emptyResponse,
           );
         }
@@ -794,7 +821,8 @@ $sourceText
           decoded = await Isolate.run(() => _decodeStructuredJson(text));
         } on FormatException {
           throw const DocumentAiException(
-            'AI returned invalid structured JSON.',
+            'ClinCom returned malformed or schema-invalid data. The result was '
+            'sanitized and re-parsed, but no valid JSON object was found.',
             type: DocumentAiErrorType.malformedJson,
           );
         }

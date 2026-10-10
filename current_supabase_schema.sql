@@ -20,8 +20,17 @@ CREATE TABLE public.patients (
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   updated_at timestamp with time zone NOT NULL DEFAULT now(),
   last_synced_at timestamp with time zone,
+  gender text,
+  residence text,
+  occupation text,
+  height_cm real,
+  weight_kg real,
+  alternate_phone text,
+  mrn text,
+  hospital_id uuid,
   CONSTRAINT patients_pkey PRIMARY KEY (id),
-  CONSTRAINT patients_owner_id_fkey FOREIGN KEY (owner_id) REFERENCES auth.users(id)
+  CONSTRAINT patients_owner_id_fkey FOREIGN KEY (owner_id) REFERENCES auth.users(id),
+  CONSTRAINT patients_hospital_id_fkey FOREIGN KEY (hospital_id) REFERENCES public.hospitals(id)
 );
 CREATE TABLE public.clinical_encounters (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -43,9 +52,30 @@ CREATE TABLE public.clinical_encounters (
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   updated_at timestamp with time zone NOT NULL DEFAULT now(),
   last_synced_at timestamp with time zone,
+  hospital_id uuid,
+  care_setting text NOT NULL DEFAULT 'OPD'::text,
+  is_draft boolean NOT NULL DEFAULT false,
+  department text,
+  ward_name text,
+  bed_number text,
+  clinical_diagnosis text,
+  icd11_code text,
+  disposition text,
+  chief_complaints text,
+  history_of_present_illness text,
+  past_history text,
+  drug_and_allergy_history text,
+  personal_and_social_history text,
+  examination_findings text,
+  clinical_assessment text,
+  image_path text,
+  ai_summary text,
+  pediatric_history text NOT NULL DEFAULT '{}'::text,
+  ob_gy_history text NOT NULL DEFAULT '{}'::text,
   CONSTRAINT clinical_encounters_pkey PRIMARY KEY (id),
   CONSTRAINT clinical_encounters_patient_id_fkey FOREIGN KEY (patient_id) REFERENCES public.patients(id),
-  CONSTRAINT clinical_encounters_owner_id_fkey FOREIGN KEY (owner_id) REFERENCES auth.users(id)
+  CONSTRAINT clinical_encounters_owner_id_fkey FOREIGN KEY (owner_id) REFERENCES auth.users(id),
+  CONSTRAINT clinical_encounters_hospital_id_fkey FOREIGN KEY (hospital_id) REFERENCES public.hospitals(id)
 );
 CREATE TABLE public.investigation_tracker (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -205,10 +235,12 @@ CREATE TABLE public.patient_hospital_identifiers (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   patient_id uuid NOT NULL,
   hospital_id uuid NOT NULL,
-  hospital_reg_no text NOT NULL,
+  hospital_reg_no text,
   is_primary boolean NOT NULL DEFAULT false,
   created_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
   updated_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
+  mrn text,
+  identifier_type text NOT NULL DEFAULT 'MRN'::text,
   CONSTRAINT patient_hospital_identifiers_pkey PRIMARY KEY (id),
   CONSTRAINT patient_hospital_identifiers_patient_id_fkey FOREIGN KEY (patient_id) REFERENCES public.patients(id),
   CONSTRAINT patient_hospital_identifiers_hospital_id_fkey FOREIGN KEY (hospital_id) REFERENCES public.hospitals(id)
@@ -367,6 +399,8 @@ CREATE TABLE public.document_registries (
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   updated_at timestamp with time zone NOT NULL DEFAULT now(),
   last_synced_at timestamp with time zone,
+  image_hash text,
+  clincom_json text,
   CONSTRAINT document_registries_pkey PRIMARY KEY (id),
   CONSTRAINT document_registries_patient_id_fkey FOREIGN KEY (patient_id) REFERENCES public.patients(id),
   CONSTRAINT document_registries_owner_id_fkey FOREIGN KEY (owner_id) REFERENCES auth.users(id)
@@ -394,4 +428,62 @@ CREATE TABLE public.clinical_observations (
   CONSTRAINT clinical_observations_patient_id_fkey FOREIGN KEY (patient_id) REFERENCES public.patients(id),
   CONSTRAINT clinical_observations_document_id_fkey FOREIGN KEY (document_id) REFERENCES public.document_registries(id),
   CONSTRAINT clinical_observations_owner_id_fkey FOREIGN KEY (owner_id) REFERENCES auth.users(id)
+);
+CREATE TABLE public.clinical_drugs (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  owner_id text NOT NULL DEFAULT 'local-practitioner'::text,
+  generic_name text NOT NULL,
+  brand_name text,
+  strength text,
+  usage_frequency integer NOT NULL DEFAULT 0,
+  associated_problems text NOT NULL DEFAULT '[]'::text,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT clinical_drugs_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.active_ingredients (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  molecule_code text NOT NULL,
+  generic_name text NOT NULL,
+  therapeutic_class text,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT active_ingredients_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.indications (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  molecule_code text NOT NULL,
+  clinical_indication text NOT NULL,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT indications_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.formulations (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  molecule_code text NOT NULL,
+  strength text,
+  dosage_form text,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT formulations_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.brands (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  molecule_code text NOT NULL,
+  brand_name text NOT NULL,
+  manufacturer text,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT brands_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.clinical_learning_logs (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  encounter_id uuid,
+  patient_id uuid NOT NULL,
+  owner_id text NOT NULL DEFAULT 'local-practitioner'::text,
+  diagnosis_confidence_score integer NOT NULL DEFAULT 5 CHECK (diagnosis_confidence_score >= 1 AND diagnosis_confidence_score <= 10),
+  differential_diagnoses text NOT NULL DEFAULT ''::text,
+  decision_rationale text NOT NULL DEFAULT ''::text,
+  clinical_takeaway text NOT NULL DEFAULT ''::text,
+  tags text NOT NULL DEFAULT '[]'::text,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT clinical_learning_logs_pkey PRIMARY KEY (id),
+  CONSTRAINT clinical_learning_logs_encounter_id_fkey FOREIGN KEY (encounter_id) REFERENCES public.clinical_encounters(id),
+  CONSTRAINT clinical_learning_logs_patient_id_fkey FOREIGN KEY (patient_id) REFERENCES public.patients(id)
 );

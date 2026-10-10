@@ -25,7 +25,7 @@ class KnowledgeHubScreen extends ConsumerStatefulWidget {
 
 class _KnowledgeHubScreenState extends ConsumerState<KnowledgeHubScreen>
     with SingleTickerProviderStateMixin {
-  late final TabController _tabs = TabController(length: 4, vsync: this);
+  late final TabController _tabs = TabController(length: 5, vsync: this);
 
   @override
   void dispose() {
@@ -55,6 +55,10 @@ class _KnowledgeHubScreenState extends ConsumerState<KnowledgeHubScreen>
               text: 'Pending Pathways',
             ),
             Tab(icon: Icon(Icons.visibility_outlined), text: 'Blind Spots'),
+            Tab(
+              icon: Icon(Icons.vaccines_outlined),
+              text: 'Clinical Protocols',
+            ),
           ],
         ),
       ),
@@ -65,6 +69,7 @@ class _KnowledgeHubScreenState extends ConsumerState<KnowledgeHubScreen>
           _GuidelinesTab(),
           _PendingPathwaysTab(),
           _BlindSpotsTab(),
+          _ClinicalProtocolsTab(),
         ],
       ),
     );
@@ -97,7 +102,7 @@ class _PendingPathwaysTab extends ConsumerWidget {
             icon: Icons.pending_actions_outlined,
             title: 'No pathways to review',
             body:
-                'AI-generated clinical pathways will appear here for review '
+                'ClinCom-generated clinical pathways will appear here for review '
                 'before they can be used as active suggestions.',
           );
         }
@@ -568,6 +573,165 @@ class _GuidelinesTab extends ConsumerWidget {
   }
 }
 
+class _ClinicalProtocolsTab extends ConsumerWidget {
+  const _ClinicalProtocolsTab();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return StreamBuilder<List<CachedClinicalRule>>(
+      stream: ref.watch(clinicalRuleDaoProvider).watchActiveProtocols(),
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return const _HubEmpty(
+            icon: Icons.error_outline,
+            title: 'Could not load protocols',
+            body: 'The local protocol database could not be read.',
+          );
+        }
+        if (!snapshot.hasData) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        final rules = snapshot.data!;
+        if (rules.isEmpty) {
+          return const _HubEmpty(
+            icon: Icons.vaccines_outlined,
+            title: 'No clinical protocols yet',
+            body: 'Verified protocols take precedence in local ingestion.',
+          );
+        }
+        return ListView.builder(
+          padding: const EdgeInsets.fromLTRB(12, 12, 12, 96),
+          itemCount: rules.length + 1,
+          itemBuilder: (context, index) {
+            if (index == 0) {
+              return FilledButton.icon(
+                onPressed: () => _ProtocolEditor.edit(context, ref, null),
+                icon: const Icon(Icons.add),
+                label: const Text('New Protocol'),
+              );
+            }
+            final rule = rules[index - 1];
+            return Card(
+              child: ListTile(
+                leading: Icon(
+                  rule.isVerified
+                      ? Icons.verified_outlined
+                      : Icons.pending_outlined,
+                ),
+                title: Text('${rule.triggerType}: ${rule.triggerValue}'),
+                subtitle: Text(rule.suggestedAction),
+                trailing: PopupMenuButton<String>(
+                  onSelected: (value) {
+                    if (value == 'edit') {
+                      _ProtocolEditor.edit(context, ref, rule);
+                    } else if (value == 'deprecate') {
+                      ref.read(clinicalRuleDaoProvider).dismissRule(rule.id);
+                    } else if (value == 'delete') {
+                      ref.read(clinicalRuleDaoProvider).deleteRule(rule.id);
+                    }
+                  },
+                  itemBuilder: (context) => const [
+                    PopupMenuItem(value: 'edit', child: Text('Edit')),
+                    PopupMenuItem(value: 'deprecate', child: Text('Deprecate')),
+                    PopupMenuItem(value: 'delete', child: Text('Delete')),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+class _ProtocolEditor {
+  static Future<void> edit(
+    BuildContext context,
+    WidgetRef ref,
+    CachedClinicalRule? existing,
+  ) async {
+    final triggerType = TextEditingController(
+      text: existing?.triggerType ?? 'diagnosis',
+    );
+    final triggerValue = TextEditingController(
+      text: existing?.triggerValue ?? '',
+    );
+    final action = TextEditingController(
+      text: existing?.suggestedAction ?? '',
+    );
+    final rationale = TextEditingController(
+      text: existing?.evidenceRationale ?? '',
+    );
+    final monitoring = TextEditingController(
+      text: (existing?.requiredMonitoring ?? []).join('; '),
+    );
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(existing == null ? 'New Protocol' : 'Edit Protocol'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: triggerType,
+                decoration: const InputDecoration(labelText: 'Trigger type'),
+              ),
+              TextField(
+                controller: triggerValue,
+                decoration: const InputDecoration(labelText: 'Trigger value *'),
+              ),
+              TextField(
+                controller: action,
+                decoration: const InputDecoration(labelText: 'Action *'),
+              ),
+              TextField(
+                controller: rationale,
+                decoration: const InputDecoration(labelText: 'Rationale'),
+              ),
+              TextField(
+                controller: monitoring,
+                decoration: const InputDecoration(labelText: 'Monitoring'),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !context.mounted) return;
+    try {
+      await ref.read(clinicalRuleDaoProvider).upsertManualRule(
+            id: existing?.id,
+            triggerType: triggerType.text,
+            triggerValue: triggerValue.text,
+            suggestedAction: action.text,
+            evidenceRationale: rationale.text,
+            requiredMonitoring: monitoring.text
+                .split(';')
+                .map((part) => part.trim())
+                .where((part) => part.isNotEmpty)
+                .toList(),
+          );
+    } catch (error) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not save protocol: $error')),
+      );
+    }
+  }
+}
+
 class _HubEmpty extends StatelessWidget {
   const _HubEmpty({
     required this.icon,
@@ -592,13 +756,7 @@ class _HubEmpty extends StatelessWidget {
             const SizedBox(height: 12),
             Text(title, style: theme.textTheme.titleMedium),
             const SizedBox(height: 6),
-            Text(
-              body,
-              textAlign: TextAlign.center,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
+            Text(body, textAlign: TextAlign.center),
           ],
         ),
       ),

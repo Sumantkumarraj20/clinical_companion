@@ -7,7 +7,7 @@ import 'package:image_picker/image_picker.dart';
 
 import '../../../core/providers/app_providers.dart';
 
-/// Entry point of the OCR/AI pipeline.
+/// Entry point of the OCR/ClinCom pipeline.
 ///
 /// This screen only *queues* work: the picked file(s) are handed to
 /// [batchExtractionProvider], which runs on-device OCR and — when the local
@@ -126,7 +126,7 @@ class _SmartCaptureScreenState extends ConsumerState<SmartCaptureScreen> {
                   const SizedBox(height: 16),
                   const Text(
                     'Works with lab reports, ECGs, and handwritten notes.\n'
-                    'Pages are read on-device first, then polished with AI '
+                    'Pages are read on-device first, then polished with ClinCom '
                     'only when needed.',
                     textAlign: TextAlign.center,
                     style: TextStyle(color: Colors.grey),

@@ -22,6 +22,7 @@ import '../models/document_task.dart';
 import '../services/clincom_audit_service.dart';
 import '../services/app_updater_service.dart';
 import '../services/extraction_pipeline_service.dart';
+import '../services/omni_ingestion_service.dart';
 import '../services/ambient_scribe_service.dart';
 import '../sync/catalog_sync_service.dart';
 import '../services/storage_retention_service.dart';
@@ -149,7 +150,7 @@ final documentAiServiceProvider = Provider<DocumentAiService>((ref) {
   // The key saved in Settings → Configuration (secure storage) is the runtime
   // source of truth; the build-time GEMINI_API_KEY define is only a fallback
   // for CI/preview builds. Reading *only* the env var meant every user who
-  // configured their key in-app still hit "AI capture is not configured",
+  // configured their key in-app still hit "ClinCom capture is not configured",
   // which is exactly the messy-document path that needs Gemini the most.
   final runtimeKey = ref
       .watch(
@@ -184,6 +185,19 @@ final extractionPipelineProvider = Provider<ExtractionPipelineService>((ref) {
   );
   ref.onDispose(service.close);
   return service;
+});
+
+/// Sprint 28 — the unified omni-ingestion engine. All capture entry points
+/// (scribe, scan, PDF, paste) route through here for local-first POMR
+/// normalization before hitting the review queue.
+final omniIngestionServiceProvider = Provider<OmniIngestionService>((ref) {
+  return OmniIngestionService(
+    aiService: ref.watch(documentAiServiceProvider),
+    pipeline: ref.watch(extractionPipelineProvider),
+    ruleDao: ref.watch(clinicalRuleDaoProvider),
+    cdssDao: ref.watch(cdssDaoProvider),
+    database: ref.watch(appDatabaseProvider),
+  );
 });
 
 final batchExtractionProvider =

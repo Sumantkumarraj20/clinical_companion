@@ -20,13 +20,13 @@ import '../../../core/widgets/smart_drug_autocomplete.dart';
 import '../../patients/screens/hospital_picker_field.dart';
 import '../widgets/full_screen_image_viewer.dart';
 
-/// Sprint 9 — review half of the OCR/AI pipeline.
+/// Sprint 9 — review half of the OCR/ClinCom pipeline.
 ///
 /// Watches `batchExtractionProvider` and renders one queue entry per
 /// [PageView] leaf. Every stage is surfaced live:
 ///
 /// * `processingOcr`        → "Extracting text locally…" progress
-/// * `processingAiFallback` → "Normalizing with Cloud AI…" progress
+/// * `processingAiFallback` → "Normalizing with ClinCom…" progress
 /// * `error`                → explanation + one-tap retry of that task
 /// * `readyForReview`       → fully editable [AiExtractionResult] form
 ///
@@ -716,7 +716,7 @@ class _AdaptiveReviewScreenState extends ConsumerState<AdaptiveReviewScreen> {
       ),
       ExtractionStatus.processingAiFallback ||
       ExtractionStatus.processingAi => (
-        'Normalizing with Cloud AI…',
+        'Normalizing with ClinCom…',
         task.isTextInput
             ? 'Sending pasted text directly to ClinCom. OCR is not used.'
             : 'ClinCom is cleaning and structuring this page now.',

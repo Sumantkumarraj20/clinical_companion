@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/providers/app_providers.dart';
 import '../../../core/services/app_updater_service.dart';
-import '../../ingestion/widgets/ambient_scribe_fab.dart';
+import '../../ingestion/widgets/omni_ingestion_sheet.dart';
 import '../widgets/update_download_banner.dart';
 
 /// Sprint 8 — CI/CD & In-App Binary Updates.
@@ -25,7 +25,14 @@ class DashboardScreen extends ConsumerWidget {
     final pending = ref.watch(pendingInvestigationsProvider);
     final notes = ref.watch(todayPatientNotesProvider);
     return Scaffold(
-      floatingActionButton: const AmbientScribeFab(),
+      // Sprint 28 — single unified entry point for ALL clinical data.
+      floatingActionButton: FloatingActionButton.extended(
+        heroTag: 'omni-ingestion-dashboard',
+        tooltip: 'Add Clinical Data',
+        onPressed: () => showOmniIngestionSheet(context),
+        icon: const Icon(Icons.add),
+        label: const Text('Add Clinical Data'),
+      ),
       appBar: AppBar(
         title: const Text('Clinical dashboard'),
         actions: [
@@ -126,14 +133,16 @@ class DashboardScreen extends ConsumerWidget {
                           label: const Text('Start OPD consult'),
                         ),
                         OutlinedButton.icon(
-                          onPressed: () => context.go('/smart-capture'),
+                          onPressed: () =>
+                              showOmniIngestionSheet(context),
                           icon: const Icon(Icons.document_scanner_outlined),
                           label: const Text('Scan clinical document'),
                         ),
                         OutlinedButton.icon(
-                          onPressed: () => context.push('/text-ingestion'),
+                          onPressed: () =>
+                              showOmniIngestionSheet(context),
                           icon: const Icon(Icons.content_paste_go_outlined),
-                          label: const Text('Smart Paste'),
+                          label: const Text('Add clinical data'),
                         ),
                         OutlinedButton.icon(
                           onPressed: () => context.go('/ward-dashboard'),

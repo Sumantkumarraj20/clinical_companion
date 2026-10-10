@@ -108,6 +108,13 @@ class AmbientScribeService with WidgetsBindingObserver {
   final List<String> _completedSegments = [];
   String _currentSegment = '';
   String _localeId = defaultLocaleId;
+
+  /// Locale actually used for the active session (may differ from [_localeId]
+  /// after an automatic fallback when the requested locale is unavailable).
+  String _activeLocaleId = defaultLocaleId;
+
+  /// Whether the active session is running on a fallback locale.
+  bool _usingFallbackLocale = false;
   Timer? _restartTimer;
   bool _initialized = false;
   bool _manualStop = false;
@@ -116,13 +123,31 @@ class AmbientScribeService with WidgetsBindingObserver {
   Completer<void>? _finalResultReceived;
   Future<void>? _interruptionStop;
 
+  /// Silent-retry budget for "no speech recognized" before surfacing failure.
+  /// Reset on every [startListening] and on every successful result.
+  int _noSpeechRetries = 0;
+  static const int _maxNoSpeechRetries = 1;
+
+  /// Fallback chain when the requested on-device locale is unavailable.
+  static const List<String> _fallbackLocaleChain = ['en_US', 'en_IN'];
+
   String get localeId => _localeId;
+
+  /// Locale actually in use for the running session (differs from [localeId]
+  /// when an automatic fallback was applied).
+  String get activeLocaleId => _activeLocaleId;
+
+  /// Whether the running session fell back to a different on-device locale.
+  bool get usingFallbackLocale => _usingFallbackLocale;
 
   Future<void> startListening({String localeId = defaultLocaleId}) async {
     if (state.value.status != AmbientScribeStatus.idle) {
       throw StateError('The ambient scribe is already active.');
     }
     _localeId = localeId;
+    _noSpeechRetries = 0;
+    _usingFallbackLocale = false;
+    _activeLocaleId = localeId;
     state.value = const AmbientScribeState(
       status: AmbientScribeStatus.transcribing,
     );
@@ -139,18 +164,9 @@ class AmbientScribeService with WidgetsBindingObserver {
           'was denied.',
         );
       }
-      final availableLocales = await _recognizer.locales();
-      String normalizeLocale(String locale) =>
-          locale.replaceAll('-', '_').toLowerCase();
-      if (availableLocales.isNotEmpty &&
-          !availableLocales.any(
-            (locale) => normalizeLocale(locale) == normalizeLocale(_localeId),
-          )) {
-        throw StateError(
-          'The selected on-device speech locale $_localeId is unavailable. '
-          'Install its offline speech language pack or choose another locale.',
-        );
-      }
+      _activeLocaleId = await _resolveLocaleWithFallback(
+        requested: _localeId,
+      );
 
       _completedSegments.clear();
       _currentSegment = '';
@@ -190,6 +206,40 @@ class AmbientScribeService with WidgetsBindingObserver {
         if (_currentSegment.trim().isNotEmpty) _currentSegment.trim(),
       ].join(' ').trim();
       if (transcript.isEmpty) {
+        // Sprint 28 — silent retry: a single empty ("no speech recognized")
+        // stop is retried once on the same locale before failing, absorbing
+        // the platform `Bad state: No speech was recognized` crash.
+        if (_noSpeechRetries < _maxNoSpeechRetries && !_disposed) {
+          _noSpeechRetries++;
+          _completedSegments.clear();
+          _currentSegment = '';
+          _finalResultReceived = null;
+          _manualStop = false;
+          state.value = const AmbientScribeState(
+            status: AmbientScribeStatus.recording,
+          );
+          await _startListenWindow();
+          await Future<void>.delayed(const Duration(milliseconds: 500));
+          _manualStop = true;
+          _finalResultReceived = Completer<void>();
+          state.value = const AmbientScribeState(
+            status: AmbientScribeStatus.transcribing,
+          );
+          try {
+            await _recognizer.stop();
+            await _finalResultReceived!.future.timeout(
+              const Duration(milliseconds: 500),
+              onTimeout: () {},
+            );
+          } catch (_) {
+            // A second platform failure is treated as empty below.
+          }
+          final retryTranscript = [
+            ..._completedSegments,
+            if (_currentSegment.trim().isNotEmpty) _currentSegment.trim(),
+          ].join(' ').trim();
+          if (retryTranscript.isNotEmpty) return retryTranscript;
+        }
         throw StateError(
           'No speech was recognized. Check the selected language and try again.',
         );
@@ -206,16 +256,104 @@ class AmbientScribeService with WidgetsBindingObserver {
 
   Future<void> _startListenWindow() async {
     if (_manualStop || _interrupted || _disposed) return;
-    await _recognizer.listen(
-      localeId: _localeId,
-      listenFor: _listenWindow,
-      pauseFor: _pauseWindow,
-      onResult: _onResult,
+    try {
+      await _recognizer.listen(
+        localeId: _activeLocaleId,
+        listenFor: _listenWindow,
+        pauseFor: _pauseWindow,
+        onResult: _onResult,
+      );
+    } catch (error) {
+      // Sprint 28 — `error_language_unavailable` (e.g. hi_IN pack missing)
+      // falls back to en_US/device default instead of crashing.
+      if (_isLanguageUnavailable(error) && !_usingFallbackLocale) {
+        final fallback = await _resolveLocaleWithFallback(
+          requested: _activeLocaleId,
+          forceFallback: true,
+        );
+        if (fallback != _activeLocaleId) {
+          _activeLocaleId = fallback;
+          _usingFallbackLocale = true;
+          state.value = AmbientScribeState(
+            status: AmbientScribeStatus.recording,
+            error:
+                'Requested speech language unavailable; continuing in $_activeLocaleId.',
+          );
+          await _recognizer.listen(
+            localeId: _activeLocaleId,
+            listenFor: _listenWindow,
+            pauseFor: _pauseWindow,
+            onResult: _onResult,
+          );
+          return;
+        }
+      }
+      rethrow;
+    }
+  }
+
+  /// Resolves [requested] to an installed on-device locale, falling back to
+  /// `en_US` (then the device default) when the pack is missing. Only throws
+  /// when nothing usable is installed at all.
+  Future<String> _resolveLocaleWithFallback({
+    required String requested,
+    bool forceFallback = false,
+  }) async {
+    final availableLocales = await _recognizer.locales();
+    String normalizeLocale(String locale) =>
+        locale.replaceAll('-', '_').toLowerCase();
+    String? matchFor(String target) {
+      for (final locale in availableLocales) {
+        if (normalizeLocale(locale) == normalizeLocale(target)) return locale;
+      }
+      return null;
+    }
+
+    if (!forceFallback) {
+      final exact = availableLocales.isEmpty ? requested : matchFor(requested);
+      if (exact != null) {
+        _usingFallbackLocale = false;
+        return exact;
+      }
+    }
+    // Requested pack missing (or listen threw language-unavailable): walk the
+    // fallback chain, then the device default (first available locale).
+    for (final candidate in _fallbackLocaleChain) {
+      final match = matchFor(candidate);
+      if (match != null) {
+        _usingFallbackLocale = true;
+        return match;
+      }
+    }
+    if (availableLocales.isNotEmpty) {
+      _usingFallbackLocale = true;
+      return availableLocales.first;
+    }
+    if (!forceFallback) {
+      // No locale inventory (e.g. headless test fake with empty list):
+      // assume the platform default handles the request.
+      _usingFallbackLocale = false;
+      return requested;
+    }
+    throw StateError(
+      'The selected on-device speech locale $requested is unavailable and no '
+      'fallback speech language is installed. Install an offline speech '
+      'language pack or choose another locale.',
     );
+  }
+
+  static bool _isLanguageUnavailable(Object error) {
+    final text = error.toString().toLowerCase();
+    return text.contains('language_unavailable') ||
+        text.contains('language unavailable') ||
+        text.contains('locale_unavailable') ||
+        text.contains('locale unavailable');
   }
 
   void _onResult(String words, bool isFinal) {
     if ((_manualStop && !isFinal) || words.trim().isEmpty) return;
+    // Any real hypothesis resets the silent no-speech retry budget.
+    _noSpeechRetries = 0;
     _currentSegment = words.trim();
     if (isFinal) {
       _completedSegments.add(_currentSegment);
@@ -244,6 +382,13 @@ class AmbientScribeService with WidgetsBindingObserver {
 
   void _onError(String message, bool permanent) {
     if (_manualStop || _disposed) return;
+    // Sprint 28 — the platform `error_language_unavailable` for a missing
+    // pack (e.g. hi_IN) is recovered by switching to the fallback locale
+    // instead of dying in a permanent error state.
+    if (_isLanguageUnavailable(message)) {
+      unawaited(_fallbackAfterLanguageError(message));
+      return;
+    }
     state.value = AmbientScribeState(
       status: _interrupted
           ? AmbientScribeStatus.paused
@@ -254,6 +399,47 @@ class AmbientScribeService with WidgetsBindingObserver {
       _scheduleRestart();
     } else {
       _manualStop = true;
+    }
+  }
+
+  /// Recovers from an async `error_language_unavailable` callback by moving the
+  /// live session to the fallback locale without stopping the scribe.
+  Future<void> _fallbackAfterLanguageError(String message) async {
+    if (_manualStop || _disposed || _usingFallbackLocale) {
+      state.value = AmbientScribeState(
+        status: _interrupted
+            ? AmbientScribeStatus.paused
+            : AmbientScribeStatus.recording,
+        error: 'On-device speech recognition: $message',
+      );
+      return;
+    }
+    try {
+      final fallback = await _resolveLocaleWithFallback(
+        requested: _activeLocaleId,
+        forceFallback: true,
+      );
+      if (_manualStop || _disposed) return;
+      _activeLocaleId = fallback;
+      _usingFallbackLocale = true;
+      state.value = AmbientScribeState(
+        status: AmbientScribeStatus.recording,
+        error:
+            'Requested speech language unavailable; continuing in $_activeLocaleId.',
+      );
+      await _recognizer.listen(
+        localeId: _activeLocaleId,
+        listenFor: _listenWindow,
+        pauseFor: _pauseWindow,
+        onResult: _onResult,
+      );
+    } catch (error) {
+      if (!_manualStop && !_disposed) {
+        state.value = AmbientScribeState(
+          status: AmbientScribeStatus.paused,
+          error: 'Could not resume on-device speech recognition: $error',
+        );
+      }
     }
   }
 

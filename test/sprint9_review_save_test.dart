@@ -291,7 +291,7 @@ void main() {
       );
     });
 
-    testWidgets('shows a cloud-AI progress message while normalising', (
+    testWidgets('shows a cloud progress message while normalising', (
       tester,
     ) async {
       await _pumpReview(
@@ -301,7 +301,7 @@ void main() {
       );
       await tester.pump();
 
-      expect(find.text('Normalizing with Cloud AI…'), findsOneWidget);
+      expect(find.text('Normalizing with ClinCom…'), findsOneWidget);
     });
 
     testWidgets('an error page explains itself and can be retried', (

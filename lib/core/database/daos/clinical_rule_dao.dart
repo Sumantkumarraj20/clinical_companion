@@ -250,6 +250,78 @@ class ClinicalRuleDao extends DatabaseAccessor<AppDatabase>
     )..where((rule) => rule.id.equals(id))).getSingle();
   }
 
+  /// Sprint 28 — full CRUD for the Clinical Protocols editor. Manual edits
+  /// overwrite the rule immediately so the local-first pre-compute check
+  /// (verified first, newest first) picks them up on the next ingestion.
+  Future<CachedClinicalRule> upsertManualRule({
+    String? id,
+    required String triggerType,
+    required String triggerValue,
+    required String suggestedAction,
+    required String evidenceRationale,
+    List<String> contraindicatingConditions = const [],
+    List<String> requiredMonitoring = const [],
+    List<String> differentialDiagnoses = const [],
+    List<String> recommendedInvestigations = const [],
+    List<String> recommendedManagement = const [],
+    String sourceReference = '',
+    bool isVerified = true,
+  }) async {
+    final normalizedType = triggerType.trim().toLowerCase();
+    final normalizedValue = triggerValue.trim();
+    if (normalizedType.isEmpty || normalizedValue.isEmpty) {
+      throw ArgumentError('Trigger type and value are required.');
+    }
+    if (suggestedAction.trim().isEmpty) {
+      throw ArgumentError('A suggested action is required.');
+    }
+    final ruleId = id ?? const Uuid().v4();
+    await into(clinicalRules).insertOnConflictUpdate(
+      ClinicalRulesCompanion.insert(
+        id: Value(ruleId),
+        triggerType: normalizedType,
+        triggerValue: normalizedValue,
+        suggestedAction: suggestedAction.trim(),
+        evidenceRationale: evidenceRationale.trim(),
+        contraindicatingConditions: Value(contraindicatingConditions),
+        requiredMonitoring: Value(requiredMonitoring),
+        differentialDiagnoses: Value(differentialDiagnoses),
+        recommendedInvestigations: Value(recommendedInvestigations),
+        recommendedManagement: Value(recommendedManagement),
+        sourceReference: Value(sourceReference.trim()),
+        isVerified: Value(isVerified),
+        isDismissed: const Value(false),
+      ),
+    );
+    return (select(
+      clinicalRules,
+    )..where((rule) => rule.id.equals(ruleId))).getSingle();
+  }
+
+  /// Permanently removes a protocol (distinct from [dismissRule], which only
+  /// hides it from matching but keeps the row for audit).
+  Future<void> deleteRule(String id) =>
+      (delete(clinicalRules)..where((rule) => rule.id.equals(id))).go();
+
+  /// All active protocols for the editor, verified first then newest.
+  Stream<List<CachedClinicalRule>> watchActiveProtocols() =>
+      (select(clinicalRules)
+            ..where((rule) => rule.isDismissed.equals(false))
+            ..orderBy([
+              (rule) => OrderingTerm.desc(rule.isVerified),
+              (rule) => OrderingTerm.desc(rule.createdAt),
+            ]))
+          .watch();
+
+  Future<List<CachedClinicalRule>> activeProtocols() =>
+      (select(clinicalRules)
+            ..where((rule) => rule.isDismissed.equals(false))
+            ..orderBy([
+              (rule) => OrderingTerm.desc(rule.isVerified),
+              (rule) => OrderingTerm.desc(rule.createdAt),
+            ]))
+          .get();
+
   Future<void> dismissRule(String id) =>
       (update(clinicalRules)..where((rule) => rule.id.equals(id))).write(
         const ClinicalRulesCompanion(isDismissed: Value(true)),

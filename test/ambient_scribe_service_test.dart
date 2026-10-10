@@ -101,18 +101,37 @@ void main() {
     expect(service.state.value.status, AmbientScribeStatus.recording);
   });
 
-  test('reports an unavailable offline locale instead of using cloud STT', () async {
+  test('falls back to an installed locale when the requested pack is missing',
+      () async {
     final recognizer = _FakeNativeRecognizer()
-      ..availableLocales = const ['en_US'];
+      ..availableLocales = const ['en_US']
+      ..wordsOnStop = 'fallback transcript';
     final service = AmbientScribeService(recognizer: recognizer);
     addTearDown(service.dispose);
 
+    // Sprint 28 — missing hi_IN pack falls back to en_US instead of throwing.
+    await service.startListening(
+      localeId: AmbientScribeService.hindiLocaleId,
+    );
+    expect(service.state.value.status, AmbientScribeStatus.recording);
+    expect(recognizer.lastLocale, 'en_US');
+    expect(service.usingFallbackLocale, isTrue);
+    expect(recognizer.listenCalls, 1);
+    expect(await service.stopAndGetTranscript(), 'fallback transcript');
+  });
+
+  test('silently retries once when no speech was recognized', () async {
+    final recognizer = _FakeNativeRecognizer();
+    final service = AmbientScribeService(recognizer: recognizer);
+    addTearDown(service.dispose);
+    await service.startListening();
+
+    // Sprint 28 — empty stop retries silently once before failing.
     await expectLater(
-      service.startListening(),
+      service.stopAndGetTranscript(),
       throwsA(isA<StateError>()),
     );
-    expect(service.state.value.error, contains('en_IN is unavailable'));
-    expect(recognizer.listenCalls, 0);
+    expect(recognizer.listenCalls, 2);
   });
 
   test('transcript segments are appended once across listener restarts', () async {

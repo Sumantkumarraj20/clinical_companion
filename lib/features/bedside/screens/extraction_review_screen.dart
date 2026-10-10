@@ -232,7 +232,7 @@ class _ExtractionReviewScreenState
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Review AI Extraction'),
+        title: const Text('Review ClinCom Extraction'),
         actions: [
           IconButton(
             icon: const Icon(Icons.add_chart_outlined),
