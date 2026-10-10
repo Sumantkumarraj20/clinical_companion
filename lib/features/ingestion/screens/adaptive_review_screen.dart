@@ -306,6 +306,7 @@ class _AdaptiveReviewScreenState extends ConsumerState<AdaptiveReviewScreen> {
         rawSourceText: task.rawOcrText,
         isTextInput: task.isTextInput,
         patientIdOverride: linkedId,
+        inboxId: task.useOmniIngestion ? task.id : null,
         // Sprint 17.5 — persist the reviewed form so Edit Mode can rebuild it.
         clincomJson: jsonEncode(reviewed.toJson()),
         verifiedProblemAssociations: editor.verifiedProblemAssociations,
@@ -518,7 +519,11 @@ class _AdaptiveReviewScreenState extends ConsumerState<AdaptiveReviewScreen> {
       ).showSnackBar(SnackBar(content: Text(message)));
       ref.read(offlineNoticeProvider.notifier).clear();
     });
-    final tasks = ref.watch(batchExtractionProvider);
+    final allTasks = ref.watch(batchExtractionProvider);
+    final terminalTasks = allTasks
+        .where((task) => task.isTerminal)
+        .toList(growable: false);
+    final tasks = terminalTasks.isEmpty ? allTasks : terminalTasks;
 
     if (tasks.isEmpty) return _finishedOrEmpty();
 
@@ -661,15 +666,9 @@ class _AdaptiveReviewScreenState extends ConsumerState<AdaptiveReviewScreen> {
                 didSave
                     ? 'Encounters, vitals, labs and prescriptions are now on '
                           'the patient timeline.'
-                    : 'Capture a lab report, chart or prescription to begin.',
+                    : 'Add source material from the dashboard to begin review.',
                 textAlign: TextAlign.center,
                 style: const TextStyle(color: Colors.grey),
-              ),
-              const SizedBox(height: 28),
-              FilledButton.icon(
-                onPressed: () => context.go('/smart-capture'),
-                icon: const Icon(Icons.camera_alt_outlined),
-                label: const Text('Scan a document'),
               ),
               if (context.canPop()) ...[
                 const SizedBox(height: 12),
@@ -777,29 +776,16 @@ class _AdaptiveReviewScreenState extends ConsumerState<AdaptiveReviewScreen> {
             const SizedBox(height: 8),
             Text(
               task.errorMessage ??
-                  'Extraction failed for an unknown reason. Retrying usually '
-                      'helps.',
+                  'Extraction failed for an unknown reason. Return to the '
+                      'dashboard to retry from the inbox.',
               textAlign: TextAlign.center,
               style: const TextStyle(color: Colors.grey, fontSize: 13),
             ),
             const SizedBox(height: 24),
             FilledButton.icon(
-              onPressed: _saving
-                  ? null
-                  : () => ref
-                        .read(batchExtractionProvider.notifier)
-                        .retryTask(task.id),
-              icon: const Icon(Icons.refresh),
-              label: const Text('Retry extraction'),
-            ),
-            const SizedBox(height: 8),
-            TextButton(
-              onPressed: _saving
-                  ? null
-                  : () => ref
-                        .read(batchExtractionProvider.notifier)
-                        .removeTask(task.id),
-              child: const Text('Remove from queue'),
+              onPressed: _saving ? null : () => context.go('/dashboard'),
+              icon: const Icon(Icons.dashboard_outlined),
+              label: const Text('Return to dashboard'),
             ),
           ],
         ),

@@ -304,7 +304,7 @@ void main() {
       expect(find.text('Normalizing with ClinCom…'), findsOneWidget);
     });
 
-    testWidgets('an error page explains itself and can be retried', (
+    testWidgets('an error page defers retry to the dashboard', (
       tester,
     ) async {
       final container = await _pumpReview(
@@ -323,14 +323,12 @@ void main() {
       expect(find.text('Could not extract this page'), findsOneWidget);
       expect(find.text('Local OCR could not read this image.'), findsOneWidget);
 
-      await tester.tap(find.text('Retry extraction'));
-      await _settle(tester);
-
+      expect(find.text('Return to dashboard'), findsOneWidget);
+      expect(find.text('Retry extraction'), findsNothing);
       expect(
         container.read(batchExtractionProvider).single.status,
-        ExtractionStatus.readyForReview,
+        ExtractionStatus.error,
       );
-      expect(find.text('Save document'), findsOneWidget);
 
       await _shutdown(tester);
     });

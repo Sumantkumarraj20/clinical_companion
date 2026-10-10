@@ -52,7 +52,7 @@ class _KnowledgeHubScreenState extends ConsumerState<KnowledgeHubScreen>
             ),
             Tab(
               icon: Icon(Icons.pending_actions_outlined),
-              text: 'Pending Pathways',
+              text: 'Proposed Protocols',
             ),
             Tab(icon: Icon(Icons.visibility_outlined), text: 'Blind Spots'),
             Tab(
@@ -100,10 +100,10 @@ class _PendingPathwaysTab extends ConsumerWidget {
         if (pathways.isEmpty) {
           return const _HubEmpty(
             icon: Icons.pending_actions_outlined,
-            title: 'No pathways to review',
+            title: 'No proposed protocols',
             body:
-                'ClinCom-generated clinical pathways will appear here for review '
-                'before they can be used as active suggestions.',
+                'Clinical protocols proposed from reviewed notes will appear '
+                'here for clinician review before they can guide future care.',
           );
         }
         return ListView.builder(

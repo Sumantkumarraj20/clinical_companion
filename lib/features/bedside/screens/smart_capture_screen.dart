@@ -60,8 +60,7 @@ class _SmartCaptureScreenState extends ConsumerState<SmartCaptureScreen> {
           .addOmniFiles(files, activeCensusJson: census);
       if (!mounted) return;
 
-      // STEP 1 — straight into the review queue; extraction continues there.
-      context.push('/adaptive-review');
+      context.go('/dashboard');
     } catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

@@ -383,7 +383,8 @@ Return JSON with exactly these fields:
       prompt:
           '''
 You are an elite Medical Informatician. Extract reusable proactive pathways
-from the supplied medical literature. Identify triggers such as conditions,
+from supplied clinical text, including guidelines and treatment courses.
+Identify triggers such as conditions,
 symptoms, or medications. For each trigger, output an ordered, data-backed
 differential diagnosis and the next best investigations and initial management
 steps. Include contraindicating conditions and monitoring when supported by
@@ -406,7 +407,7 @@ Each rule must contain:
 - recommended_management: prioritized drugs or procedures
 - source_reference: named guideline/trial or "Not specified"
 
-MEDICAL LITERATURE:
+MEDICAL LITERATURE OR CLINICAL TEXT:
 $sourceText
 ''',
       schema: schema,

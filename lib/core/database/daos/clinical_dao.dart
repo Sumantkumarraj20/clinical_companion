@@ -75,6 +75,7 @@ class PatientCohortInputs {
     clinical_records.DocumentRegistries,
     clinical_records.ClinicalObservations,
     clinical_records.Admissions,
+    IngestionInboxes,
     ClinicalLearningLogs,
     ClinicalAudits,
   ],
@@ -125,6 +126,7 @@ class ClinicalDao extends DatabaseAccessor<AppDatabase>
     String? patientIdOverride,
     String? clincomJson,
     String? imageHash,
+    String? inboxId,
     List<String> verifiedProblemAssociations = const [],
   }) async {
     return transaction(() async {
@@ -146,7 +148,17 @@ class ClinicalDao extends DatabaseAccessor<AppDatabase>
                   )
                   ..limit(1))
                 .getSingleOrNull();
-        if (existing != null) return existing;
+        if (existing != null) {
+          if (inboxId != null) {
+            await _linkInboxToEncounter(
+              inboxId: inboxId,
+              patientId: patientId,
+              encounterId: existing.id,
+              result: result,
+            );
+          }
+          return existing;
+        }
       }
 
       // FIX 4 — the printed document date takes priority. `_date` handles only
@@ -289,9 +301,34 @@ class ClinicalDao extends DatabaseAccessor<AppDatabase>
         await recordCatalogUsage(category: 'med_to_problem', term: association);
       }
 
+      if (inboxId != null) {
+        await _linkInboxToEncounter(
+          inboxId: inboxId,
+          patientId: patientId,
+          encounterId: encounterId,
+          result: result,
+        );
+      }
       return savedEncounter;
     });
   }
+
+  Future<void> _linkInboxToEncounter({
+    required String inboxId,
+    required String patientId,
+    required String encounterId,
+    required AiExtractionResult result,
+  }) =>
+      (update(ingestionInboxes)..where((item) => item.id.equals(inboxId)))
+          .write(
+            IngestionInboxesCompanion(
+              status: const Value('saved'),
+              patientId: Value(patientId),
+              encounterId: Value(encounterId),
+              extractedJson: Value(jsonEncode(result.toJson())),
+              updatedAt: Value(DateTime.now()),
+            ),
+          );
 
   String _normalizedEncounterType(String source) {
     final value = source.trim().toUpperCase();

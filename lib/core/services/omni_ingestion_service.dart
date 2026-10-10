@@ -1,4 +1,7 @@
+import 'dart:async';
 import 'dart:io';
+
+import 'package:flutter/foundation.dart';
 
 import '../ai/document_ai_service.dart';
 import '../database/daos/cdss_dao.dart';
@@ -10,7 +13,7 @@ import 'extraction_pipeline_service.dart';
 /// Sprint 28 — unified omni-ingestion payloads.
 ///
 /// Every entry point (scribe voice, pasted text, camera scan, PDF import)
-/// routes through [OmniIngestionService] wrapped in one of these two payloads.
+/// routes through [OmniIngestionService] with a type matching its source.
 sealed class OmniPayload {
   const OmniPayload();
 }
@@ -28,12 +31,28 @@ class TextPayload extends OmniPayload {
   final String? activeCensusJson;
 }
 
-/// Camera scans and imported PDFs — OCR (or direct file bytes) needed.
-class DocumentPayload extends OmniPayload {
+/// Voice transcripts retain their origin while sharing the text-only route.
+class AudioPayload extends OmniPayload {
+  const AudioPayload(this.transcript, {this.activeCensusJson});
+
+  final String transcript;
+  final String? activeCensusJson;
+}
+
+/// Scanned images and PDFs require local OCR before semantic structuring.
+sealed class DocumentPayload extends OmniPayload {
   const DocumentPayload(this.file, {this.activeCensusJson});
 
   final File file;
   final String? activeCensusJson;
+}
+
+class ImagePayload extends DocumentPayload {
+  const ImagePayload(super.file, {super.activeCensusJson});
+}
+
+class PdfPayload extends DocumentPayload {
+  const PdfPayload(super.file, {super.activeCensusJson});
 }
 
 /// Where the normalized POMR output came from.
@@ -103,11 +122,37 @@ class OmniIngestionService {
     final rawText = await _rawTextFor(payload);
     final local = await preCompute(rawText);
 
-    if (payload is TextPayload) {
-      return _ingestText(payload, rawText: rawText, local: local);
-    }
-    final document = payload as DocumentPayload;
-    return _ingestDocument(document, rawText: rawText, local: local);
+    return switch (payload) {
+      TextPayload(:final isAmbientAudio, :final activeCensusJson) =>
+        _ingestText(
+          TextPayload(
+            rawText,
+            isAmbientAudio: isAmbientAudio,
+            activeCensusJson: activeCensusJson,
+          ),
+          rawText: rawText,
+          local: local,
+        ),
+      AudioPayload(:final activeCensusJson) => _ingestText(
+        TextPayload(
+          rawText,
+          isAmbientAudio: true,
+          activeCensusJson: activeCensusJson,
+        ),
+        rawText: rawText,
+        local: local,
+      ),
+      ImagePayload(:final file, :final activeCensusJson) => _ingestDocument(
+        ImagePayload(file, activeCensusJson: activeCensusJson),
+        rawText: rawText,
+        local: local,
+      ),
+      PdfPayload(:final file, :final activeCensusJson) => _ingestDocument(
+        PdfPayload(file, activeCensusJson: activeCensusJson),
+        rawText: rawText,
+        local: local,
+      ),
+    };
   }
 
   Future<OmniIngestionResult> preCompute(String rawText) async {
@@ -191,9 +236,12 @@ class OmniIngestionService {
   }
 
   Future<String> _rawTextFor(OmniPayload payload) async {
-    if (payload is TextPayload) return payload.text;
-    final document = payload as DocumentPayload;
-    return _pipeline.recognizeRawText(document.file);
+    return switch (payload) {
+      TextPayload(:final text) => text,
+      AudioPayload(:final transcript) => transcript,
+      ImagePayload(:final file) || PdfPayload(:final file) =>
+        _pipeline.recognizeRawText(file),
+    };
   }
 
   Future<OmniIngestionResult> _ingestText(
@@ -214,7 +262,7 @@ class OmniIngestionService {
     final source = local.matchedRuleIds.isEmpty
         ? OmniIngestionSource.cloud
         : OmniIngestionSource.hybrid;
-    return OmniIngestionResult(
+    final result = OmniIngestionResult(
       data: merged,
       source: source,
       localConfidence: local.localConfidence,
@@ -222,6 +270,8 @@ class OmniIngestionService {
       localSummary: local.localSummary,
       rawText: rawText,
     );
+    unawaited(_learnFromTreatmentCourse(rawText, result));
+    return result;
   }
 
   Future<OmniIngestionResult> _ingestDocument(
@@ -255,7 +305,7 @@ class OmniIngestionService {
               ? OmniIngestionSource.local
               : OmniIngestionSource.cloud)
         : OmniIngestionSource.hybrid;
-    return OmniIngestionResult(
+    final result = OmniIngestionResult(
       data: merged,
       source: source,
       localConfidence: local.localConfidence,
@@ -263,6 +313,32 @@ class OmniIngestionService {
       localSummary: local.localSummary,
       rawText: rawText,
     );
+    unawaited(_learnFromTreatmentCourse(rawText, result));
+    return result;
+  }
+
+  Future<void> _learnFromTreatmentCourse(
+    String sourceText,
+    OmniIngestionResult result,
+  ) async {
+    if (result.source == OmniIngestionSource.local ||
+        result.data.problems.isEmpty ||
+        result.data.medicationsOrdered.isEmpty) {
+      return;
+    }
+    try {
+      final suggestions = await aiService.generateClinicalRulesFromGuideline(
+        sourceText,
+        thinkingLevel: ThinkingLevel.low,
+      );
+      if (suggestions.isNotEmpty) {
+        await _ruleDao.saveGuidelineRules(suggestions);
+      }
+    } catch (error, stackTrace) {
+      debugPrint(
+        '[ClinCom] Could not save proposed protocols: $error\n$stackTrace',
+      );
+    }
   }
 
   bool _isDataAdequate(AiExtractionResult data) =>

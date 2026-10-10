@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -68,6 +70,7 @@ class DashboardScreen extends ConsumerWidget {
       body: Column(
         children: [
           const _UpdateBanner(),
+          const _IngestionInboxBanner(),
           Expanded(
             child: ListView(
               padding: const EdgeInsets.all(20),
@@ -234,6 +237,134 @@ class _MetricCard extends StatelessWidget {
   }
 }
 
+class _IngestionInboxBanner extends ConsumerStatefulWidget {
+  const _IngestionInboxBanner();
+
+  @override
+  ConsumerState<_IngestionInboxBanner> createState() =>
+      _IngestionInboxBannerState();
+}
+
+class _IngestionInboxBannerState extends ConsumerState<_IngestionInboxBanner> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(_restoreInbox());
+    });
+  }
+
+  Future<void> _restoreInbox() async {
+    try {
+      await ref.read(batchExtractionProvider.notifier).restoreInbox();
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not restore saved clinical data: $error')),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final inbox = ref.watch(openIngestionInboxProvider).asData?.value;
+    if (inbox == null || inbox.isEmpty) return const SizedBox.shrink();
+
+    final readyCount = inbox
+        .where((item) => item.status == 'ready_for_review')
+        .length;
+    final processingCount = inbox
+        .where((item) => item.status == 'processing')
+        .length;
+    final errorCount = inbox.where((item) => item.status == 'error').length;
+    final theme = Theme.of(context);
+    return Card(
+      margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        child: Row(
+          children: [
+            if (processingCount > 0)
+              const SizedBox.square(
+                dimension: 20,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            else
+              Icon(
+                errorCount > 0
+                    ? Icons.error_outline
+                    : Icons.fact_check_outlined,
+                color: errorCount > 0
+                    ? theme.colorScheme.error
+                    : theme.colorScheme.primary,
+              ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                [
+                  if (processingCount > 0)
+                    '$processingCount item${processingCount == 1 ? '' : 's'} processing',
+                  if (readyCount > 0 && processingCount == 0)
+                    '$readyCount ready for review',
+                  if (errorCount > 0 && processingCount == 0)
+                    '$errorCount need${errorCount == 1 ? 's' : ''} retry',
+                ].join(' · '),
+              ),
+            ),
+            if (readyCount > 0)
+              TextButton(
+                onPressed: () async {
+                  try {
+                    await ref
+                        .read(batchExtractionProvider.notifier)
+                        .restoreInbox();
+                    if (context.mounted) {
+                      context.push('/adaptive-review');
+                    }
+                  } catch (error) {
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            'Could not open saved clinical data: $error',
+                          ),
+                        ),
+                      );
+                    }
+                  }
+                },
+                child: const Text('Review'),
+              ),
+            if (errorCount > 0)
+              TextButton(
+                onPressed: () async {
+                  final notifier = ref.read(batchExtractionProvider.notifier);
+                  try {
+                    await notifier.restoreInbox();
+                    for (final item in inbox.where(
+                      (entry) => entry.status == 'error',
+                    )) {
+                      await notifier.retryTask(item.id);
+                    }
+                  } catch (error) {
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Could not retry saved data: $error'),
+                        ),
+                      );
+                    }
+                  }
+                },
+                child: const Text('Retry'),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 /// Sprint 8 update alert pinned to the top of the dashboard.
 ///
 /// Watches [appUpdateCheckProvider]; while a newer release APK URL is
@@ -282,8 +413,7 @@ class _UpdateBannerState extends ConsumerState<_UpdateBanner> {
     final downloadState = ref.watch(updateDownloadProvider);
 
     if (update != null &&
-        (downloadState is UpdateDownloading ||
-            downloadState is UpdateFailed)) {
+        (downloadState is UpdateDownloading || downloadState is UpdateFailed)) {
       return UpdateProgressBanner(apkUrl: update.apkUrl);
     }
     if (downloadState is UpdateInstalling) return const SizedBox.shrink();

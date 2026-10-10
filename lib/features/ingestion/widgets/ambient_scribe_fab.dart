@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -82,7 +80,7 @@ class _AmbientScribeFabState extends ConsumerState<AmbientScribeFab>
           );
       if (!mounted) return;
       setState(() => _processing = false);
-      unawaited(context.push<void>('/adaptive-review', extra: widget.patient));
+      context.go('/dashboard');
     } catch (error) {
       _showError('Could not transcribe the encounter: $error');
     } finally {

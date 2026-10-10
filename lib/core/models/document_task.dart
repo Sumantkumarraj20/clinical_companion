@@ -74,6 +74,7 @@ class DocumentTask {
       status == ExtractionStatus.processingAi;
 
   DocumentTask copyWith({
+    File? originalFile,
     ExtractionStatus? status,
     AiExtractionResult? extractedData,
     ExtractionSource? source,
@@ -84,7 +85,7 @@ class DocumentTask {
   }) {
     return DocumentTask(
       id: id,
-      originalFile: originalFile,
+      originalFile: originalFile ?? this.originalFile,
       isTextInput: isTextInput,
       isAmbientAudio: isAmbientAudio,
       useOmniIngestion: useOmniIngestion,

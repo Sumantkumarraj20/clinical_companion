@@ -746,6 +746,30 @@ class ClinicalRules extends Table {
   Set<Column<Object>> get primaryKey => {id};
 }
 
+@DataClassName('IngestionInboxItem')
+class IngestionInboxes extends Table {
+  @override
+  String get tableName => 'ingestion_inbox';
+
+  TextColumn get id => text()();
+  TextColumn get payloadType => text()();
+  TextColumn get rawInput => text().withDefault(const Constant(''))();
+  TextColumn get filePath => text().nullable()();
+  TextColumn get status => text().withDefault(const Constant('processing'))();
+  TextColumn get extractedJson => text().nullable()();
+  TextColumn get errorMessage => text().nullable()();
+  TextColumn get patientId =>
+      text().nullable().references(Patients, #id, onDelete: KeyAction.setNull)();
+  TextColumn get encounterId => text()
+      .nullable()
+      .references(ClinicalEncounters, #id, onDelete: KeyAction.setNull)();
+  DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
+  DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
 // Reference Tables
 @DataClassName('AyushmanPackage')
 class AyushmanPackages extends Table {
@@ -973,6 +997,7 @@ class OfflineSyncQueue extends Table {
     MicrobiologyCultures,
     ImagingStudies,
     Admissions,
+    IngestionInboxes,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -983,7 +1008,7 @@ class AppDatabase extends _$AppDatabase {
     : super(executor ?? openAppDatabaseExecutor());
 
   @override
-  int get schemaVersion => 35;
+  int get schemaVersion => 36;
 
   /// Tables that must exist for the drug catalog and POMR to function.
   ///
@@ -1086,6 +1111,9 @@ class AppDatabase extends _$AppDatabase {
         } catch (_) {}
         try {
           await m.createTable(admissions);
+        } catch (_) {}
+        try {
+          await m.createTable(ingestionInboxes);
         } catch (_) {}
 
         // Apply fallback columns to drug_master in case Python script was old
@@ -1366,6 +1394,9 @@ class AppDatabase extends _$AppDatabase {
             'CREATE INDEX IF NOT EXISTS patient_problems_patient_status_idx '
             'ON patient_problems (patient_id, current_status)',
           );
+        }
+        if (from < 36) {
+          await m.createTable(ingestionInboxes);
         }
         if (from >= 32 && from < 35) {
           await m.addColumn(clinicalRules, clinicalRules.differentialDiagnoses);

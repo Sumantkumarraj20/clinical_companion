@@ -6,6 +6,8 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
+import 'package:path/path.dart' as path;
+import 'package:path_provider/path_provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
 
@@ -14,6 +16,7 @@ import '../config/app_configuration.dart';
 import '../config/secure_config_service.dart';
 import '../database/daos/clinical_dao.dart';
 import '../database/daos/clinical_rule_dao.dart';
+import '../database/daos/ingestion_inbox_dao.dart';
 import '../database/daos/pharmacopeia_dao.dart';
 import '../database/daos/cdss_dao.dart';
 import '../database/local_database.dart';
@@ -88,6 +91,12 @@ final clinicalDaoProvider = Provider<ClinicalDao>(
 final clinicalRuleDaoProvider = Provider<ClinicalRuleDao>(
   (ref) => ClinicalRuleDao(ref.watch(appDatabaseProvider)),
 );
+final ingestionInboxDaoProvider = Provider<IngestionInboxDao>(
+  (ref) => IngestionInboxDao(ref.watch(appDatabaseProvider)),
+);
+final openIngestionInboxProvider = StreamProvider((ref) {
+  return ref.watch(ingestionInboxDaoProvider).watchOpenItems();
+});
 final pharmacopeiaDaoProvider = Provider<PharmacopeiaDao>(
   (ref) => PharmacopeiaDao(ref.watch(appDatabaseProvider)),
 );
@@ -251,12 +260,91 @@ class BatchExtractionNotifier extends Notifier<List<DocumentTask>> {
   /// Guards against two drains racing over the same pending task.
   bool _draining = false;
   bool _disposed = false;
+  bool _inboxRestored = false;
 
   @override
   List<DocumentTask> build() {
     _disposed = false;
     ref.onDispose(() => _disposed = true);
     return const [];
+  }
+
+  Future<void> restoreInbox() async {
+    if (_inboxRestored || _disposed) return;
+    await _restoreInbox();
+    _inboxRestored = true;
+  }
+
+  Future<void> _restoreInbox() async {
+    try {
+      final items = await ref.read(ingestionInboxDaoProvider).getOpenItems();
+      if (_disposed) return;
+      final restored = <DocumentTask>[];
+      final currentTasks = {for (final task in state) task.id: task};
+      for (final item in items) {
+        if (item.status == 'processing' &&
+            currentTasks[item.id]?.isInProgress == true) {
+          continue;
+        }
+        final text = item.payloadType == 'text' || item.payloadType == 'audio';
+        AiExtractionResult? extraction;
+        if (item.status == 'ready_for_review' && item.extractedJson != null) {
+          final decoded = jsonDecode(item.extractedJson!);
+          if (decoded is! Map) {
+            throw FormatException('Invalid saved extraction for ${item.id}.');
+          }
+          extraction = AiExtractionResult.fromJson(
+            Map<String, dynamic>.from(decoded),
+          );
+        }
+        final file = item.filePath == null ? null : File(item.filePath!);
+        final stillProcessing = item.status == 'processing';
+        restored.add(
+          DocumentTask(
+            id: item.id,
+            originalFile: file,
+            isTextInput: text,
+            isAmbientAudio: item.payloadType == 'audio',
+            useOmniIngestion: true,
+            status: item.status == 'ready_for_review'
+                ? ExtractionStatus.readyForReview
+                : item.status == 'error'
+                ? ExtractionStatus.error
+                : ExtractionStatus.pending,
+            extractedData: extraction,
+            source: text ? ExtractionSource.text : ExtractionSource.unknown,
+            rawOcrText: item.rawInput,
+            errorMessage: item.errorMessage,
+          ),
+        );
+        if (stillProcessing) {
+          await ref
+              .read(ingestionInboxDaoProvider)
+              .markError(
+                item.id,
+                'Processing was interrupted. Retry this item to continue.',
+              );
+          restored[restored.length - 1] = restored.last.copyWith(
+            status: ExtractionStatus.error,
+            errorMessage:
+                'Processing was interrupted. Retry this item to continue.',
+          );
+        }
+      }
+      if (_disposed) return;
+      final knownIds = {for (final task in state) task.id};
+      state = [
+        ...state,
+        for (final task in restored)
+          if (!knownIds.contains(task.id)) task,
+      ];
+      _kick();
+    } catch (error, stackTrace) {
+      debugPrint(
+        '[ClinCom] Could not restore ingestion inbox: $error\n$stackTrace',
+      );
+      rethrow;
+    }
   }
 
   /// Sprint 14.5 (Edit Mode) — replaces the queue with a single pre-built
@@ -482,6 +570,7 @@ class BatchExtractionNotifier extends Notifier<List<DocumentTask>> {
 
   Future<void> _runTask(DocumentTask task) async {
     if (task.useOmniIngestion) {
+      var workingTask = task;
       _update(
         task.id,
         status: task.isTextInput
@@ -490,21 +579,47 @@ class BatchExtractionNotifier extends Notifier<List<DocumentTask>> {
         clearError: true,
       );
       try {
-        final payload = task.isTextInput
-            ? TextPayload(
-                task.rawOcrText ?? '',
-                isAmbientAudio: task.isAmbientAudio,
-                activeCensusJson: task.activeCensusJson,
-              )
-            : task.originalFile == null
-            ? throw StateError('The selected document file is unavailable.')
-            : DocumentPayload(
-                task.originalFile!,
-                activeCensusJson: task.activeCensusJson,
+        await ref
+            .read(ingestionInboxDaoProvider)
+            .saveProcessing(
+              id: task.id,
+              payloadType: task.isTextInput
+                  ? task.isAmbientAudio
+                        ? 'audio'
+                        : 'text'
+                  : task.originalFile?.path.toLowerCase().endsWith('.pdf') ==
+                        true
+                  ? 'pdf'
+                  : 'image',
+              rawInput: task.rawOcrText ?? '',
+              filePath: task.originalFile?.path,
+            );
+        final file = await _copyInboxFile(task);
+        if (file != null) {
+          workingTask = task.copyWith(originalFile: file);
+          _update(task.id, originalFile: file);
+          await ref
+              .read(ingestionInboxDaoProvider)
+              .saveProcessing(
+                id: task.id,
+                payloadType: file.path.toLowerCase().endsWith('.pdf')
+                    ? 'pdf'
+                    : 'image',
+                rawInput: task.rawOcrText ?? '',
+                filePath: file.path,
               );
-        final result = await ref.read(omniIngestionServiceProvider).ingest(
-          payload,
-        );
+        }
+        final payload = _omniPayloadFor(workingTask);
+        final result = await ref
+            .read(omniIngestionServiceProvider)
+            .ingest(payload);
+        await ref
+            .read(ingestionInboxDaoProvider)
+            .markReady(
+              id: task.id,
+              result: result.data,
+              rawText: result.rawText ?? task.rawOcrText ?? '',
+            );
         _update(
           task.id,
           status: ExtractionStatus.readyForReview,
@@ -517,14 +632,19 @@ class BatchExtractionNotifier extends Notifier<List<DocumentTask>> {
           rawOcrText: result.rawText ?? task.rawOcrText,
         );
       } catch (error) {
-        _update(
-          task.id,
-          status: ExtractionStatus.error,
-          errorMessage: _describe(error),
-        );
+        final message = _describe(error);
+        try {
+          await ref.read(ingestionInboxDaoProvider).markError(task.id, message);
+        } catch (persistenceError) {
+          debugPrint(
+            '[ClinCom] Could not persist ingestion error: $persistenceError',
+          );
+        }
+        _update(task.id, status: ExtractionStatus.error, errorMessage: message);
       }
       return;
     }
+
     final pipeline = ref.read(extractionPipelineProvider);
 
     if (task.isTextInput) {
@@ -632,6 +752,46 @@ class BatchExtractionNotifier extends Notifier<List<DocumentTask>> {
     }
   }
 
+  Future<File?> _copyInboxFile(DocumentTask task) async {
+    final source = task.originalFile;
+    if (task.isTextInput) return null;
+    if (source == null || !await source.exists()) {
+      throw StateError('The selected document file is unavailable.');
+    }
+    final directory = await getApplicationSupportDirectory();
+    final inboxDirectory = Directory(
+      path.join(directory.path, 'clinical_inbox'),
+    );
+    await inboxDirectory.create(recursive: true);
+    final extension = path.extension(source.path).toLowerCase();
+    if (extension != '.pdf' &&
+        extension != '.png' &&
+        extension != '.jpg' &&
+        extension != '.jpeg' &&
+        extension != '.webp') {
+      throw FormatException('Unsupported clinical document type: $extension');
+    }
+    final target = File(path.join(inboxDirectory.path, '${task.id}$extension'));
+    if (source.path == target.path) return target;
+    return source.copy(target.path);
+  }
+
+  OmniPayload _omniPayloadFor(DocumentTask task) {
+    if (task.isTextInput) {
+      final text = task.rawOcrText ?? '';
+      return task.isAmbientAudio
+          ? AudioPayload(text, activeCensusJson: task.activeCensusJson)
+          : TextPayload(text, activeCensusJson: task.activeCensusJson);
+    }
+    final file = task.originalFile;
+    if (file == null) {
+      throw StateError('The selected document file is unavailable.');
+    }
+    return file.path.toLowerCase().endsWith('.pdf')
+        ? PdfPayload(file, activeCensusJson: task.activeCensusJson)
+        : ImagePayload(file, activeCensusJson: task.activeCensusJson);
+  }
+
   static String _short(Object error) {
     final text = error.toString();
     return text.length > 140 ? '${text.substring(0, 140)}…' : text;
@@ -644,6 +804,7 @@ class BatchExtractionNotifier extends Notifier<List<DocumentTask>> {
 
   void _update(
     String id, {
+    File? originalFile,
     ExtractionStatus? status,
     AiExtractionResult? data,
     ExtractionSource? source,
@@ -657,6 +818,7 @@ class BatchExtractionNotifier extends Notifier<List<DocumentTask>> {
       for (final task in state)
         if (task.id == id)
           task.copyWith(
+            originalFile: originalFile,
             status: status,
             extractedData: data,
             source: source,

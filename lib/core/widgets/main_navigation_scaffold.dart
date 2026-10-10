@@ -74,7 +74,7 @@ class MainNavigationScaffold extends ConsumerWidget {
     // The FAB is the single capture affordance. It is hidden on the wide
     // layout, where the navigation rail already exposes the tools inline and a
     // floating button would overlap content.
-    final fab = !isWide
+    final fab = !isWide && location != '/dashboard'
         ? FloatingActionButton(
             onPressed: () => showQuickActionSheet(context),
             tooltip: 'Quick actions',

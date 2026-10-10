@@ -71,7 +71,7 @@ class _TextIngestionScreenState extends ConsumerState<TextIngestionScreen> {
       ref
           .read(batchExtractionProvider.notifier)
           .addOmniText(text, activeCensusJson: census);
-      context.push('/adaptive-review');
+      context.go('/dashboard');
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -118,7 +118,7 @@ class _TextIngestionScreenState extends ConsumerState<TextIngestionScreen> {
   Widget build(BuildContext context) {
     final canProcess = !_submitting && _textController.text.trim().isNotEmpty;
     return Scaffold(
-      appBar: AppBar(title: const Text('Smart Paste')),
+      appBar: AppBar(title: const Text('Paste Clinical Text')),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: canProcess ? _processText : null,
         icon: _submitting

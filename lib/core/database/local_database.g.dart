@@ -22686,6 +22686,686 @@ class AdmissionsCompanion extends UpdateCompanion<Admission> {
   }
 }
 
+class $IngestionInboxesTable extends IngestionInboxes
+    with TableInfo<$IngestionInboxesTable, IngestionInboxItem> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $IngestionInboxesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _payloadTypeMeta = const VerificationMeta(
+    'payloadType',
+  );
+  @override
+  late final GeneratedColumn<String> payloadType = GeneratedColumn<String>(
+    'payload_type',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _rawInputMeta = const VerificationMeta(
+    'rawInput',
+  );
+  @override
+  late final GeneratedColumn<String> rawInput = GeneratedColumn<String>(
+    'raw_input',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _filePathMeta = const VerificationMeta(
+    'filePath',
+  );
+  @override
+  late final GeneratedColumn<String> filePath = GeneratedColumn<String>(
+    'file_path',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _statusMeta = const VerificationMeta('status');
+  @override
+  late final GeneratedColumn<String> status = GeneratedColumn<String>(
+    'status',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('processing'),
+  );
+  static const VerificationMeta _extractedJsonMeta = const VerificationMeta(
+    'extractedJson',
+  );
+  @override
+  late final GeneratedColumn<String> extractedJson = GeneratedColumn<String>(
+    'extracted_json',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _errorMessageMeta = const VerificationMeta(
+    'errorMessage',
+  );
+  @override
+  late final GeneratedColumn<String> errorMessage = GeneratedColumn<String>(
+    'error_message',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _patientIdMeta = const VerificationMeta(
+    'patientId',
+  );
+  @override
+  late final GeneratedColumn<String> patientId = GeneratedColumn<String>(
+    'patient_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES patients (id) ON DELETE SET NULL',
+    ),
+  );
+  static const VerificationMeta _encounterIdMeta = const VerificationMeta(
+    'encounterId',
+  );
+  @override
+  late final GeneratedColumn<String> encounterId = GeneratedColumn<String>(
+    'encounter_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES clinical_encounters (id) ON DELETE SET NULL',
+    ),
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    payloadType,
+    rawInput,
+    filePath,
+    status,
+    extractedJson,
+    errorMessage,
+    patientId,
+    encounterId,
+    createdAt,
+    updatedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'ingestion_inbox';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<IngestionInboxItem> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('payload_type')) {
+      context.handle(
+        _payloadTypeMeta,
+        payloadType.isAcceptableOrUnknown(
+          data['payload_type']!,
+          _payloadTypeMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_payloadTypeMeta);
+    }
+    if (data.containsKey('raw_input')) {
+      context.handle(
+        _rawInputMeta,
+        rawInput.isAcceptableOrUnknown(data['raw_input']!, _rawInputMeta),
+      );
+    }
+    if (data.containsKey('file_path')) {
+      context.handle(
+        _filePathMeta,
+        filePath.isAcceptableOrUnknown(data['file_path']!, _filePathMeta),
+      );
+    }
+    if (data.containsKey('status')) {
+      context.handle(
+        _statusMeta,
+        status.isAcceptableOrUnknown(data['status']!, _statusMeta),
+      );
+    }
+    if (data.containsKey('extracted_json')) {
+      context.handle(
+        _extractedJsonMeta,
+        extractedJson.isAcceptableOrUnknown(
+          data['extracted_json']!,
+          _extractedJsonMeta,
+        ),
+      );
+    }
+    if (data.containsKey('error_message')) {
+      context.handle(
+        _errorMessageMeta,
+        errorMessage.isAcceptableOrUnknown(
+          data['error_message']!,
+          _errorMessageMeta,
+        ),
+      );
+    }
+    if (data.containsKey('patient_id')) {
+      context.handle(
+        _patientIdMeta,
+        patientId.isAcceptableOrUnknown(data['patient_id']!, _patientIdMeta),
+      );
+    }
+    if (data.containsKey('encounter_id')) {
+      context.handle(
+        _encounterIdMeta,
+        encounterId.isAcceptableOrUnknown(
+          data['encounter_id']!,
+          _encounterIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  IngestionInboxItem map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return IngestionInboxItem(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      payloadType: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}payload_type'],
+      )!,
+      rawInput: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}raw_input'],
+      )!,
+      filePath: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}file_path'],
+      ),
+      status: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}status'],
+      )!,
+      extractedJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}extracted_json'],
+      ),
+      errorMessage: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}error_message'],
+      ),
+      patientId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}patient_id'],
+      ),
+      encounterId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}encounter_id'],
+      ),
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
+    );
+  }
+
+  @override
+  $IngestionInboxesTable createAlias(String alias) {
+    return $IngestionInboxesTable(attachedDatabase, alias);
+  }
+}
+
+class IngestionInboxItem extends DataClass
+    implements Insertable<IngestionInboxItem> {
+  final String id;
+  final String payloadType;
+  final String rawInput;
+  final String? filePath;
+  final String status;
+  final String? extractedJson;
+  final String? errorMessage;
+  final String? patientId;
+  final String? encounterId;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  const IngestionInboxItem({
+    required this.id,
+    required this.payloadType,
+    required this.rawInput,
+    this.filePath,
+    required this.status,
+    this.extractedJson,
+    this.errorMessage,
+    this.patientId,
+    this.encounterId,
+    required this.createdAt,
+    required this.updatedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['payload_type'] = Variable<String>(payloadType);
+    map['raw_input'] = Variable<String>(rawInput);
+    if (!nullToAbsent || filePath != null) {
+      map['file_path'] = Variable<String>(filePath);
+    }
+    map['status'] = Variable<String>(status);
+    if (!nullToAbsent || extractedJson != null) {
+      map['extracted_json'] = Variable<String>(extractedJson);
+    }
+    if (!nullToAbsent || errorMessage != null) {
+      map['error_message'] = Variable<String>(errorMessage);
+    }
+    if (!nullToAbsent || patientId != null) {
+      map['patient_id'] = Variable<String>(patientId);
+    }
+    if (!nullToAbsent || encounterId != null) {
+      map['encounter_id'] = Variable<String>(encounterId);
+    }
+    map['created_at'] = Variable<DateTime>(createdAt);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    return map;
+  }
+
+  IngestionInboxesCompanion toCompanion(bool nullToAbsent) {
+    return IngestionInboxesCompanion(
+      id: Value(id),
+      payloadType: Value(payloadType),
+      rawInput: Value(rawInput),
+      filePath: filePath == null && nullToAbsent
+          ? const Value.absent()
+          : Value(filePath),
+      status: Value(status),
+      extractedJson: extractedJson == null && nullToAbsent
+          ? const Value.absent()
+          : Value(extractedJson),
+      errorMessage: errorMessage == null && nullToAbsent
+          ? const Value.absent()
+          : Value(errorMessage),
+      patientId: patientId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(patientId),
+      encounterId: encounterId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(encounterId),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+    );
+  }
+
+  factory IngestionInboxItem.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return IngestionInboxItem(
+      id: serializer.fromJson<String>(json['id']),
+      payloadType: serializer.fromJson<String>(json['payloadType']),
+      rawInput: serializer.fromJson<String>(json['rawInput']),
+      filePath: serializer.fromJson<String?>(json['filePath']),
+      status: serializer.fromJson<String>(json['status']),
+      extractedJson: serializer.fromJson<String?>(json['extractedJson']),
+      errorMessage: serializer.fromJson<String?>(json['errorMessage']),
+      patientId: serializer.fromJson<String?>(json['patientId']),
+      encounterId: serializer.fromJson<String?>(json['encounterId']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'payloadType': serializer.toJson<String>(payloadType),
+      'rawInput': serializer.toJson<String>(rawInput),
+      'filePath': serializer.toJson<String?>(filePath),
+      'status': serializer.toJson<String>(status),
+      'extractedJson': serializer.toJson<String?>(extractedJson),
+      'errorMessage': serializer.toJson<String?>(errorMessage),
+      'patientId': serializer.toJson<String?>(patientId),
+      'encounterId': serializer.toJson<String?>(encounterId),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+    };
+  }
+
+  IngestionInboxItem copyWith({
+    String? id,
+    String? payloadType,
+    String? rawInput,
+    Value<String?> filePath = const Value.absent(),
+    String? status,
+    Value<String?> extractedJson = const Value.absent(),
+    Value<String?> errorMessage = const Value.absent(),
+    Value<String?> patientId = const Value.absent(),
+    Value<String?> encounterId = const Value.absent(),
+    DateTime? createdAt,
+    DateTime? updatedAt,
+  }) => IngestionInboxItem(
+    id: id ?? this.id,
+    payloadType: payloadType ?? this.payloadType,
+    rawInput: rawInput ?? this.rawInput,
+    filePath: filePath.present ? filePath.value : this.filePath,
+    status: status ?? this.status,
+    extractedJson: extractedJson.present
+        ? extractedJson.value
+        : this.extractedJson,
+    errorMessage: errorMessage.present ? errorMessage.value : this.errorMessage,
+    patientId: patientId.present ? patientId.value : this.patientId,
+    encounterId: encounterId.present ? encounterId.value : this.encounterId,
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+  );
+  IngestionInboxItem copyWithCompanion(IngestionInboxesCompanion data) {
+    return IngestionInboxItem(
+      id: data.id.present ? data.id.value : this.id,
+      payloadType: data.payloadType.present
+          ? data.payloadType.value
+          : this.payloadType,
+      rawInput: data.rawInput.present ? data.rawInput.value : this.rawInput,
+      filePath: data.filePath.present ? data.filePath.value : this.filePath,
+      status: data.status.present ? data.status.value : this.status,
+      extractedJson: data.extractedJson.present
+          ? data.extractedJson.value
+          : this.extractedJson,
+      errorMessage: data.errorMessage.present
+          ? data.errorMessage.value
+          : this.errorMessage,
+      patientId: data.patientId.present ? data.patientId.value : this.patientId,
+      encounterId: data.encounterId.present
+          ? data.encounterId.value
+          : this.encounterId,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('IngestionInboxItem(')
+          ..write('id: $id, ')
+          ..write('payloadType: $payloadType, ')
+          ..write('rawInput: $rawInput, ')
+          ..write('filePath: $filePath, ')
+          ..write('status: $status, ')
+          ..write('extractedJson: $extractedJson, ')
+          ..write('errorMessage: $errorMessage, ')
+          ..write('patientId: $patientId, ')
+          ..write('encounterId: $encounterId, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    payloadType,
+    rawInput,
+    filePath,
+    status,
+    extractedJson,
+    errorMessage,
+    patientId,
+    encounterId,
+    createdAt,
+    updatedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is IngestionInboxItem &&
+          other.id == this.id &&
+          other.payloadType == this.payloadType &&
+          other.rawInput == this.rawInput &&
+          other.filePath == this.filePath &&
+          other.status == this.status &&
+          other.extractedJson == this.extractedJson &&
+          other.errorMessage == this.errorMessage &&
+          other.patientId == this.patientId &&
+          other.encounterId == this.encounterId &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt);
+}
+
+class IngestionInboxesCompanion extends UpdateCompanion<IngestionInboxItem> {
+  final Value<String> id;
+  final Value<String> payloadType;
+  final Value<String> rawInput;
+  final Value<String?> filePath;
+  final Value<String> status;
+  final Value<String?> extractedJson;
+  final Value<String?> errorMessage;
+  final Value<String?> patientId;
+  final Value<String?> encounterId;
+  final Value<DateTime> createdAt;
+  final Value<DateTime> updatedAt;
+  final Value<int> rowid;
+  const IngestionInboxesCompanion({
+    this.id = const Value.absent(),
+    this.payloadType = const Value.absent(),
+    this.rawInput = const Value.absent(),
+    this.filePath = const Value.absent(),
+    this.status = const Value.absent(),
+    this.extractedJson = const Value.absent(),
+    this.errorMessage = const Value.absent(),
+    this.patientId = const Value.absent(),
+    this.encounterId = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  IngestionInboxesCompanion.insert({
+    required String id,
+    required String payloadType,
+    this.rawInput = const Value.absent(),
+    this.filePath = const Value.absent(),
+    this.status = const Value.absent(),
+    this.extractedJson = const Value.absent(),
+    this.errorMessage = const Value.absent(),
+    this.patientId = const Value.absent(),
+    this.encounterId = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       payloadType = Value(payloadType);
+  static Insertable<IngestionInboxItem> custom({
+    Expression<String>? id,
+    Expression<String>? payloadType,
+    Expression<String>? rawInput,
+    Expression<String>? filePath,
+    Expression<String>? status,
+    Expression<String>? extractedJson,
+    Expression<String>? errorMessage,
+    Expression<String>? patientId,
+    Expression<String>? encounterId,
+    Expression<DateTime>? createdAt,
+    Expression<DateTime>? updatedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (payloadType != null) 'payload_type': payloadType,
+      if (rawInput != null) 'raw_input': rawInput,
+      if (filePath != null) 'file_path': filePath,
+      if (status != null) 'status': status,
+      if (extractedJson != null) 'extracted_json': extractedJson,
+      if (errorMessage != null) 'error_message': errorMessage,
+      if (patientId != null) 'patient_id': patientId,
+      if (encounterId != null) 'encounter_id': encounterId,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  IngestionInboxesCompanion copyWith({
+    Value<String>? id,
+    Value<String>? payloadType,
+    Value<String>? rawInput,
+    Value<String?>? filePath,
+    Value<String>? status,
+    Value<String?>? extractedJson,
+    Value<String?>? errorMessage,
+    Value<String?>? patientId,
+    Value<String?>? encounterId,
+    Value<DateTime>? createdAt,
+    Value<DateTime>? updatedAt,
+    Value<int>? rowid,
+  }) {
+    return IngestionInboxesCompanion(
+      id: id ?? this.id,
+      payloadType: payloadType ?? this.payloadType,
+      rawInput: rawInput ?? this.rawInput,
+      filePath: filePath ?? this.filePath,
+      status: status ?? this.status,
+      extractedJson: extractedJson ?? this.extractedJson,
+      errorMessage: errorMessage ?? this.errorMessage,
+      patientId: patientId ?? this.patientId,
+      encounterId: encounterId ?? this.encounterId,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (payloadType.present) {
+      map['payload_type'] = Variable<String>(payloadType.value);
+    }
+    if (rawInput.present) {
+      map['raw_input'] = Variable<String>(rawInput.value);
+    }
+    if (filePath.present) {
+      map['file_path'] = Variable<String>(filePath.value);
+    }
+    if (status.present) {
+      map['status'] = Variable<String>(status.value);
+    }
+    if (extractedJson.present) {
+      map['extracted_json'] = Variable<String>(extractedJson.value);
+    }
+    if (errorMessage.present) {
+      map['error_message'] = Variable<String>(errorMessage.value);
+    }
+    if (patientId.present) {
+      map['patient_id'] = Variable<String>(patientId.value);
+    }
+    if (encounterId.present) {
+      map['encounter_id'] = Variable<String>(encounterId.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('IngestionInboxesCompanion(')
+          ..write('id: $id, ')
+          ..write('payloadType: $payloadType, ')
+          ..write('rawInput: $rawInput, ')
+          ..write('filePath: $filePath, ')
+          ..write('status: $status, ')
+          ..write('extractedJson: $extractedJson, ')
+          ..write('errorMessage: $errorMessage, ')
+          ..write('patientId: $patientId, ')
+          ..write('encounterId: $encounterId, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -22743,6 +23423,9 @@ abstract class _$AppDatabase extends GeneratedDatabase {
       $MicrobiologyCulturesTable(this);
   late final $ImagingStudiesTable imagingStudies = $ImagingStudiesTable(this);
   late final $AdmissionsTable admissions = $AdmissionsTable(this);
+  late final $IngestionInboxesTable ingestionInboxes = $IngestionInboxesTable(
+    this,
+  );
   late final Index patientsFullNameIdx = Index(
     'patients_full_name_idx',
     'CREATE INDEX patients_full_name_idx ON patients (full_name)',
@@ -22862,6 +23545,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     microbiologyCultures,
     imagingStudies,
     admissions,
+    ingestionInboxes,
     patientsFullNameIdx,
     patientHospMrnIdx,
     clinicalEncountersPatientOccurredIdx,
@@ -23145,6 +23829,20 @@ abstract class _$AppDatabase extends GeneratedDatabase {
         limitUpdateKind: UpdateKind.delete,
       ),
       result: [TableUpdate('admissions', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'patients',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('ingestion_inbox', kind: UpdateKind.update)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'clinical_encounters',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('ingestion_inbox', kind: UpdateKind.update)],
     ),
   ]);
   @override
@@ -23543,6 +24241,26 @@ final class $$PatientsTableReferences
     ).filter((f) => f.patientId.id.sqlEquals($_itemColumn<String>('id')!));
 
     final cache = $_typedResult.readTableOrNull(_admissionsRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$IngestionInboxesTable, List<IngestionInboxItem>>
+  _ingestionInboxesRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.ingestionInboxes,
+    aliasName: 'patients__id__ingestion_inbox__patient_id',
+  );
+
+  $$IngestionInboxesTableProcessedTableManager get ingestionInboxesRefs {
+    final manager = $$IngestionInboxesTableTableManager(
+      $_db,
+      $_db.ingestionInboxes,
+    ).filter((f) => f.patientId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _ingestionInboxesRefsTable($_db),
+    );
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: cache),
     );
@@ -24010,6 +24728,31 @@ class $$PatientsTableFilterComposer
           }) => $$AdmissionsTableFilterComposer(
             $db: $db,
             $table: $db.admissions,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> ingestionInboxesRefs(
+    Expression<bool> Function($$IngestionInboxesTableFilterComposer f) f,
+  ) {
+    final $$IngestionInboxesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.ingestionInboxes,
+      getReferencedColumn: (t) => t.patientId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$IngestionInboxesTableFilterComposer(
+            $db: $db,
+            $table: $db.ingestionInboxes,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -24548,6 +25291,31 @@ class $$PatientsTableAnnotationComposer
     );
     return f(composer);
   }
+
+  Expression<T> ingestionInboxesRefs<T extends Object>(
+    Expression<T> Function($$IngestionInboxesTableAnnotationComposer a) f,
+  ) {
+    final $$IngestionInboxesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.ingestionInboxes,
+      getReferencedColumn: (t) => t.patientId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$IngestionInboxesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.ingestionInboxes,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$PatientsTableTableManager
@@ -24580,6 +25348,7 @@ class $$PatientsTableTableManager
             bool microbiologyCulturesRefs,
             bool imagingStudiesRefs,
             bool admissionsRefs,
+            bool ingestionInboxesRefs,
           })
         > {
   $$PatientsTableTableManager(_$AppDatabase db, $PatientsTable table)
@@ -24675,6 +25444,7 @@ class $$PatientsTableTableManager
                 microbiologyCulturesRefs = false,
                 imagingStudiesRefs = false,
                 admissionsRefs = false,
+                ingestionInboxesRefs = false,
               }) {
                 return PrefetchHooks(
                   db: db,
@@ -24697,6 +25467,7 @@ class $$PatientsTableTableManager
                     if (microbiologyCulturesRefs) db.microbiologyCultures,
                     if (imagingStudiesRefs) db.imagingStudies,
                     if (admissionsRefs) db.admissions,
+                    if (ingestionInboxesRefs) db.ingestionInboxes,
                   ],
                   addJoins: null,
                   getPrefetchedDataCallback: (items) async {
@@ -25037,6 +25808,27 @@ class $$PatientsTableTableManager
                               ),
                           typedResults: items,
                         ),
+                      if (ingestionInboxesRefs)
+                        await $_getPrefetchedData<
+                          Patient,
+                          $PatientsTable,
+                          IngestionInboxItem
+                        >(
+                          currentTable: table,
+                          referencedTable: $$PatientsTableReferences
+                              ._ingestionInboxesRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$PatientsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).ingestionInboxesRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.patientId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                     ];
                   },
                 );
@@ -25074,6 +25866,7 @@ typedef $$PatientsTableProcessedTableManager =
         bool microbiologyCulturesRefs,
         bool imagingStudiesRefs,
         bool admissionsRefs,
+        bool ingestionInboxesRefs,
       })
     >;
 typedef $$HospitalsTableCreateCompanionBuilder =
@@ -26772,6 +27565,26 @@ final class $$ClinicalEncountersTableReferences
       manager.$state.copyWith(prefetchedData: cache),
     );
   }
+
+  static MultiTypedResultKey<$IngestionInboxesTable, List<IngestionInboxItem>>
+  _ingestionInboxesRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.ingestionInboxes,
+    aliasName: 'clinical_encounters__id__ingestion_inbox__encounter_id',
+  );
+
+  $$IngestionInboxesTableProcessedTableManager get ingestionInboxesRefs {
+    final manager = $$IngestionInboxesTableTableManager(
+      $_db,
+      $_db.ingestionInboxes,
+    ).filter((f) => f.encounterId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _ingestionInboxesRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
 }
 
 class $$ClinicalEncountersTableFilterComposer
@@ -27189,6 +28002,31 @@ class $$ClinicalEncountersTableFilterComposer
           }) => $$ClinicalLearningLogsTableFilterComposer(
             $db: $db,
             $table: $db.clinicalLearningLogs,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> ingestionInboxesRefs(
+    Expression<bool> Function($$IngestionInboxesTableFilterComposer f) f,
+  ) {
+    final $$IngestionInboxesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.ingestionInboxes,
+      getReferencedColumn: (t) => t.encounterId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$IngestionInboxesTableFilterComposer(
+            $db: $db,
+            $table: $db.ingestionInboxes,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -27816,6 +28654,31 @@ class $$ClinicalEncountersTableAnnotationComposer
         );
     return f(composer);
   }
+
+  Expression<T> ingestionInboxesRefs<T extends Object>(
+    Expression<T> Function($$IngestionInboxesTableAnnotationComposer a) f,
+  ) {
+    final $$IngestionInboxesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.ingestionInboxes,
+      getReferencedColumn: (t) => t.encounterId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$IngestionInboxesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.ingestionInboxes,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$ClinicalEncountersTableTableManager
@@ -27841,6 +28704,7 @@ class $$ClinicalEncountersTableTableManager
             bool prescriptionOrdersRefs,
             bool investigationOrdersRefs,
             bool clinicalLearningLogsRefs,
+            bool ingestionInboxesRefs,
           })
         > {
   $$ClinicalEncountersTableTableManager(
@@ -28040,6 +28904,7 @@ class $$ClinicalEncountersTableTableManager
                 prescriptionOrdersRefs = false,
                 investigationOrdersRefs = false,
                 clinicalLearningLogsRefs = false,
+                ingestionInboxesRefs = false,
               }) {
                 return PrefetchHooks(
                   db: db,
@@ -28052,6 +28917,7 @@ class $$ClinicalEncountersTableTableManager
                     if (prescriptionOrdersRefs) db.prescriptionOrders,
                     if (investigationOrdersRefs) db.investigationOrders,
                     if (clinicalLearningLogsRefs) db.clinicalLearningLogs,
+                    if (ingestionInboxesRefs) db.ingestionInboxes,
                   ],
                   addJoins:
                       <
@@ -28251,6 +29117,27 @@ class $$ClinicalEncountersTableTableManager
                               ),
                           typedResults: items,
                         ),
+                      if (ingestionInboxesRefs)
+                        await $_getPrefetchedData<
+                          ClinicalEncounter,
+                          $ClinicalEncountersTable,
+                          IngestionInboxItem
+                        >(
+                          currentTable: table,
+                          referencedTable: $$ClinicalEncountersTableReferences
+                              ._ingestionInboxesRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$ClinicalEncountersTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).ingestionInboxesRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.encounterId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                     ];
                   },
                 );
@@ -28281,6 +29168,7 @@ typedef $$ClinicalEncountersTableProcessedTableManager =
         bool prescriptionOrdersRefs,
         bool investigationOrdersRefs,
         bool clinicalLearningLogsRefs,
+        bool ingestionInboxesRefs,
       })
     >;
 typedef $$PatientProblemsTableCreateCompanionBuilder =
@@ -41330,6 +42218,546 @@ typedef $$AdmissionsTableProcessedTableManager =
       Admission,
       PrefetchHooks Function({bool patientId, bool hospitalId})
     >;
+typedef $$IngestionInboxesTableCreateCompanionBuilder =
+    IngestionInboxesCompanion Function({
+      required String id,
+      required String payloadType,
+      Value<String> rawInput,
+      Value<String?> filePath,
+      Value<String> status,
+      Value<String?> extractedJson,
+      Value<String?> errorMessage,
+      Value<String?> patientId,
+      Value<String?> encounterId,
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+      Value<int> rowid,
+    });
+typedef $$IngestionInboxesTableUpdateCompanionBuilder =
+    IngestionInboxesCompanion Function({
+      Value<String> id,
+      Value<String> payloadType,
+      Value<String> rawInput,
+      Value<String?> filePath,
+      Value<String> status,
+      Value<String?> extractedJson,
+      Value<String?> errorMessage,
+      Value<String?> patientId,
+      Value<String?> encounterId,
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+      Value<int> rowid,
+    });
+
+final class $$IngestionInboxesTableReferences
+    extends
+        BaseReferences<
+          _$AppDatabase,
+          $IngestionInboxesTable,
+          IngestionInboxItem
+        > {
+  $$IngestionInboxesTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $PatientsTable _patientIdTable(_$AppDatabase db) =>
+      db.patients.createAlias('ingestion_inbox__patient_id__patients__id');
+
+  $$PatientsTableProcessedTableManager? get patientId {
+    final $_column = $_itemColumn<String>('patient_id');
+    if ($_column == null) return null;
+    final manager = $$PatientsTableTableManager(
+      $_db,
+      $_db.patients,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_patientIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $ClinicalEncountersTable _encounterIdTable(_$AppDatabase db) => db
+      .clinicalEncounters
+      .createAlias('ingestion_inbox__encounter_id__clinical_encounters__id');
+
+  $$ClinicalEncountersTableProcessedTableManager? get encounterId {
+    final $_column = $_itemColumn<String>('encounter_id');
+    if ($_column == null) return null;
+    final manager = $$ClinicalEncountersTableTableManager(
+      $_db,
+      $_db.clinicalEncounters,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_encounterIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$IngestionInboxesTableFilterComposer
+    extends Composer<_$AppDatabase, $IngestionInboxesTable> {
+  $$IngestionInboxesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get payloadType => $composableBuilder(
+    column: $table.payloadType,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get rawInput => $composableBuilder(
+    column: $table.rawInput,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get filePath => $composableBuilder(
+    column: $table.filePath,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get status => $composableBuilder(
+    column: $table.status,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get extractedJson => $composableBuilder(
+    column: $table.extractedJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get errorMessage => $composableBuilder(
+    column: $table.errorMessage,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$PatientsTableFilterComposer get patientId {
+    final $$PatientsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.patientId,
+      referencedTable: $db.patients,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PatientsTableFilterComposer(
+            $db: $db,
+            $table: $db.patients,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$ClinicalEncountersTableFilterComposer get encounterId {
+    final $$ClinicalEncountersTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.encounterId,
+      referencedTable: $db.clinicalEncounters,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ClinicalEncountersTableFilterComposer(
+            $db: $db,
+            $table: $db.clinicalEncounters,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$IngestionInboxesTableOrderingComposer
+    extends Composer<_$AppDatabase, $IngestionInboxesTable> {
+  $$IngestionInboxesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get payloadType => $composableBuilder(
+    column: $table.payloadType,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get rawInput => $composableBuilder(
+    column: $table.rawInput,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get filePath => $composableBuilder(
+    column: $table.filePath,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get status => $composableBuilder(
+    column: $table.status,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get extractedJson => $composableBuilder(
+    column: $table.extractedJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get errorMessage => $composableBuilder(
+    column: $table.errorMessage,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$PatientsTableOrderingComposer get patientId {
+    final $$PatientsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.patientId,
+      referencedTable: $db.patients,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PatientsTableOrderingComposer(
+            $db: $db,
+            $table: $db.patients,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$ClinicalEncountersTableOrderingComposer get encounterId {
+    final $$ClinicalEncountersTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.encounterId,
+      referencedTable: $db.clinicalEncounters,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ClinicalEncountersTableOrderingComposer(
+            $db: $db,
+            $table: $db.clinicalEncounters,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$IngestionInboxesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $IngestionInboxesTable> {
+  $$IngestionInboxesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get payloadType => $composableBuilder(
+    column: $table.payloadType,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get rawInput =>
+      $composableBuilder(column: $table.rawInput, builder: (column) => column);
+
+  GeneratedColumn<String> get filePath =>
+      $composableBuilder(column: $table.filePath, builder: (column) => column);
+
+  GeneratedColumn<String> get status =>
+      $composableBuilder(column: $table.status, builder: (column) => column);
+
+  GeneratedColumn<String> get extractedJson => $composableBuilder(
+    column: $table.extractedJson,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get errorMessage => $composableBuilder(
+    column: $table.errorMessage,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  $$PatientsTableAnnotationComposer get patientId {
+    final $$PatientsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.patientId,
+      referencedTable: $db.patients,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PatientsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.patients,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$ClinicalEncountersTableAnnotationComposer get encounterId {
+    final $$ClinicalEncountersTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.encounterId,
+          referencedTable: $db.clinicalEncounters,
+          getReferencedColumn: (t) => t.id,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$ClinicalEncountersTableAnnotationComposer(
+                $db: $db,
+                $table: $db.clinicalEncounters,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return composer;
+  }
+}
+
+class $$IngestionInboxesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $IngestionInboxesTable,
+          IngestionInboxItem,
+          $$IngestionInboxesTableFilterComposer,
+          $$IngestionInboxesTableOrderingComposer,
+          $$IngestionInboxesTableAnnotationComposer,
+          $$IngestionInboxesTableCreateCompanionBuilder,
+          $$IngestionInboxesTableUpdateCompanionBuilder,
+          (IngestionInboxItem, $$IngestionInboxesTableReferences),
+          IngestionInboxItem,
+          PrefetchHooks Function({bool patientId, bool encounterId})
+        > {
+  $$IngestionInboxesTableTableManager(
+    _$AppDatabase db,
+    $IngestionInboxesTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$IngestionInboxesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$IngestionInboxesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$IngestionInboxesTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> payloadType = const Value.absent(),
+                Value<String> rawInput = const Value.absent(),
+                Value<String?> filePath = const Value.absent(),
+                Value<String> status = const Value.absent(),
+                Value<String?> extractedJson = const Value.absent(),
+                Value<String?> errorMessage = const Value.absent(),
+                Value<String?> patientId = const Value.absent(),
+                Value<String?> encounterId = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => IngestionInboxesCompanion(
+                id: id,
+                payloadType: payloadType,
+                rawInput: rawInput,
+                filePath: filePath,
+                status: status,
+                extractedJson: extractedJson,
+                errorMessage: errorMessage,
+                patientId: patientId,
+                encounterId: encounterId,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String payloadType,
+                Value<String> rawInput = const Value.absent(),
+                Value<String?> filePath = const Value.absent(),
+                Value<String> status = const Value.absent(),
+                Value<String?> extractedJson = const Value.absent(),
+                Value<String?> errorMessage = const Value.absent(),
+                Value<String?> patientId = const Value.absent(),
+                Value<String?> encounterId = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => IngestionInboxesCompanion.insert(
+                id: id,
+                payloadType: payloadType,
+                rawInput: rawInput,
+                filePath: filePath,
+                status: status,
+                extractedJson: extractedJson,
+                errorMessage: errorMessage,
+                patientId: patientId,
+                encounterId: encounterId,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$IngestionInboxesTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({patientId = false, encounterId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (patientId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.patientId,
+                                referencedTable:
+                                    $$IngestionInboxesTableReferences
+                                        ._patientIdTable(db),
+                                referencedColumn:
+                                    $$IngestionInboxesTableReferences
+                                        ._patientIdTable(db)
+                                        .id,
+                              )
+                              as T;
+                    }
+                    if (encounterId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.encounterId,
+                                referencedTable:
+                                    $$IngestionInboxesTableReferences
+                                        ._encounterIdTable(db),
+                                referencedColumn:
+                                    $$IngestionInboxesTableReferences
+                                        ._encounterIdTable(db)
+                                        .id,
+                              )
+                              as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$IngestionInboxesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $IngestionInboxesTable,
+      IngestionInboxItem,
+      $$IngestionInboxesTableFilterComposer,
+      $$IngestionInboxesTableOrderingComposer,
+      $$IngestionInboxesTableAnnotationComposer,
+      $$IngestionInboxesTableCreateCompanionBuilder,
+      $$IngestionInboxesTableUpdateCompanionBuilder,
+      (IngestionInboxItem, $$IngestionInboxesTableReferences),
+      IngestionInboxItem,
+      PrefetchHooks Function({bool patientId, bool encounterId})
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -41412,4 +42840,6 @@ class $AppDatabaseManager {
       $$ImagingStudiesTableTableManager(_db, _db.imagingStudies);
   $$AdmissionsTableTableManager get admissions =>
       $$AdmissionsTableTableManager(_db, _db.admissions);
+  $$IngestionInboxesTableTableManager get ingestionInboxes =>
+      $$IngestionInboxesTableTableManager(_db, _db.ingestionInboxes);
 }

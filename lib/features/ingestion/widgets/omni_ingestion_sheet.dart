@@ -54,7 +54,6 @@ class _OmniIngestionSheetState extends ConsumerState<OmniIngestionSheet> {
   void _goReview() {
     if (!mounted) return;
     Navigator.of(context).pop();
-    unawaited(context.push<void>('/adaptive-review'));
   }
 
   void _fail(Object error) {
@@ -95,12 +94,9 @@ class _OmniIngestionSheetState extends ConsumerState<OmniIngestionSheet> {
     unawaited(context.push<void>('/text-ingestion'));
   }
 
-  Future<void> _scanDocument() => _withBusy(() async {
+  Future<void> _pickImage(ImageSource source) => _withBusy(() async {
     try {
-      final picked = await _picker.pickImage(
-        source: ImageSource.camera,
-        imageQuality: 90,
-      );
+      final picked = await _picker.pickImage(source: source, imageQuality: 90);
       if (picked == null || !mounted) return;
       final census = await _census();
       if (!mounted) return;
@@ -169,9 +165,17 @@ class _OmniIngestionSheetState extends ConsumerState<OmniIngestionSheet> {
               contentPadding: EdgeInsets.zero,
               leading: const Icon(Icons.document_scanner_outlined),
               title: const Text('Capture Image'),
-              subtitle: const Text('Photograph a paper report'),
+              subtitle: const Text('Use the camera on a paper report'),
               enabled: !_busy,
-              onTap: () => _scanDocument(),
+              onTap: () => _pickImage(ImageSource.camera),
+            ),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.photo_library_outlined),
+              title: const Text('Choose from Gallery'),
+              subtitle: const Text('Select an existing image'),
+              enabled: !_busy,
+              onTap: () => _pickImage(ImageSource.gallery),
             ),
             ListTile(
               contentPadding: EdgeInsets.zero,
