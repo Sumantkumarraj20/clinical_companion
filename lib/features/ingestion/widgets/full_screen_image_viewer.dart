@@ -1,6 +1,8 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:path/path.dart' as path;
+import 'package:pdf_render_maintained/pdf_render_widgets.dart';
 
 /// Full-screen, pinch-to-zoom viewer for a scanned clinical document.
 ///
@@ -76,6 +78,7 @@ class _FullScreenImageViewerState extends State<FullScreenImageViewer>
     // `existsSync` avoids handing an unreadable path to Image.file, which would
     // otherwise surface a raw framework error rather than a usable message.
     final exists = file.existsSync();
+    final isPdf = path.extension(widget.imagePath).toLowerCase() == '.pdf';
 
     return Scaffold(
       backgroundColor: Colors.black,
@@ -96,25 +99,27 @@ class _FullScreenImageViewerState extends State<FullScreenImageViewer>
               // Double-tap zoom. Single taps are left to the pan gesture so a
               // double tap never accidentally dismisses.
               onDoubleTap: _handleDoubleTap,
-              child: InteractiveViewer(
-                transformationController: _transform,
-                minScale: 1,
-                maxScale: 6,
-                child: Center(
-                  child: Image.file(
-                    file,
-                    // `filterQuality: none` keeps fine print legible when
-                    // zoomed instead of blurring it away.
-                    filterQuality: FilterQuality.none,
-                    errorBuilder: (context, error, _) => const Center(
-                      child: Text(
-                        'Could not display this image.',
-                        style: TextStyle(color: Colors.white70),
+              child: isPdf
+                  ? PdfViewer.openFile(widget.imagePath)
+                  : InteractiveViewer(
+                      transformationController: _transform,
+                      minScale: 1,
+                      maxScale: 6,
+                      child: Center(
+                        child: Image.file(
+                          file,
+                          // `filterQuality: none` keeps fine print legible when
+                          // zoomed instead of blurring it away.
+                          filterQuality: FilterQuality.none,
+                          errorBuilder: (context, error, _) => const Center(
+                            child: Text(
+                              'Could not display this image.',
+                              style: TextStyle(color: Colors.white70),
+                            ),
+                          ),
+                        ),
                       ),
                     ),
-                  ),
-                ),
-              ),
             ),
       // A reset control, because a clinician can pan off-image and get lost.
       floatingActionButton: ValueListenableBuilder<Matrix4>(

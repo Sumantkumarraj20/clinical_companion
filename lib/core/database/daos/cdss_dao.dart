@@ -14,6 +14,8 @@ class CdssDao extends DatabaseAccessor<AppDatabase> with _$CdssDaoMixin {
   Future<List<CdssRule>> rulesForProblem(String problem) =>
       (select(cdssRules)..where((row) => row.targetProblem.equals(problem))).get();
 
+  Future<List<CdssRule>> allRules() => select(cdssRules).get();
+
   Future<CdssRule> saveRule(CdssRulesCompanion values) async {
     final id = values.id.present ? values.id.value : _uuid.v4();
     await into(cdssRules).insertOnConflictUpdate(values.copyWith(id: Value(id)));

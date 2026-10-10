@@ -75,7 +75,11 @@ class _AmbientScribeFabState extends ConsumerState<AmbientScribeFab>
       final census = await BatchExtractionNotifier.buildActiveCensusJson(dao);
       ref
           .read(batchExtractionProvider.notifier)
-          .addText(transcript, activeCensusJson: census, isAmbientAudio: true);
+          .addOmniText(
+            transcript,
+            activeCensusJson: census,
+            isAmbientAudio: true,
+          );
       if (!mounted) return;
       setState(() => _processing = false);
       unawaited(context.push<void>('/adaptive-review', extra: widget.patient));

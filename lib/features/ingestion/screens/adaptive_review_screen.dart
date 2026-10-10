@@ -8,6 +8,8 @@ import '../../../core/utils/document_image_hasher.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:path/path.dart' as path;
+import 'package:pdf_render_maintained/pdf_render_widgets.dart';
 
 import '../../../core/database/daos/clinical_dao.dart';
 import '../../../core/database/local_database.dart';
@@ -459,7 +461,7 @@ class _AdaptiveReviewScreenState extends ConsumerState<AdaptiveReviewScreen> {
       // ClinCom can resolve a bed number to a patient at extraction time.
       final census = await BatchExtractionNotifier.buildActiveCensusJson(dao);
       if (!mounted) return;
-      notifier.addFiles(fresh, activeCensusJson: census);
+      notifier.addOmniFiles(fresh, activeCensusJson: census);
       _index = ref.read(batchExtractionProvider).length - 1;
       _clampIndex();
       setState(() {});
@@ -882,6 +884,13 @@ class _AdaptiveReviewScreenState extends ConsumerState<AdaptiveReviewScreen> {
 
   Widget _thumb(File file, {double height = 140, BoxFit fit = BoxFit.cover}) {
     if (!file.existsSync()) return _thumbPlaceholder(height);
+    if (path.extension(file.path).toLowerCase() == '.pdf') {
+      return SizedBox(
+        height: height,
+        width: double.infinity,
+        child: PdfViewer.openFile(file.path),
+      );
+    }
     return ClipRRect(
       borderRadius: BorderRadius.circular(8),
       child: Image.file(

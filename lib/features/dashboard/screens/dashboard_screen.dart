@@ -133,18 +133,6 @@ class DashboardScreen extends ConsumerWidget {
                           label: const Text('Start OPD consult'),
                         ),
                         OutlinedButton.icon(
-                          onPressed: () =>
-                              showOmniIngestionSheet(context),
-                          icon: const Icon(Icons.document_scanner_outlined),
-                          label: const Text('Scan clinical document'),
-                        ),
-                        OutlinedButton.icon(
-                          onPressed: () =>
-                              showOmniIngestionSheet(context),
-                          icon: const Icon(Icons.content_paste_go_outlined),
-                          label: const Text('Add clinical data'),
-                        ),
-                        OutlinedButton.icon(
                           onPressed: () => context.go('/ward-dashboard'),
                           icon: const Icon(Icons.local_hospital_outlined),
                           label: const Text('Ward round'),

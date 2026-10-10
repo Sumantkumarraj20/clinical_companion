@@ -28,6 +28,7 @@ class OmniIngestionSheet extends ConsumerStatefulWidget {
 
 class _OmniIngestionSheetState extends ConsumerState<OmniIngestionSheet> {
   bool _busy = false;
+  bool _listening = false;
   final _picker = ImagePicker();
 
   Future<void> _withBusy(Future<void> Function() work) async {
@@ -65,14 +66,24 @@ class _OmniIngestionSheetState extends ConsumerState<OmniIngestionSheet> {
 
   Future<void> _listen() => _withBusy(() async {
     try {
-      await ref.read(ambientScribeServiceProvider).startListening();
+      final scribe = ref.read(ambientScribeServiceProvider);
+      if (!_listening) {
+        await scribe.startListening();
+        if (mounted) setState(() => _listening = true);
+        return;
+      }
+      final transcript = await scribe.stopAndGetTranscript();
+      if (mounted) setState(() => _listening = false);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Listening… stop the scribe to structure the note.'),
-        ),
-      );
-      Navigator.of(context).pop();
+      final census = await _census();
+      ref
+          .read(batchExtractionProvider.notifier)
+          .addOmniText(
+            transcript,
+            activeCensusJson: census,
+            isAmbientAudio: true,
+          );
+      _goReview();
     } catch (error) {
       _fail(error);
     }
@@ -93,9 +104,9 @@ class _OmniIngestionSheetState extends ConsumerState<OmniIngestionSheet> {
       if (picked == null || !mounted) return;
       final census = await _census();
       if (!mounted) return;
-      ref
-          .read(batchExtractionProvider.notifier)
-          .addFiles([File(picked.path)], activeCensusJson: census);
+      ref.read(batchExtractionProvider.notifier).addOmniFiles([
+        File(picked.path),
+      ], activeCensusJson: census);
       _goReview();
     } catch (error) {
       _fail(error);
@@ -112,9 +123,9 @@ class _OmniIngestionSheetState extends ConsumerState<OmniIngestionSheet> {
       if (path == null || path.isEmpty || !mounted) return;
       final census = await _census();
       if (!mounted) return;
-      ref
-          .read(batchExtractionProvider.notifier)
-          .addFiles([File(path)], activeCensusJson: census);
+      ref.read(batchExtractionProvider.notifier).addOmniFiles([
+        File(path),
+      ], activeCensusJson: census);
       _goReview();
     } catch (error) {
       _fail(error);
@@ -143,15 +154,21 @@ class _OmniIngestionSheetState extends ConsumerState<OmniIngestionSheet> {
             ListTile(
               contentPadding: EdgeInsets.zero,
               leading: const Icon(Icons.mic_outlined),
-              title: const Text('Listen (Scribe)'),
-              subtitle: const Text('Dictate the encounter hands-free'),
+              title: Text(
+                _listening ? 'Stop Ambient Scribe' : 'Ambient Scribe',
+              ),
+              subtitle: Text(
+                _listening
+                    ? 'Recording in progress; tap to review the transcript'
+                    : 'Capture the encounter by voice',
+              ),
               enabled: !_busy,
               onTap: _listen,
             ),
             ListTile(
               contentPadding: EdgeInsets.zero,
               leading: const Icon(Icons.document_scanner_outlined),
-              title: const Text('Scan Document'),
+              title: const Text('Capture Image'),
               subtitle: const Text('Photograph a paper report'),
               enabled: !_busy,
               onTap: () => _scanDocument(),
@@ -167,8 +184,8 @@ class _OmniIngestionSheetState extends ConsumerState<OmniIngestionSheet> {
             ListTile(
               contentPadding: EdgeInsets.zero,
               leading: const Icon(Icons.content_paste_go_outlined),
-              title: const Text('Paste Text'),
-              subtitle: const Text('Structure typed or copied notes'),
+              title: const Text('Paste Text/Guidelines'),
+              subtitle: const Text('Add copied notes or clinical guidance'),
               enabled: !_busy,
               onTap: _paste,
             ),

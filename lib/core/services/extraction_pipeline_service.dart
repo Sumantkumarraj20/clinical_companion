@@ -2,8 +2,12 @@ import 'dart:convert';
 import 'clincom_escalation.dart';
 import 'dart:io';
 import 'dart:isolate';
+import 'dart:math' as math;
+import 'dart:ui' as ui;
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
+import 'package:path/path.dart' as path;
+import 'package:pdf_render_maintained/pdf_render.dart';
 
 import '../ai/document_ai_service.dart';
 import '../models/ai_extraction_result.dart';
@@ -151,13 +155,27 @@ class ExtractionPipelineService {
 
   Future<PipelineExtraction> processDocumentWithProvenance(File image) async {
     final rawText = await recognizeRawText(image);
+    return processRecognizedDocumentWithProvenance(image, rawText);
+  }
 
+  /// Reuses text already obtained by the omni-ingestion pre-compute pass.
+  Future<PipelineExtraction> processRecognizedDocumentWithProvenance(
+    File image,
+    String rawText, {
+    String? activeCensusJson,
+  }) async {
     final local = parseLocalText(rawText);
     if (local != null) {
       return PipelineExtraction(result: local, source: PipelineSource.local);
     }
 
-    return refineWithAi(image, rawText);
+    if (path.extension(image.path).toLowerCase() == '.pdf') {
+      return processTextWithProvenance(
+        rawText,
+        activeCensusJson: activeCensusJson,
+      );
+    }
+    return refineWithAi(image, rawText, activeCensusJson: activeCensusJson);
   }
 
   /// Sends clinician-pasted text directly to ClinCom, without OCR, image
@@ -204,10 +222,61 @@ class ExtractionPipelineService {
   }
 
   Future<String> recognizeRawText(File image) async {
+    if (path.extension(image.path).toLowerCase() == '.pdf') {
+      return _recognizePdfText(image);
+    }
     final recognized = await _textRecognizer.processImage(
       InputImage.fromFile(image),
     );
     return recognized.text;
+  }
+
+  Future<String> _recognizePdfText(File pdfFile) async {
+    final scratch = await Directory.systemTemp.createTemp(
+      'clinical-companion-pdf-',
+    );
+    try {
+      final document = await PdfDocument.openFile(pdfFile.path);
+      try {
+      final pageText = <String>[];
+      for (var pageNumber = 1;
+          pageNumber <= document.pageCount;
+          pageNumber++) {
+        final page = await document.getPage(pageNumber);
+        final scale = math
+            .min(2.0, 3000 / math.max(page.width, page.height))
+            .toDouble();
+        final rendered = await page.render(
+          fullWidth: page.width * scale,
+          fullHeight: page.height * scale,
+        );
+        final raster = await rendered.createImageDetached();
+        try {
+          final png = await raster.toByteData(
+            format: ui.ImageByteFormat.png,
+          );
+          if (png == null) {
+            throw StateError('Could not encode PDF page $pageNumber.');
+          }
+          final pageFile = File(
+            path.join(scratch.path, 'page-$pageNumber.png'),
+          );
+          await pageFile.writeAsBytes(png.buffer.asUint8List());
+          final recognized = await _textRecognizer.processImage(
+            InputImage.fromFile(pageFile),
+          );
+          pageText.add(recognized.text);
+        } finally {
+          raster.dispose();
+        }
+      }
+      return pageText.join('\n');
+      } finally {
+        await document.dispose();
+      }
+    } finally {
+      await scratch.delete(recursive: true);
+    }
   }
 
   /// Free, instant on-device parse of an already recognised transcript.

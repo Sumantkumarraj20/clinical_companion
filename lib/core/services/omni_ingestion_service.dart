@@ -17,10 +17,15 @@ sealed class OmniPayload {
 
 /// Voice transcripts and pasted text — no OCR needed.
 class TextPayload extends OmniPayload {
-  const TextPayload(this.text, {this.isAmbientAudio = false});
+  const TextPayload(
+    this.text, {
+    this.isAmbientAudio = false,
+    this.activeCensusJson,
+  });
 
   final String text;
   final bool isAmbientAudio;
+  final String? activeCensusJson;
 }
 
 /// Camera scans and imported PDFs — OCR (or direct file bytes) needed.
@@ -52,6 +57,7 @@ class OmniIngestionResult {
     required this.localConfidence,
     this.matchedRuleIds = const [],
     this.localSummary,
+    this.rawText,
   });
 
   final AiExtractionResult data;
@@ -59,6 +65,7 @@ class OmniIngestionResult {
   final double localConfidence;
   final List<String> matchedRuleIds;
   final String? localSummary;
+  final String? rawText;
 }
 
 /// Sprint 28 — "The Unified Omni-Ingestion Engine & Local Knowledge Dominance".
@@ -77,47 +84,30 @@ class OmniIngestionService {
     required ExtractionPipelineService pipeline,
     required ClinicalRuleDao ruleDao,
     required CdssDao cdssDao,
-    required AppDatabase database,
+    required this.database,
   }) : _pipeline = pipeline,
        _ruleDao = ruleDao,
-       _cdssDao = cdssDao,
-       _database = database;
+       _cdssDao = cdssDao;
 
   final DocumentAiService aiService;
   final ExtractionPipelineService _pipeline;
   final ClinicalRuleDao _ruleDao;
   final CdssDao _cdssDao;
-  final AppDatabase _database;
+  final AppDatabase database;
 
   /// Confidence at/above which the local knowledge base wins outright.
   static const double highConfidenceThreshold = 0.75;
 
-  /// Confidence below which the cloud is always consulted (even with hits).
-  static const double lowConfidenceThreshold = 0.35;
-
   /// Routes any payload through local-first normalization.
-  Future<OmniIngestionResult> ingest(
-    OmniPayload payload, {
-    ThinkingLevel thinkingLevel = ThinkingLevel.low,
-  }) async {
+  Future<OmniIngestionResult> ingest(OmniPayload payload) async {
     final rawText = await _rawTextFor(payload);
     final local = await preCompute(rawText);
 
     if (payload is TextPayload) {
-      return _ingestText(
-        payload,
-        rawText: rawText,
-        local: local,
-        thinkingLevel: thinkingLevel,
-      );
+      return _ingestText(payload, rawText: rawText, local: local);
     }
     final document = payload as DocumentPayload;
-    return _ingestDocument(
-      document,
-      rawText: rawText,
-      local: local,
-      thinkingLevel: thinkingLevel,
-    );
+    return _ingestDocument(document, rawText: rawText, local: local);
   }
 
   Future<OmniIngestionResult> preCompute(String rawText) async {
@@ -130,50 +120,47 @@ class OmniIngestionService {
       );
     }
     final normalized = text.toLowerCase();
-    final query = _database.select(_database.clinicalRules)
-      ..where((rule) => rule.isDismissed.equals(false));
-    final allRules = await query.get();
-    allRules.sort((a, b) {
-      if (a.isVerified != b.isVerified) return a.isVerified ? -1 : 1;
-      return b.createdAt.compareTo(a.createdAt);
-    });
-    final cdssRules = await _database.select(_database.cdssRules).get();
-    await _ruleDao.findRule(
-      triggerType: 'diagnosis',
-      triggerValue: '__none__',
-    );
-    await _cdssDao.rulesForProblem('__none__');
+    final allRules = await _ruleDao.activeProtocols();
+    final verifiedRules = allRules.where((rule) => rule.isVerified).toList()
+      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    final cdssRules = await _cdssDao.allRules();
     final matchedProblems = <AiProblem>[];
     final matchedMeds = <OrderedMedication>[];
     final matchedRuleIds = <String>[];
     var hits = 0;
-    var candidates = 0;
-    for (final rule in allRules) {
-      candidates++;
+    for (final rule in verifiedRules) {
       final trigger = rule.triggerValue.trim();
       if (trigger.isEmpty) continue;
       if (_containsPhrase(normalized, trigger.toLowerCase())) {
         hits++;
         matchedRuleIds.add(rule.id);
-        matchedProblems.add(
-          AiProblem(
-            diagnosis: rule.triggerType == 'diagnosis'
-                ? rule.triggerValue
-                : rule.suggestedAction,
-            linkedMedications: [
-              OrderedMedication(
-                drugName: rule.triggerType == 'medication'
-                    ? rule.triggerValue
-                    : rule.suggestedAction,
-              ),
-            ],
-            reasoning: 'Matched local clinical protocol.',
-          ),
-        );
+        final diagnosis = rule.triggerType == 'diagnosis'
+            ? rule.triggerValue
+            : rule.triggerType == 'symptom'
+            ? rule.triggerValue
+            : '';
+        final reasoning = [
+          rule.evidenceRationale.trim(),
+          rule.suggestedAction.trim(),
+          ...rule.recommendedManagement,
+        ].where((item) => item.isNotEmpty).join(' ');
+        if (diagnosis.isNotEmpty) {
+          matchedProblems.add(
+            AiProblem(
+              diagnosis: diagnosis,
+              reasoning: reasoning,
+              linkedInvestigations: rule.recommendedInvestigations
+                  .map((test) => AiInvestigation(testName: test))
+                  .toList(growable: false),
+            ),
+          );
+        }
+        if (rule.triggerType == 'medication') {
+          matchedMeds.add(OrderedMedication(drugName: rule.triggerValue));
+        }
       }
     }
     for (final rule in cdssRules) {
-      candidates++;
       if (rule.targetProblem.trim().isNotEmpty &&
           _containsPhrase(normalized, rule.targetProblem.toLowerCase())) {
         hits++;
@@ -183,10 +170,9 @@ class OmniIngestionService {
     }
     final vitals = _extractVitals(normalized);
     if (vitals.sbp != null || vitals.dbp != null) hits++;
-    final confidence = candidates == 0
+    final confidence = hits == 0
         ? 0.0
-        : (hits / (candidates + 1)).clamp(0.0, 1.0);
-    final boosted = (confidence + (hits >= 2 ? 0.45 : 0.0)).clamp(0.0, 1.0);
+        : (0.75 + (hits > 1 ? 0.15 : 0.0)).clamp(0.0, 1.0);
     final data = AiExtractionResult(
       problems: matchedProblems,
       medicationsOrdered: matchedMeds,
@@ -198,23 +184,22 @@ class OmniIngestionService {
     return OmniIngestionResult(
       data: data,
       source: OmniIngestionSource.local,
-      localConfidence: boosted,
+      localConfidence: confidence,
       matchedRuleIds: matchedRuleIds,
+      rawText: rawText,
     );
   }
 
   Future<String> _rawTextFor(OmniPayload payload) async {
     if (payload is TextPayload) return payload.text;
     final document = payload as DocumentPayload;
-    final name = document.file.path.split(Platform.pathSeparator).last;
-    return name.replaceAll(RegExp(r'[_\-.]+'), ' ');
+    return _pipeline.recognizeRawText(document.file);
   }
 
   Future<OmniIngestionResult> _ingestText(
     TextPayload payload, {
     required String rawText,
     required OmniIngestionResult local,
-    required ThinkingLevel thinkingLevel,
   }) async {
     if (local.localConfidence >= highConfidenceThreshold &&
         _isDataAdequate(local.data)) {
@@ -222,6 +207,7 @@ class OmniIngestionService {
     }
     final extraction = await _pipeline.processTextPayload(
       rawText,
+      activeCensusJson: payload.activeCensusJson,
       ambientAudioTranscription: payload.isAmbientAudio,
     );
     final merged = _mergeLocalUnder(extraction.result, local);
@@ -234,6 +220,7 @@ class OmniIngestionService {
       localConfidence: local.localConfidence,
       matchedRuleIds: local.matchedRuleIds,
       localSummary: local.localSummary,
+      rawText: rawText,
     );
   }
 
@@ -241,10 +228,15 @@ class OmniIngestionService {
     DocumentPayload payload, {
     required String rawText,
     required OmniIngestionResult local,
-    required ThinkingLevel thinkingLevel,
   }) async {
-    final extraction = await _pipeline.processDocumentWithProvenance(
+    if (local.localConfidence >= highConfidenceThreshold &&
+        _isDataAdequate(local.data)) {
+      return local;
+    }
+    final extraction = await _pipeline.processRecognizedDocumentWithProvenance(
       payload.file,
+      rawText,
+      activeCensusJson: payload.activeCensusJson,
     );
     if (extraction.source == PipelineSource.local &&
         local.localConfidence >= highConfidenceThreshold) {
@@ -254,6 +246,7 @@ class OmniIngestionService {
         localConfidence: local.localConfidence,
         matchedRuleIds: local.matchedRuleIds,
         localSummary: local.localSummary,
+        rawText: rawText,
       );
     }
     final merged = _mergeLocalUnder(extraction.result, local);
@@ -268,6 +261,7 @@ class OmniIngestionService {
       localConfidence: local.localConfidence,
       matchedRuleIds: local.matchedRuleIds,
       localSummary: local.localSummary,
+      rawText: rawText,
     );
   }
 
@@ -292,6 +286,16 @@ class OmniIngestionService {
     ];
     return cloud.copyWith(
       problems: problems,
+      medicationsOrdered: [
+        ...local.data.medicationsOrdered,
+        for (final medication in cloud.medicationsOrdered)
+          if (!local.data.medicationsOrdered.any(
+            (localMedication) =>
+                localMedication.drugName.toLowerCase() ==
+                medication.drugName.toLowerCase(),
+          ))
+            medication,
+      ],
       vitals: cloud.vitals.sbp != null ? cloud.vitals : local.data.vitals,
     );
   }

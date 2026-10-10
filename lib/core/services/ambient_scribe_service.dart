@@ -129,7 +129,10 @@ class AmbientScribeService with WidgetsBindingObserver {
   static const int _maxNoSpeechRetries = 1;
 
   /// Fallback chain when the requested on-device locale is unavailable.
-  static const List<String> _fallbackLocaleChain = ['en_US', 'en_IN'];
+  /// Order matters: prefer the clinician's preferred Hindi pack (`hi_IN`),
+  /// then the English-India pack (`en_IN`), then the US/device default
+  /// (`en_US`).
+  static const List<String> _fallbackLocaleChain = ['hi_IN', 'en_IN', 'en_US'];
 
   String get localeId => _localeId;
 

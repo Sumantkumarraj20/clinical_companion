@@ -31,6 +31,7 @@ class DocumentTask {
     this.originalFile,
     this.isTextInput = false,
     this.isAmbientAudio = false,
+    this.useOmniIngestion = false,
     this.status = ExtractionStatus.pending,
     this.extractedData,
     this.source = ExtractionSource.unknown,
@@ -43,6 +44,7 @@ class DocumentTask {
   final File? originalFile;
   final bool isTextInput;
   final bool isAmbientAudio;
+  final bool useOmniIngestion;
   final ExtractionStatus status;
   final AiExtractionResult? extractedData;
   final ExtractionSource source;
@@ -85,6 +87,7 @@ class DocumentTask {
       originalFile: originalFile,
       isTextInput: isTextInput,
       isAmbientAudio: isAmbientAudio,
+      useOmniIngestion: useOmniIngestion,
       activeCensusJson: activeCensusJson,
       status: status ?? this.status,
       extractedData: clearExtractedData

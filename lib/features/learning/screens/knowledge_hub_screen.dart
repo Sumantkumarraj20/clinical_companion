@@ -579,7 +579,7 @@ class _ClinicalProtocolsTab extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return StreamBuilder<List<CachedClinicalRule>>(
-      stream: ref.watch(clinicalRuleDaoProvider).watchActiveProtocols(),
+      stream: ref.watch(clinicalRuleDaoProvider).watchProtocols(),
       builder: (context, snapshot) {
         if (snapshot.hasError) {
           return const _HubEmpty(
@@ -593,10 +593,20 @@ class _ClinicalProtocolsTab extends ConsumerWidget {
         }
         final rules = snapshot.data!;
         if (rules.isEmpty) {
-          return const _HubEmpty(
-            icon: Icons.vaccines_outlined,
-            title: 'No clinical protocols yet',
-            body: 'Verified protocols take precedence in local ingestion.',
+          return ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              FilledButton.icon(
+                onPressed: () => _ProtocolEditor.edit(context, ref, null),
+                icon: const Icon(Icons.add),
+                label: const Text('New Protocol'),
+              ),
+              const _HubEmpty(
+                icon: Icons.vaccines_outlined,
+                title: 'No clinical protocols yet',
+                body: 'Verified protocols take precedence in local ingestion.',
+              ),
+            ],
           );
         }
         return ListView.builder(
@@ -614,26 +624,42 @@ class _ClinicalProtocolsTab extends ConsumerWidget {
             return Card(
               child: ListTile(
                 leading: Icon(
-                  rule.isVerified
+                  rule.isDismissed
+                      ? Icons.block_outlined
+                      : rule.isVerified
                       ? Icons.verified_outlined
                       : Icons.pending_outlined,
                 ),
                 title: Text('${rule.triggerType}: ${rule.triggerValue}'),
-                subtitle: Text(rule.suggestedAction),
+                subtitle: Text(
+                  '${rule.isDismissed ? 'Deprecated · ' : ''}'
+                  '${rule.suggestedAction}',
+                ),
                 trailing: PopupMenuButton<String>(
                   onSelected: (value) {
                     if (value == 'edit') {
                       _ProtocolEditor.edit(context, ref, rule);
                     } else if (value == 'deprecate') {
                       ref.read(clinicalRuleDaoProvider).dismissRule(rule.id);
+                    } else if (value == 'restore') {
+                      ref.read(clinicalRuleDaoProvider).restoreRule(rule.id);
                     } else if (value == 'delete') {
                       ref.read(clinicalRuleDaoProvider).deleteRule(rule.id);
                     }
                   },
-                  itemBuilder: (context) => const [
-                    PopupMenuItem(value: 'edit', child: Text('Edit')),
-                    PopupMenuItem(value: 'deprecate', child: Text('Deprecate')),
-                    PopupMenuItem(value: 'delete', child: Text('Delete')),
+                  itemBuilder: (context) => [
+                    const PopupMenuItem(value: 'edit', child: Text('Edit')),
+                    if (rule.isDismissed)
+                      const PopupMenuItem(
+                        value: 'restore',
+                        child: Text('Restore'),
+                      )
+                    else
+                      const PopupMenuItem(
+                        value: 'deprecate',
+                        child: Text('Deprecate'),
+                      ),
+                    const PopupMenuItem(value: 'delete', child: Text('Delete')),
                   ],
                 ),
               ),
@@ -657,14 +683,27 @@ class _ProtocolEditor {
     final triggerValue = TextEditingController(
       text: existing?.triggerValue ?? '',
     );
-    final action = TextEditingController(
-      text: existing?.suggestedAction ?? '',
-    );
+    final action = TextEditingController(text: existing?.suggestedAction ?? '');
     final rationale = TextEditingController(
       text: existing?.evidenceRationale ?? '',
     );
+    final contraindications = TextEditingController(
+      text: (existing?.contraindicatingConditions ?? []).join('\n'),
+    );
     final monitoring = TextEditingController(
-      text: (existing?.requiredMonitoring ?? []).join('; '),
+      text: (existing?.requiredMonitoring ?? []).join('\n'),
+    );
+    final differential = TextEditingController(
+      text: (existing?.differentialDiagnoses ?? []).join('\n'),
+    );
+    final investigations = TextEditingController(
+      text: (existing?.recommendedInvestigations ?? []).join('\n'),
+    );
+    final management = TextEditingController(
+      text: (existing?.recommendedManagement ?? []).join('\n'),
+    );
+    final sourceReference = TextEditingController(
+      text: existing?.sourceReference ?? '',
     );
     final ok = await showDialog<bool>(
       context: context,
@@ -689,10 +728,54 @@ class _ProtocolEditor {
               TextField(
                 controller: rationale,
                 decoration: const InputDecoration(labelText: 'Rationale'),
+                minLines: 2,
+                maxLines: 4,
+              ),
+              TextField(
+                controller: contraindications,
+                decoration: const InputDecoration(
+                  labelText: 'Contraindications (one per line)',
+                ),
+                minLines: 1,
+                maxLines: 4,
               ),
               TextField(
                 controller: monitoring,
-                decoration: const InputDecoration(labelText: 'Monitoring'),
+                decoration: const InputDecoration(
+                  labelText: 'Required monitoring (one per line)',
+                ),
+                minLines: 1,
+                maxLines: 4,
+              ),
+              TextField(
+                controller: differential,
+                decoration: const InputDecoration(
+                  labelText: 'Differential diagnoses (one per line)',
+                ),
+                minLines: 1,
+                maxLines: 4,
+              ),
+              TextField(
+                controller: investigations,
+                decoration: const InputDecoration(
+                  labelText: 'Recommended investigations (one per line)',
+                ),
+                minLines: 1,
+                maxLines: 4,
+              ),
+              TextField(
+                controller: management,
+                decoration: const InputDecoration(
+                  labelText: 'Recommended management (one per line)',
+                ),
+                minLines: 1,
+                maxLines: 4,
+              ),
+              TextField(
+                controller: sourceReference,
+                decoration: const InputDecoration(
+                  labelText: 'Source reference',
+                ),
               ),
             ],
           ),
@@ -709,25 +792,64 @@ class _ProtocolEditor {
         ],
       ),
     );
-    if (ok != true || !context.mounted) return;
+    List<String> lines(TextEditingController controller) => controller.text
+        .split('\n')
+        .map((line) => line.trim())
+        .where((line) => line.isNotEmpty)
+        .toList(growable: false);
+    if (ok != true || !context.mounted) {
+      for (final controller in [
+        triggerType,
+        triggerValue,
+        action,
+        rationale,
+        contraindications,
+        monitoring,
+        differential,
+        investigations,
+        management,
+        sourceReference,
+      ]) {
+        controller.dispose();
+      }
+      return;
+    }
     try {
-      await ref.read(clinicalRuleDaoProvider).upsertManualRule(
+      await ref
+          .read(clinicalRuleDaoProvider)
+          .upsertManualRule(
             id: existing?.id,
             triggerType: triggerType.text,
             triggerValue: triggerValue.text,
             suggestedAction: action.text,
             evidenceRationale: rationale.text,
-            requiredMonitoring: monitoring.text
-                .split(';')
-                .map((part) => part.trim())
-                .where((part) => part.isNotEmpty)
-                .toList(),
+            contraindicatingConditions: lines(contraindications),
+            requiredMonitoring: lines(monitoring),
+            differentialDiagnoses: lines(differential),
+            recommendedInvestigations: lines(investigations),
+            recommendedManagement: lines(management),
+            sourceReference: sourceReference.text,
           );
     } catch (error) {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Could not save protocol: $error')),
       );
+    } finally {
+      for (final controller in [
+        triggerType,
+        triggerValue,
+        action,
+        rationale,
+        contraindications,
+        monitoring,
+        differential,
+        investigations,
+        management,
+        sourceReference,
+      ]) {
+        controller.dispose();
+      }
     }
   }
 }

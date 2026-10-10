@@ -326,6 +326,29 @@ class BatchExtractionNotifier extends Notifier<List<DocumentTask>> {
     _kick();
   }
 
+  /// Queues files through the local-first omni-ingestion service.
+  void addOmniFiles(List<File> files, {String? activeCensusJson}) {
+    final seen = <String>{
+      for (final task in state)
+        if (task.originalFile case final file?) file.path,
+    };
+    final newTasks = <DocumentTask>[];
+    for (final file in files) {
+      if (!seen.add(file.path)) continue;
+      newTasks.add(
+        DocumentTask(
+          id: _ids.v4(),
+          originalFile: file,
+          activeCensusJson: activeCensusJson,
+          useOmniIngestion: true,
+        ),
+      );
+    }
+    if (newTasks.isEmpty) return;
+    state = [...state, ...newTasks];
+    _kick();
+  }
+
   /// Enqueues clinician-pasted text for direct text-only ClinCom extraction.
   void addText(
     String rawText, {
@@ -344,6 +367,30 @@ class BatchExtractionNotifier extends Notifier<List<DocumentTask>> {
         rawOcrText: rawText,
         source: ExtractionSource.text,
         activeCensusJson: activeCensusJson,
+      ),
+    ];
+    _kick();
+  }
+
+  /// Enqueues text or a voice transcript through the local-first engine.
+  void addOmniText(
+    String rawText, {
+    String? activeCensusJson,
+    bool isAmbientAudio = false,
+  }) {
+    if (rawText.trim().isEmpty) {
+      throw ArgumentError.value(rawText, 'rawText', 'Text cannot be empty');
+    }
+    state = [
+      ...state,
+      DocumentTask(
+        id: _ids.v4(),
+        isTextInput: true,
+        isAmbientAudio: isAmbientAudio,
+        rawOcrText: rawText,
+        source: ExtractionSource.text,
+        activeCensusJson: activeCensusJson,
+        useOmniIngestion: true,
       ),
     ];
     _kick();
@@ -434,6 +481,50 @@ class BatchExtractionNotifier extends Notifier<List<DocumentTask>> {
   }
 
   Future<void> _runTask(DocumentTask task) async {
+    if (task.useOmniIngestion) {
+      _update(
+        task.id,
+        status: task.isTextInput
+            ? ExtractionStatus.processingAi
+            : ExtractionStatus.processingOcr,
+        clearError: true,
+      );
+      try {
+        final payload = task.isTextInput
+            ? TextPayload(
+                task.rawOcrText ?? '',
+                isAmbientAudio: task.isAmbientAudio,
+                activeCensusJson: task.activeCensusJson,
+              )
+            : task.originalFile == null
+            ? throw StateError('The selected document file is unavailable.')
+            : DocumentPayload(
+                task.originalFile!,
+                activeCensusJson: task.activeCensusJson,
+              );
+        final result = await ref.read(omniIngestionServiceProvider).ingest(
+          payload,
+        );
+        _update(
+          task.id,
+          status: ExtractionStatus.readyForReview,
+          data: result.data,
+          source: switch (result.source) {
+            OmniIngestionSource.local => ExtractionSource.local,
+            OmniIngestionSource.cloud || OmniIngestionSource.hybrid =>
+              task.isTextInput ? ExtractionSource.text : ExtractionSource.ai,
+          },
+          rawOcrText: result.rawText ?? task.rawOcrText,
+        );
+      } catch (error) {
+        _update(
+          task.id,
+          status: ExtractionStatus.error,
+          errorMessage: _describe(error),
+        );
+      }
+      return;
+    }
     final pipeline = ref.read(extractionPipelineProvider);
 
     if (task.isTextInput) {

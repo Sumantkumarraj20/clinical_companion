@@ -126,12 +126,11 @@ class InteractionsApiClient {
       'input': input,
       // Stateless: clinical payloads are never retained for history.
       'store': false,
-      if (jsonSchema != null)
-        'response_format': <String, dynamic>{
-          'type': 'text',
-          'mime_type': 'application/json',
-          'schema': jsonSchema,
-        },
+      'response_format': <String, dynamic>{
+        'type': 'text',
+        'mime_type': 'application/json',
+        if (jsonSchema != null) 'schema': jsonSchema,
+      },
       if (thinkingLevel != null)
         'generation_config': <String, dynamic>{
           'thinking_level': thinkingLevel.value,

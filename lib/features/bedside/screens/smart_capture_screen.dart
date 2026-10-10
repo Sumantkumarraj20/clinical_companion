@@ -57,7 +57,7 @@ class _SmartCaptureScreenState extends ConsumerState<SmartCaptureScreen> {
       if (!mounted) return;
       ref
           .read(batchExtractionProvider.notifier)
-          .addFiles(files, activeCensusJson: census);
+          .addOmniFiles(files, activeCensusJson: census);
       if (!mounted) return;
 
       // STEP 1 — straight into the review queue; extraction continues there.

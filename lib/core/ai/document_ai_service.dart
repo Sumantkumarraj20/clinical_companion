@@ -558,7 +558,7 @@ $sourceText
         text.contains('api_key') ||
         text.contains('invalid api key')) {
       return DocumentAiException(
-        'AI configuration is invalid or API key is missing.',
+        'ClinCom configuration is invalid or API key is missing.',
         type: DocumentAiErrorType.configuration,
         cause: error,
       );
@@ -568,7 +568,7 @@ $sourceText
         text.contains('quota') ||
         text.contains('resource_exhausted')) {
       return DocumentAiException(
-        'AI rate limit or quota reached. Please wait a moment.',
+        'ClinCom rate limit or quota reached. Please wait a moment.',
         type: DocumentAiErrorType.rateLimited,
         cause: error,
         retryable: true,
@@ -580,7 +580,7 @@ $sourceText
         text.contains('permission') ||
         text.contains('unauthenticated')) {
       return DocumentAiException(
-        'AI access is not authorized. Check your API key credentials.',
+        'ClinCom access is not authorized. Check your API key credentials.',
         type: DocumentAiErrorType.authentication,
         cause: error,
       );
@@ -594,7 +594,7 @@ $sourceText
       final status = error.statusCode!;
       if (status == 400) {
         return DocumentAiException(
-          "ClinCom's AI request was rejected as invalid (400 INVALID_ARGUMENT). "
+          "ClinCom's request was rejected as invalid (400 INVALID_ARGUMENT). "
           'A legacy sampling parameter (temperature, top_p, top_k, '
           'thinking_budget) is no longer accepted by the Interactions API.',
           type: DocumentAiErrorType.invalidRequest,
@@ -603,14 +603,14 @@ $sourceText
       }
       if (status == 401 || status == 403) {
         return DocumentAiException(
-          'AI access is not authorized. Check your API key credentials.',
+          'ClinCom access is not authorized. Check your API key credentials.',
           type: DocumentAiErrorType.authentication,
           cause: error,
         );
       }
       if (status == 429) {
         return DocumentAiException(
-          'AI rate limit or quota reached. Please wait a moment.',
+          'ClinCom rate limit or quota reached. Please wait a moment.',
           type: DocumentAiErrorType.rateLimited,
           cause: error,
           retryable: true,
@@ -619,7 +619,7 @@ $sourceText
       }
       if (status >= 500) {
         return DocumentAiException(
-          'AI service is temporarily unavailable.',
+          'ClinCom service is temporarily unavailable.',
           type: DocumentAiErrorType.server,
           cause: error,
           retryable: true,
@@ -631,7 +631,7 @@ $sourceText
       // Plain-string simulation of an INVALID_ARGUMENT failure (tests and
       // any transport that lost its status code).
       return DocumentAiException(
-        "ClinCom's AI request was rejected as invalid (400 INVALID_ARGUMENT). "
+        "ClinCom's request was rejected as invalid (400 INVALID_ARGUMENT). "
         'A legacy sampling parameter (temperature, top_p, top_k, '
         'thinking_budget) is no longer accepted by the Interactions API.',
         type: DocumentAiErrorType.invalidRequest,
@@ -659,7 +659,7 @@ $sourceText
     }
     if (text.contains('timeout')) {
       return DocumentAiException(
-        'AI request timed out. Please try again.',
+        'ClinCom request timed out. Please try again.',
         type: DocumentAiErrorType.timeout,
         cause: error,
         retryable: true,
@@ -667,7 +667,7 @@ $sourceText
     }
     if (text.contains('500') || text.contains('server')) {
       return DocumentAiException(
-        'AI service is temporarily unavailable.',
+        'ClinCom service is temporarily unavailable.',
         type: DocumentAiErrorType.server,
         cause: error,
         retryable: true,
@@ -675,14 +675,14 @@ $sourceText
     }
     if (text.contains('schema') || text.contains('json')) {
       return DocumentAiException(
-        'AI returned malformed or schema-invalid data.',
+        'ClinCom returned malformed or schema-invalid data.',
         type: DocumentAiErrorType.schemaViolation,
         cause: error,
       );
     }
     if (text.contains('empty')) {
       return DocumentAiException(
-        'AI returned no usable content.',
+        'ClinCom returned no usable content.',
         type: DocumentAiErrorType.emptyResponse,
         cause: error,
       );
@@ -691,7 +691,7 @@ $sourceText
       return error;
     }
     return DocumentAiException(
-      'AI extraction failed while using model $model: $error',
+      'ClinCom extraction failed while using model $model: $error',
       type: DocumentAiErrorType.unknown,
       cause: error,
     );
@@ -741,7 +741,7 @@ $sourceText
 
     if (lastError is DocumentAiException) throw lastError;
     throw const DocumentAiException(
-      'AI extraction failed after multiple attempts.',
+      'ClinCom extraction failed after multiple attempts.',
       type: DocumentAiErrorType.server,
       retryable: false,
     );

@@ -313,6 +313,16 @@ class ClinicalRuleDao extends DatabaseAccessor<AppDatabase>
             ]))
           .watch();
 
+  /// All protocols, including deprecated rows retained for review and editing.
+  Stream<List<CachedClinicalRule>> watchProtocols() =>
+      (select(clinicalRules)
+            ..orderBy([
+              (rule) => OrderingTerm.desc(rule.isDismissed),
+              (rule) => OrderingTerm.desc(rule.isVerified),
+              (rule) => OrderingTerm.desc(rule.createdAt),
+            ]))
+          .watch();
+
   Future<List<CachedClinicalRule>> activeProtocols() =>
       (select(clinicalRules)
             ..where((rule) => rule.isDismissed.equals(false))
@@ -325,5 +335,10 @@ class ClinicalRuleDao extends DatabaseAccessor<AppDatabase>
   Future<void> dismissRule(String id) =>
       (update(clinicalRules)..where((rule) => rule.id.equals(id))).write(
         const ClinicalRulesCompanion(isDismissed: Value(true)),
+      );
+
+  Future<void> restoreRule(String id) =>
+      (update(clinicalRules)..where((rule) => rule.id.equals(id))).write(
+        const ClinicalRulesCompanion(isDismissed: Value(false)),
       );
 }

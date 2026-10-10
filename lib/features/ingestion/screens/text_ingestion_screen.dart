@@ -70,7 +70,7 @@ class _TextIngestionScreenState extends ConsumerState<TextIngestionScreen> {
       if (!mounted) return;
       ref
           .read(batchExtractionProvider.notifier)
-          .addText(text, activeCensusJson: census);
+          .addOmniText(text, activeCensusJson: census);
       context.push('/adaptive-review');
     } catch (error) {
       if (!mounted) return;
