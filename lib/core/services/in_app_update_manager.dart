@@ -122,42 +122,51 @@ class InAppUpdateManager {
     final savePath = p.join(updateDirectory.path, fileName);
     final target = File(savePath);
 
+    // Cache busting: append timestamp parameter to force fresh binary download
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
+    final cacheBustedUrl = apkUrl.contains('?')
+        ? '$apkUrl&t=$timestamp'
+        : '$apkUrl?t=$timestamp';
+
     onProgress(0);
 
     _cancelToken = CancelToken();
     try {
-      if (target.existsSync() && target.lengthSync() > 0) {
-        onProgress(1);
-      } else {
-        if (target.existsSync()) {
-          try {
-            target.deleteSync();
-          } catch (error) {
-            throw InAppUpdateException(
-              InAppUpdateErrorKind.corrupt,
-              'Could not clear the previous update download.',
-              cause: error,
-            );
-          }
+      // Clear old files: explicitly delete any existing update file or app-release.apk
+      if (target.existsSync()) {
+        try {
+          target.deleteSync();
+        } catch (error) {
+          throw InAppUpdateException(
+            InAppUpdateErrorKind.corrupt,
+            'Could not clear the previous update download.',
+            cause: error,
+          );
         }
-
-        await _dio.download(
-          apkUrl,
-          savePath,
-          cancelToken: _cancelToken,
-          // A corrupt transfer must never survive: deleteOnError removes the
-          // partial file so a later retry starts clean.
-          deleteOnError: true,
-          onReceiveProgress: (received, total) {
-            // GitHub release assets always send Content-Length; when they do
-            // not, stay indeterminate rather than reporting a bogus fraction.
-            if (total > 0) {
-              onProgress((received / total).clamp(0.0, 1.0));
-              onBytes?.call(received, total);
-            }
-          },
-        );
       }
+      final existingAppRelease = File(p.join(updateDirectory.path, 'app-release.apk'));
+      if (existingAppRelease.existsSync() && existingAppRelease.path != target.path) {
+        try {
+          existingAppRelease.deleteSync();
+        } catch (_) {}
+      }
+
+      await _dio.download(
+        cacheBustedUrl,
+        savePath,
+        cancelToken: _cancelToken,
+        // A corrupt transfer must never survive: deleteOnError removes the
+        // partial file so a later retry starts clean.
+        deleteOnError: true,
+        onReceiveProgress: (received, total) {
+          // GitHub release assets always send Content-Length; when they do
+          // not, stay indeterminate rather than reporting a bogus fraction.
+          if (total > 0) {
+            onProgress((received / total).clamp(0.0, 1.0));
+            onBytes?.call(received, total);
+          }
+        },
+      );
 
       final downloaded = File(savePath);
       if (!downloaded.existsSync() || downloaded.lengthSync() == 0) {

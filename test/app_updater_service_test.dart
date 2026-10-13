@@ -1,5 +1,7 @@
 import 'dart:convert';
+import 'dart:io';
 
+import 'package:archive/archive.dart';
 import 'package:clinical_companion/core/services/app_updater_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -82,8 +84,10 @@ void main() {
 
       expect(
         url,
-        'https://github.com/Sumantkumarraj20/clinical_companion/'
-        'releases/download/v2.0.0/app-release.apk',
+        startsWith(
+          'https://github.com/Sumantkumarraj20/clinical_companion/'
+          'releases/download/v2.0.0/app-release.apk?t=',
+        ),
       );
       expect(
         requested.single.url.toString(),
@@ -206,6 +210,84 @@ void main() {
       expect(AppUpdaterService.isRemoteNewer('banana', 'v1.0.0'), isFalse);
       expect(AppUpdaterService.isRemoteNewer('1.0.0', 'vNext'), isFalse);
       expect(AppUpdaterService.isRemoteNewer('', 'v1.0.0'), isFalse);
+    });
+  });
+
+  group('clearOldUpdateFiles', () {
+    test('removes old apk files from target directory and ota subdirectory', () async {
+      final tempDir = Directory.systemTemp.createTempSync('updater_test_clear_');
+      addTearDown(() => tempDir.deleteSync(recursive: true));
+
+      final rootApk = File('${tempDir.path}/app-release.apk')..writeAsStringSync('old');
+      final otaDir = Directory('${tempDir.path}/ota')..createSync(recursive: true);
+      final otaApk = File('${otaDir.path}/app-release.apk')..writeAsStringSync('old ota');
+      final updateApk = File('${otaDir.path}/update.apk')..writeAsStringSync('old update');
+
+      final service = AppUpdaterService();
+      await service.clearOldUpdateFiles(tempDir);
+
+      expect(rootApk.existsSync(), isFalse);
+      expect(otaApk.existsSync(), isFalse);
+      expect(updateApk.existsSync(), isFalse);
+    });
+  });
+
+  group('downloadAndApplyDesktopUpdate', () {
+    test('downloads zip, extracts, generates update script, and runs it', () async {
+      final tempDir = Directory.systemTemp.createTempSync('updater_test_desktop_');
+      final appDir = Directory.systemTemp.createTempSync('app_dir_test_');
+      addTearDown(() {
+        if (tempDir.existsSync()) tempDir.deleteSync(recursive: true);
+        if (appDir.existsSync()) appDir.deleteSync(recursive: true);
+      });
+
+      // Prepare a dummy zip archive with an executable
+      final archive = Archive();
+      final fileData = utf8.encode('new binary content');
+      archive.addFile(ArchiveFile('clinical_companion', fileData.length, fileData));
+      final zipBytes = ZipEncoder().encode(archive);
+
+      final client = MockClient((request) async {
+        return http.Response.bytes(zipBytes, 200, headers: {'content-length': '${zipBytes.length}'});
+      });
+
+      final service = AppUpdaterService(httpClient: client);
+
+      String? executedCommand;
+      List<String>? executedArgs;
+      int? exitCodePassed;
+
+      await service.downloadAndApplyDesktopUpdate(
+        downloadUrl: 'https://example.com/update.zip',
+        customTempDir: tempDir,
+        currentAppDirectory: appDir.path,
+        currentExecutablePath: '${appDir.path}/clinical_companion',
+        processRunner: (command, args) async {
+          executedCommand = command;
+          executedArgs = args;
+          return ProcessResult(1234, 0, 'success', '');
+        },
+        appExiter: (code) {
+          exitCodePassed = code;
+        },
+      );
+
+      expect(executedCommand, isNotNull);
+      expect(executedArgs, isNotNull);
+      expect(exitCodePassed, 0);
+
+      // Verify that the extracted files exist
+      final extracted = File('${tempDir.path}/extracted/clinical_companion');
+      expect(extracted.existsSync(), isTrue);
+
+      // Verify update script exists
+      if (Platform.isWindows) {
+        final script = File('${tempDir.path}/update.bat');
+        expect(script.existsSync(), isTrue);
+      } else {
+        final script = File('${tempDir.path}/update.sh');
+        expect(script.existsSync(), isTrue);
+      }
     });
   });
 }

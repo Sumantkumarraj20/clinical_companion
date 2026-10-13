@@ -223,6 +223,9 @@ class ExtractionPipelineService {
 
   Future<String> recognizeRawText(File image) async {
     if (path.extension(image.path).toLowerCase() == '.pdf') {
+      if (Platform.isWindows) {
+        return '';
+      }
       return _recognizePdfText(image);
     }
     final recognized = await _textRecognizer.processImage(
@@ -232,6 +235,9 @@ class ExtractionPipelineService {
   }
 
   Future<String> _recognizePdfText(File pdfFile) async {
+    if (Platform.isWindows) {
+      return '';
+    }
     final scratch = await Directory.systemTemp.createTemp(
       'clinical-companion-pdf-',
     );

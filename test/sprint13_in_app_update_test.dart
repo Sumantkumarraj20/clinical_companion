@@ -145,11 +145,14 @@ void main() {
     },
   );
 
-  test('a cached APK is opened without downloading it again', () async {
+  test('a cached APK is cleared and downloaded fresh', () async {
     final cached = File('${tempDir.path}/ota/update.apk')
       ..createSync(recursive: true)
       ..writeAsBytesSync(List.filled(10, 0));
     final opened = <String>[];
+    final server = _FakeReleaseServer(List.filled(2048, 8));
+    await server.start();
+    addTearDown(server.stop);
 
     await managerFor(
       opener: (path) async {
@@ -157,12 +160,12 @@ void main() {
         return OpenResult();
       },
     ).downloadAndInstall(
-      apkUrl: 'http://127.0.0.1:1/update.apk',
+      apkUrl: server.uri!.toString(),
       onProgress: (_) {},
     );
 
     expect(opened, [cached.path]);
-    expect(cached.lengthSync(), 10);
+    expect(cached.lengthSync(), 2048);
   });
 
   test('an empty partial APK is cleared before downloading again', () async {

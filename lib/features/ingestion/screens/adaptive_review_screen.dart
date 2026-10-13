@@ -9,7 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path/path.dart' as path;
-import 'package:pdf_render_maintained/pdf_render_widgets.dart';
+import '../../../core/services/pdf_render_adapter.dart';
 
 import '../../../core/database/daos/clinical_dao.dart';
 import '../../../core/database/local_database.dart';
@@ -893,7 +893,7 @@ class _AdaptiveReviewScreenState extends ConsumerState<AdaptiveReviewScreen> {
       return SizedBox(
         height: height,
         width: double.infinity,
-        child: PdfViewer.openFile(file.path),
+        child: PdfRenderAdapter.buildViewer(file.path),
       );
     }
     return ClipRRect(

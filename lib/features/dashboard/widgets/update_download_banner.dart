@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/services/app_updater_service.dart';
 import '../../../core/services/in_app_update_manager.dart';
 
 /// Lifecycle of a background in-app update download.
@@ -130,6 +131,43 @@ class UpdateDownloadNotifier extends Notifier<UpdateDownloadState> {
       );
     } catch (error) {
       state = UpdateFailed('The update could not be started: $error');
+    }
+  }
+
+  /// Starts desktop self-update by downloading the release zip and running update script.
+  Future<void> startDesktop(
+    String downloadUrl, {
+    required AppUpdaterService service,
+  }) async {
+    if (state is UpdateDownloading) return;
+
+    state = const UpdateDownloading(
+      progress: 0,
+      receivedBytes: 0,
+      totalBytes: 0,
+    );
+    try {
+      await service.downloadAndApplyDesktopUpdate(
+        downloadUrl: downloadUrl,
+        onProgress: (value) {
+          final current = state;
+          if (current is UpdateDownloading) {
+            state = current.copyWith(progress: value);
+          }
+        },
+        onBytes: (received, total) {
+          final current = state;
+          if (current is UpdateDownloading) {
+            state = current.copyWith(
+              receivedBytes: received,
+              totalBytes: total,
+            );
+          }
+        },
+      );
+      state = const UpdateInstalling();
+    } catch (error) {
+      state = UpdateFailed('The update could not be completed: $error');
     }
   }
 

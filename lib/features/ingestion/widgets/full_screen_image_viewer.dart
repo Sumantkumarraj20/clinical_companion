@@ -2,7 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:path/path.dart' as path;
-import 'package:pdf_render_maintained/pdf_render_widgets.dart';
+import '../../../core/services/pdf_render_adapter.dart';
 
 /// Full-screen, pinch-to-zoom viewer for a scanned clinical document.
 ///
@@ -100,7 +100,7 @@ class _FullScreenImageViewerState extends State<FullScreenImageViewer>
               // double tap never accidentally dismisses.
               onDoubleTap: _handleDoubleTap,
               child: isPdf
-                  ? PdfViewer.openFile(widget.imagePath)
+                  ? PdfRenderAdapter.buildViewer(widget.imagePath)
                   : InteractiveViewer(
                       transformationController: _transform,
                       minScale: 1,

@@ -67,6 +67,7 @@ dependencies:
   sqlite3: ^3.5.2
   speech_to_text: ^7.5.0
   pdf_render_maintained: ^1.6.2
+  archive: ^4.0.2
 dev_dependencies:
   flutter_test:
     sdk: flutter

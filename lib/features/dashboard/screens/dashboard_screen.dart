@@ -405,7 +405,29 @@ class _UpdateBannerState extends ConsumerState<_UpdateBanner> {
   bool _dismissed = false;
 
   Future<void> _startUpdate(AppUpdateInfo update) async {
-    if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) {
+    if (kIsWeb) {
+      final opened = await launchUrl(
+        Uri.parse(update.releaseUrl),
+        mode: LaunchMode.externalApplication,
+      );
+      if (!opened && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not open the release page.')),
+        );
+      }
+      return;
+    }
+
+    if (defaultTargetPlatform == TargetPlatform.windows ||
+        defaultTargetPlatform == TargetPlatform.linux) {
+      ref.read(updateDownloadProvider.notifier).startDesktop(
+        update.downloadUrl,
+        service: ref.read(appUpdaterServiceProvider),
+      );
+      return;
+    }
+
+    if (defaultTargetPlatform != TargetPlatform.android) {
       final opened = await launchUrl(
         Uri.parse(update.releaseUrl),
         mode: LaunchMode.externalApplication,

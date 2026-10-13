@@ -1,0 +1,69 @@
+name: Windows Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release-windows:
+    name: Build & Release Windows Bundle
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Exclude pdf_render_maintained from Windows build
+        shell: pwsh
+        run: |
+          if (Test-Path .flutter-plugins-dependencies) {
+            $json = Get-Content .flutter-plugins-dependencies -Raw | ConvertFrom-Json
+            if ($json.plugins.windows) {
+              $json.plugins.windows = @($json.plugins.windows | Where-Object { $_.name -ne 'pdf_render_maintained' })
+              $json | ConvertTo-Json -Depth 20 | Set-Content .flutter-plugins-dependencies
+            }
+          }
+          if (Test-Path windows\flutter\generated_plugins.cmake) {
+            $cmake = (Get-Content windows\flutter\generated_plugins.cmake) | Where-Object { $_ -notmatch 'pdf_render_maintained' }
+            $cmake | Set-Content windows\flutter\generated_plugins.cmake
+          }
+          if (Test-Path windows\flutter\generated_plugin_registrant.cc) {
+            $cc = (Get-Content windows\flutter\generated_plugin_registrant.cc) | Where-Object { $_ -notmatch 'pdf_render' }
+            $cc | Set-Content windows\flutter\generated_plugin_registrant.cc
+          }
+
+      - name: Build Windows release
+        shell: pwsh
+        run: |
+          $version = $env:GITHUB_REF_NAME -replace '^v', ''
+          flutter build windows --release `
+            "--build-name=$version" `
+            "--build-number=${{ github.run_number }}"
+
+      - name: Package Windows bundle
+        shell: pwsh
+        run: |
+          Compress-Archive `
+            -Path "build\windows\x64\runner\Release\*" `
+            -DestinationPath "clinical-companion-windows.zip" `
+            -CompressionLevel Optimal
+
+      - name: Publish Windows Bundle to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: ClinCom ${{ github.ref_name }}
+          files: clinical-companion-windows.zip
