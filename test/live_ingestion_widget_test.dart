@@ -2,7 +2,6 @@ import 'dart:convert';
 
 import 'package:clinical_companion/core/ai/interactions_api_client.dart';
 import 'package:clinical_companion/core/database/local_database.dart';
-import 'package:clinical_companion/core/ingestion/clinical_ingestion_mapper.dart';
 import 'package:clinical_companion/core/ingestion/ingestion_orchestrator.dart';
 import 'package:clinical_companion/core/ingestion/live_ingestion_controller.dart';
 import 'package:clinical_companion/core/providers/app_providers.dart';
@@ -99,6 +98,23 @@ void main() {
       await Future<void>.delayed(const Duration(milliseconds: 300));
     });
     await tester.pumpAndSettle();
+    expect(find.text('Review Record'), findsOneWidget);
+    expect(find.text('Ramesh Kumar'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('Confirm & Save'),
+      300,
+      scrollable: find
+          .descendant(
+            of: find.byType(ListView),
+            matching: find.byType(Scrollable),
+          )
+          .first,
+    );
+    await tester.runAsync(() async {
+      await tester.tap(find.text('Confirm & Save'));
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+    });
+    await tester.pumpAndSettle();
 
     expect(requests, hasLength(1));
     final sent = jsonDecode(requests.single) as Map<String, dynamic>;
@@ -123,10 +139,10 @@ void main() {
     expect(find.textContaining('INVALID_ARGUMENT'), findsNothing);
   });
 
-  testWidgets('API failure saves a draft and shows the friendly toast', (
+  testWidgets('API failure keeps the source and offers manual entry', (
     tester,
   ) async {
-    final db = await _pump(
+    await _pump(
       tester,
       (_) async => http.Response(
         '{"error":{"status":"INVALID_ARGUMENT","message":"bad"}}',
@@ -140,12 +156,9 @@ void main() {
     });
     await tester.pumpAndSettle();
 
-    final drafts = await tester.runAsync(
-      () => db.select(db.ingestionInboxes).get(),
-    );
-    expect(drafts!.single.status, 'draft');
-    expect(drafts.single.rawInput, _discharge);
-    expect(find.text(kDraftSavedMessage), findsOneWidget);
+    expect(find.text('Review Record'), findsOneWidget);
+    expect(find.textContaining('enter the details manually'), findsOneWidget);
     expect(find.textContaining('INVALID_ARGUMENT'), findsNothing);
+    expect(find.text('Add Clinical Field'), findsOneWidget);
   });
 }

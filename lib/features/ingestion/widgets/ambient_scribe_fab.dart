@@ -1,11 +1,11 @@
 import 'dart:async';
-import 'package:clinical_companion/core/ingestion/live_ingestion_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/database/local_database.dart';
 import '../../../core/providers/app_providers.dart';
+import '../screens/clinical_review_screen.dart';
 import '../../../core/services/ambient_scribe_service.dart';
 
 class AmbientScribeFab extends ConsumerStatefulWidget {
@@ -72,18 +72,13 @@ class _AmbientScribeFabState extends ConsumerState<AmbientScribeFab>
     try {
       final transcript = await _scribe.stopAndGetTranscript();
       if (!mounted) return;
-      unawaited(
-        ref
-            .read(liveIngestionProvider.notifier)
-            .submitText(
-              transcript,
-              messenger: ScaffoldMessenger.of(context),
-              payloadType: 'audio',
-            )
-            .then<void>((_) {}, onError: (_) {}),
-      );
       setState(() => _processing = false);
-      context.go('/dashboard');
+      final saved = await openClinicalReview(
+        Navigator.of(context),
+        text: transcript,
+        payloadType: 'audio',
+      );
+      if (saved == true && mounted) context.go('/dashboard');
     } catch (error) {
       _showError('Could not transcribe the encounter: $error');
     } finally {

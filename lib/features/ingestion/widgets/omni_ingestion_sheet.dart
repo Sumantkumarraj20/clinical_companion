@@ -1,4 +1,3 @@
-import 'package:clinical_companion/core/ingestion/live_ingestion_controller.dart';
 import 'dart:async';
 import 'dart:io';
 
@@ -9,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../../core/providers/app_providers.dart';
+import '../screens/clinical_review_screen.dart';
 
 /// Sprint 28 — the single unified entry point for ALL clinical data.
 Future<void> showOmniIngestionSheet(BuildContext context) {
@@ -42,15 +42,18 @@ class _OmniIngestionSheetState extends ConsumerState<OmniIngestionSheet> {
     }
   }
 
-  ScaffoldMessengerState _messenger() => ScaffoldMessenger.of(context);
-
-  void _submit(Future<Object?> Function() job) {
-    unawaited(job().then<void>((_) {}, onError: (_) {}));
-  }
-
-  void _goReview() {
+  void _review({File? file, String? text, String payloadType = 'text'}) {
     if (!mounted) return;
-    Navigator.of(context).pop();
+    final navigator = Navigator.of(context, rootNavigator: true);
+    navigator.pop();
+    unawaited(
+      openClinicalReview(
+        navigator,
+        file: file,
+        text: text,
+        payloadType: payloadType,
+      ),
+    );
   }
 
   void _fail(Object error) {
@@ -74,16 +77,7 @@ class _OmniIngestionSheetState extends ConsumerState<OmniIngestionSheet> {
       final transcript = await scribe.stopAndGetTranscript();
       if (mounted) setState(() => _listening = false);
       if (!mounted) return;
-      _submit(
-        () => ref
-            .read(liveIngestionProvider.notifier)
-            .submitText(
-              transcript,
-              messenger: _messenger(),
-              payloadType: 'audio',
-            ),
-      );
-      _goReview();
+      _review(text: transcript, payloadType: 'audio');
     } catch (error) {
       _fail(error);
     }
@@ -99,12 +93,7 @@ class _OmniIngestionSheetState extends ConsumerState<OmniIngestionSheet> {
     try {
       final picked = await _picker.pickImage(source: source, imageQuality: 90);
       if (picked == null || !mounted) return;
-      _submit(
-        () => ref
-            .read(liveIngestionProvider.notifier)
-            .submitFile(File(picked.path), messenger: _messenger()),
-      );
-      _goReview();
+      _review(file: File(picked.path));
     } catch (error) {
       _fail(error);
     }
@@ -118,12 +107,7 @@ class _OmniIngestionSheetState extends ConsumerState<OmniIngestionSheet> {
       );
       final path = picked?.files.singleOrNull?.path;
       if (path == null || path.isEmpty || !mounted) return;
-      _submit(
-        () => ref
-            .read(liveIngestionProvider.notifier)
-            .submitFile(File(path), messenger: _messenger()),
-      );
-      _goReview();
+      _review(file: File(path));
     } catch (error) {
       _fail(error);
     }

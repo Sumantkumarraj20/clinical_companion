@@ -7,6 +7,7 @@ import '../ai/interactions_api_client.dart';
 import '../database/daos/ingestion_inbox_dao.dart';
 import '../database/local_database.dart';
 import 'clinical_ingestion_mapper.dart';
+import 'image_optimizer.dart';
 
 /// Outcome of one ingestion attempt. Exactly one of [mapping] / draft is set.
 class IngestionOutcome {
@@ -77,6 +78,51 @@ class IngestionOrchestrator {
       return IngestionOutcome.draft(id);
     }
   }
+
+  /// Structures [rawText] without writing to the database so a clinician can
+  /// verify it first. Throws when extraction fails.
+  Future<Map<String, dynamic>> extractText(
+    String rawText, {
+    String? activeCensusJson,
+  }) async {
+    final result = await client.create(
+      model: model,
+      prompt: buildIngestionPrompt(rawText, activeCensusJson: activeCensusJson),
+      jsonSchema: kFlatIngestionJsonSchema,
+    );
+    return ClinicalIngestionMapper.parse(result.text);
+  }
+
+  /// "Deep Scan": skips on-device OCR text and reads the photo itself. The
+  /// image is resized to 1536 px and re-encoded as JPEG (80%) first.
+  Future<Map<String, dynamic>> deepScanImage(
+    File image, {
+    String? activeCensusJson,
+  }) async {
+    final bytes = await optimizeImageFile(image);
+    final result = await client.create(
+      model: model,
+      prompt: buildIngestionPrompt(
+        '(The clinical document is the attached image. Read it directly.)',
+        activeCensusJson: activeCensusJson,
+      ),
+      imageBytes: bytes,
+      imageMimeType: 'image/jpeg',
+      jsonSchema: kFlatIngestionJsonSchema,
+    );
+    return ClinicalIngestionMapper.parse(result.text);
+  }
+
+  /// Persists reviewed (possibly edited) data.
+  Future<IngestionMappingResult> commitReviewed(
+    Map<String, dynamic> json, {
+    String? sourceText,
+    String? activeCensusJson,
+  }) => ClinicalIngestionMapper(db, ownerId: ownerId).persist(
+    json,
+    sourceText: sourceText,
+    censusIds: censusPatientIds(activeCensusJson),
+  );
 
   /// Images and PDFs: on-device OCR first, then the text pipeline. Any OCR
   /// failure still preserves the file path as a draft.

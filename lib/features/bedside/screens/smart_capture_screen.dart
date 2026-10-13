@@ -1,10 +1,10 @@
 import 'dart:async';
-import 'package:clinical_companion/core/ingestion/live_ingestion_controller.dart';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../ingestion/screens/clinical_review_screen.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../../core/providers/app_providers.dart';
@@ -52,17 +52,14 @@ class _SmartCaptureScreenState extends ConsumerState<SmartCaptureScreen> {
       }
       if (files.isEmpty || !mounted) return;
 
-      final messenger = ScaffoldMessenger.of(context);
+      final navigator = Navigator.of(context);
+      var savedAny = false;
       for (final file in files) {
-        unawaited(
-          ref
-              .read(liveIngestionProvider.notifier)
-              .submitFile(file, messenger: messenger)
-              .then<void>((_) {}, onError: (_) {}),
-        );
+        if (!mounted) return;
+        final saved = await openClinicalReview(navigator, file: file);
+        savedAny = savedAny || saved == true;
       }
-
-      context.go('/dashboard');
+      if (savedAny && mounted) context.go('/dashboard');
     } catch (error, stackTrace) {
       debugPrint('Could not open clinical image picker: $error\n$stackTrace');
       if (mounted) {

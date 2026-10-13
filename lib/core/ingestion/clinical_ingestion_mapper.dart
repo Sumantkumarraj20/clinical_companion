@@ -35,6 +35,22 @@ const Map<String, dynamic> kFlatIngestionJsonSchema = {
       'items': {'type': 'string'},
     },
     'history': {'type': 'string'},
+    'document_date': {'type': 'string', 'nullable': true},
+    'document_time': {'type': 'string', 'nullable': true},
+    'lab_results': {
+      'type': 'array',
+      'items': {
+        'type': 'object',
+        'properties': {
+          'test_name': {'type': 'string'},
+          'value': {'type': 'string'},
+          'unit': {'type': 'string'},
+          'reference_range': {'type': 'string'},
+          'is_abnormal': {'type': 'boolean'},
+        },
+        'required': ['test_name', 'value'],
+      },
+    },
     'diagnosis': {
       'type': 'array',
       'items': {'type': 'string'},
@@ -62,6 +78,7 @@ const Map<String, dynamic> kFlatIngestionJsonSchema = {
     'history',
     'diagnosis',
     'medications',
+    'lab_results',
   ],
 };
 
@@ -70,6 +87,8 @@ const String kFlatIngestionSystemPrompt = '''
 You are a clinical data structuring engine. Convert the clinical text below into ONE JSON object and nothing else.
 Use EXACTLY these keys: patient_name (string), age (integer years), gender ('Male'/'Female'/'Other' or null), vitals ({sbp, dbp, pulse, temperature_c, respiratory_rate, spo2} numbers), chief_complaints (array of strings), history (string), diagnosis (array of strings), medications (array of {name, dose, route, frequency, duration}).
 Also include patient_id, ward_name and bed_number (strings or null).
+TEMPORAL FIDELITY: document_date (YYYY-MM-DD) and document_time (HH:MM, 24-hour) — you MUST extract the exact date and time written or printed on the document. If and ONLY if no date is present, return null. Do not hallucinate the current time.
+LAB REPORTS: put every laboratory or investigation result in lab_results as an array of {test_name, value, unit, reference_range, is_abnormal (boolean)}. Use [] when there are none.
 Use null for unknown scalars and [] for unknown lists. Never invent data. Do not wrap the JSON in markdown fences or add prose.
 ''';
 
@@ -112,6 +131,7 @@ class IngestionMappingResult {
     this.matchedExistingPatient = false,
     required this.problemCount,
     required this.medicationCount,
+    this.labCount = 0,
   });
 
   final String patientId;
@@ -119,12 +139,13 @@ class IngestionMappingResult {
   final bool matchedExistingPatient;
   final int problemCount;
   final int medicationCount;
+  final int labCount;
 
   @override
   String toString() =>
       'patient=$patientId${matchedExistingPatient ? ' (existing)' : ''} '
       'encounter=$encounterId problems=$problemCount '
-      'medications=$medicationCount';
+      'medications=$medicationCount labs=$labCount';
 }
 
 /// Sanitizes model output and persists it into Drift tables.
@@ -154,6 +175,43 @@ class ClinicalIngestionMapper {
     if (s == null) return null;
     final m = RegExp(r'-?\d+(?:\.\d+)?').firstMatch(s);
     return m == null ? null : num.tryParse(m.group(0)!);
+  }
+
+  /// Combines `document_date` (YYYY-MM-DD or dd/mm/yyyy) and optional
+  /// `document_time` (HH:MM) into a local DateTime; null when no date.
+  static DateTime? parseDocumentMoment(Object? date, Object? time) {
+    final d = _str(date);
+    if (d == null) return null;
+    DateTime? day;
+    final iso = RegExp(r'^(\d{4})-(\d{1,2})-(\d{1,2})').firstMatch(d);
+    if (iso != null) {
+      day = DateTime(
+        int.parse(iso.group(1)!),
+        int.parse(iso.group(2)!),
+        int.parse(iso.group(3)!),
+      );
+    } else {
+      final dmy = RegExp(
+        r'^(\d{1,2})[/.-](\d{1,2})[/.-](\d{2,4})',
+      ).firstMatch(d);
+      if (dmy != null) {
+        var y = int.parse(dmy.group(3)!);
+        if (y < 100) y += 2000;
+        day = DateTime(y, int.parse(dmy.group(2)!), int.parse(dmy.group(1)!));
+      }
+    }
+    if (day == null ||
+        day.year < 1900 ||
+        day.isAfter(DateTime.now().add(const Duration(days: 1)))) {
+      return null;
+    }
+    final t = _str(time);
+    final m = t == null ? null : RegExp(r'(\d{1,2}):(\d{2})').firstMatch(t);
+    if (m == null) return day;
+    final h = int.parse(m.group(1)!);
+    final min = int.parse(m.group(2)!);
+    if (h > 23 || min > 59) return day;
+    return DateTime(day.year, day.month, day.day, h, min);
   }
 
   static int? _int(Object? v) => _num(v)?.round();
@@ -245,7 +303,14 @@ class ClinicalIngestionMapper {
     final meds = json['medications'] is List
         ? (json['medications'] as List).whereType<Map>().toList()
         : const <Map>[];
+    final labs = json['lab_results'] is List
+        ? (json['lab_results'] as List).whereType<Map>().toList()
+        : const <Map>[];
     final now = DateTime.now();
+    final docMoment = parseDocumentMoment(
+      json['document_date'],
+      json['document_time'],
+    );
 
     return db.transaction(() async {
       final claimedId = _str(json['patient_id']);
@@ -298,6 +363,9 @@ class ClinicalIngestionMapper {
               bedNumber: Value(_str(json['bed_number'])),
               historyOfPresentIllness: Value(_str(json['history'])),
               aiSummary: Value(sourceText),
+              occurredAt: docMoment == null
+                  ? const Value.absent()
+                  : Value(docMoment),
             ),
           );
       for (final name in diagnoses) {
@@ -330,12 +398,48 @@ class ClinicalIngestionMapper {
             );
         medCount++;
       }
+      var labCount = 0;
+      for (final lab in labs) {
+        final name = _str(lab['test_name']);
+        if (name == null) continue;
+        final valueText = _str(lab['value']);
+        final order = await db
+            .into(db.investigationOrders)
+            .insertReturning(
+              InvestigationOrdersCompanion.insert(
+                patientId: patient.id,
+                encounterId: Value(encounter.id),
+                testName: name,
+                status: const Value('result_received'),
+                orderedAt: Value(docMoment ?? now),
+                resultReceivedAt: Value(docMoment ?? now),
+              ),
+            );
+        await db
+            .into(db.investigationResults)
+            .insert(
+              InvestigationResultsCompanion.insert(
+                patientId: patient.id,
+                testName: name,
+                orderId: Value(order.id),
+                numericValue: Value(_num(valueText)?.toDouble()),
+                textValue: Value(valueText),
+                unit: Value(_str(lab['unit'])),
+                referenceRange: Value(_str(lab['reference_range'])),
+                isAbnormal: Value(lab['is_abnormal'] == true),
+                sourceAuthority: const Value('lab_report'),
+                resultDate: Value(docMoment ?? now),
+              ),
+            );
+        labCount++;
+      }
       return IngestionMappingResult(
         patientId: patient.id,
         encounterId: encounter.id,
         matchedExistingPatient: existing != null,
         problemCount: diagnoses.length,
         medicationCount: medCount,
+        labCount: labCount,
       );
     });
   }

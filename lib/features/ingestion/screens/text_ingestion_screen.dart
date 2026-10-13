@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'package:clinical_companion/core/ingestion/live_ingestion_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -7,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/ai/document_ai_service.dart';
 import '../../../core/database/local_database.dart';
 import '../../../core/providers/app_providers.dart';
+import 'clinical_review_screen.dart';
 
 class TextIngestionScreen extends ConsumerStatefulWidget {
   const TextIngestionScreen({super.key});
@@ -66,13 +66,8 @@ class _TextIngestionScreenState extends ConsumerState<TextIngestionScreen> {
         );
         return;
       }
-      unawaited(
-        ref
-            .read(liveIngestionProvider.notifier)
-            .submitText(text, messenger: ScaffoldMessenger.of(context))
-            .then<void>((_) {}, onError: (_) {}),
-      );
-      context.go('/dashboard');
+      final saved = await openClinicalReview(Navigator.of(context), text: text);
+      if (saved == true && mounted) context.go('/dashboard');
     } catch (error, stackTrace) {
       debugPrint('Could not prepare pasted clinical text: $error\n$stackTrace');
       if (!mounted) return;
