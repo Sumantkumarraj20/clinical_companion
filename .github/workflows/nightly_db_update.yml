@@ -1,0 +1,46 @@
+name: Nightly DrugMaster Database Update
+
+on:
+  schedule:
+    # 02:00 UTC every night
+    - cron: '0 2 * * *'
+  workflow_dispatch: # Manual "Run workflow" button
+
+# Required so the final `git push` can write with the default token.
+permissions:
+  contents: write
+
+concurrency:
+  group: nightly-db-update
+  cancel-in-progress: false
+
+jobs:
+  update-database:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Compile Latest SQLite from Google Sheets
+        run: python scripts/build_drug_db.py
+
+      - name: Commit and Push Updated Database
+        run: |
+          git config user.name "Nightly Bot"
+          git config user.email "bot@clinicalcompanion.local"
+          git add assets/clinical_drugs.sqlite
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+            exit 0
+          fi
+          git commit -m "chore: nightly drug master sync from Google Sheets"
+          git pull --rebase origin "${GITHUB_REF_NAME}"
+          git push origin "HEAD:${GITHUB_REF_NAME}"

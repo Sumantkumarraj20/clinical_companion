@@ -2,12 +2,10 @@ import 'dart:convert';
 import 'clincom_escalation.dart';
 import 'dart:io';
 import 'dart:isolate';
-import 'dart:math' as math;
-import 'dart:ui' as ui;
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
 import 'package:path/path.dart' as path;
-import 'package:pdf_render_maintained/pdf_render.dart';
+import 'package:printing/printing.dart';
 
 import '../ai/document_ai_service.dart';
 import '../models/ai_extraction_result.dart';
@@ -223,9 +221,6 @@ class ExtractionPipelineService {
 
   Future<String> recognizeRawText(File image) async {
     if (path.extension(image.path).toLowerCase() == '.pdf') {
-      if (Platform.isWindows) {
-        return '';
-      }
       return _recognizePdfText(image);
     }
     final recognized = await _textRecognizer.processImage(
@@ -235,51 +230,25 @@ class ExtractionPipelineService {
   }
 
   Future<String> _recognizePdfText(File pdfFile) async {
-    if (Platform.isWindows) {
-      return '';
-    }
     final scratch = await Directory.systemTemp.createTemp(
       'clinical-companion-pdf-',
     );
     try {
-      final document = await PdfDocument.openFile(pdfFile.path);
-      try {
       final pageText = <String>[];
-      for (var pageNumber = 1;
-          pageNumber <= document.pageCount;
-          pageNumber++) {
-        final page = await document.getPage(pageNumber);
-        final scale = math
-            .min(2.0, 3000 / math.max(page.width, page.height))
-            .toDouble();
-        final rendered = await page.render(
-          fullWidth: page.width * scale,
-          fullHeight: page.height * scale,
+      var pageNumber = 0;
+      await for (final raster in Printing.raster(
+        await pdfFile.readAsBytes(),
+        dpi: 200,
+      )) {
+        pageNumber++;
+        final pageFile = File(path.join(scratch.path, 'page-$pageNumber.png'));
+        await pageFile.writeAsBytes(await raster.toPng());
+        final recognized = await _textRecognizer.processImage(
+          InputImage.fromFile(pageFile),
         );
-        final raster = await rendered.createImageDetached();
-        try {
-          final png = await raster.toByteData(
-            format: ui.ImageByteFormat.png,
-          );
-          if (png == null) {
-            throw StateError('Could not encode PDF page $pageNumber.');
-          }
-          final pageFile = File(
-            path.join(scratch.path, 'page-$pageNumber.png'),
-          );
-          await pageFile.writeAsBytes(png.buffer.asUint8List());
-          final recognized = await _textRecognizer.processImage(
-            InputImage.fromFile(pageFile),
-          );
-          pageText.add(recognized.text);
-        } finally {
-          raster.dispose();
-        }
+        pageText.add(recognized.text);
       }
       return pageText.join('\n');
-      } finally {
-        await document.dispose();
-      }
     } finally {
       await scratch.delete(recursive: true);
     }

@@ -6,7 +6,7 @@ publish_to: "none"
 # for every shipped APK or the package installer refuses the upgrade.
 # It also feeds the in-app updater, which compares this value against the
 # latest GitHub release tag — a mismatch makes it offer the same update forever.
-version: 1.0.17+17
+version: 1.0.17+24
 
 environment:
   sdk: "^3.8.0"
@@ -66,7 +66,6 @@ dependencies:
   # Transitive via drift, but a direct runtime dependency now.
   sqlite3: ^3.5.2
   speech_to_text: ^7.5.0
-  pdf_render_maintained: ^1.6.2
   archive: ^4.0.2
 dev_dependencies:
   flutter_test:

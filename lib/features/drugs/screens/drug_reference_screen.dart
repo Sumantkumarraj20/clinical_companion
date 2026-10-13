@@ -60,23 +60,41 @@ class _DrugReferenceScreenState extends ConsumerState<DrugReferenceScreen>
   Future<void> _triggerCatalogSync() async {
     final messenger = ScaffoldMessenger.of(context);
     setState(() => _isCatalogSyncing = true);
-    messenger.showSnackBar(
-      const SnackBar(
-        content: Text('Syncing latest clinical catalog...'),
-        duration: Duration(seconds: 2),
-      ),
-    );
+    messenger
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        const SnackBar(
+          content: Text('Syncing latest clinical catalog...'),
+          duration: Duration(seconds: 2),
+        ),
+      );
     try {
-      await ref
+      final merged = await ref
           .read(catalogSyncProvider)
           .syncCatalogFromCloud(catalogScriptUrl);
-      messenger.showSnackBar(
-        const SnackBar(content: Text('Catalog up to date.')),
-      );
+      messenger
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            backgroundColor: Colors.green.shade700,
+            content: Text(
+              merged > 0
+                  ? 'Drug database updated — $merged records synced.'
+                  : 'Drug database is up to date.',
+            ),
+          ),
+        );
     } catch (error) {
-      messenger.showSnackBar(
-        SnackBar(content: Text('Catalog sync failed: $error')),
-      );
+      debugPrint('[CatalogSync] Manual sync failed: $error');
+      messenger
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Could not reach the drug server. Using offline data.',
+            ),
+          ),
+        );
     } finally {
       if (mounted) setState(() => _isCatalogSyncing = false);
     }

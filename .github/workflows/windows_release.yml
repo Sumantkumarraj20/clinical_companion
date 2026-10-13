@@ -26,32 +26,20 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
-      - name: Exclude pdf_render_maintained from Windows build
-        shell: pwsh
-        run: |
-          if (Test-Path .flutter-plugins-dependencies) {
-            $json = Get-Content .flutter-plugins-dependencies -Raw | ConvertFrom-Json
-            if ($json.plugins.windows) {
-              $json.plugins.windows = @($json.plugins.windows | Where-Object { $_.name -ne 'pdf_render_maintained' })
-              $json | ConvertTo-Json -Depth 20 | Set-Content .flutter-plugins-dependencies
-            }
-          }
-          if (Test-Path windows\flutter\generated_plugins.cmake) {
-            $cmake = (Get-Content windows\flutter\generated_plugins.cmake) | Where-Object { $_ -notmatch 'pdf_render_maintained' }
-            $cmake | Set-Content windows\flutter\generated_plugins.cmake
-          }
-          if (Test-Path windows\flutter\generated_plugin_registrant.cc) {
-            $cc = (Get-Content windows\flutter\generated_plugin_registrant.cc) | Where-Object { $_ -notmatch 'pdf_render' }
-            $cc | Set-Content windows\flutter\generated_plugin_registrant.cc
-          }
-
       - name: Build Windows release
         shell: pwsh
         run: |
-          $version = $env:GITHUB_REF_NAME -replace '^v', ''
-          flutter build windows --release `
-            "--build-name=$version" `
-            "--build-number=${{ github.run_number }}"
+          $pubspec = Get-Content pubspec.yaml | Select-String "^version: " | Select-Object -First 1
+          $versionString = $pubspec.Line -replace "^version: ", "" -replace "\s", ""
+          $VERSION_NAME = $versionString.Split('+')[0]
+          $BUILD_NUMBER = $versionString.Split('+')[1]
+          if ($VERSION_NAME -notmatch '^\d+\.\d+\.\d+$' -or $BUILD_NUMBER -notmatch '^\d+$' -or [int]$BUILD_NUMBER -le 1) {
+            Write-Error "pubspec.yaml version must be MAJOR.MINOR.PATCH+BUILD with BUILD > 1."
+            exit 1
+          }
+          Write-Host "Building version=$VERSION_NAME build=$BUILD_NUMBER"
+          flutter build windows --release "--build-name=$VERSION_NAME" "--build-number=$BUILD_NUMBER"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Package Windows bundle
         shell: pwsh

@@ -59,10 +59,13 @@ class CatalogSyncService {
   /// Throws on invalid/placeholder URLs, transport failures, malformed
   /// JSON, or a non-object payload. Concurrent calls are coalesced — a
   /// second call while one is in flight simply returns.
-  Future<void> syncCatalogFromCloud(String googleScriptUrl) async {
+  ///
+  /// Resolves to the number of records merged (0 when skipped because a sync
+  /// is already running).
+  Future<int> syncCatalogFromCloud(String googleScriptUrl) async {
     if (_syncInProgress) {
       debugPrint('[CatalogSync] Sync already in progress — skipped.');
-      return;
+      return 0;
     }
 
     final trimmedUrl = googleScriptUrl.trim();
@@ -103,6 +106,10 @@ class CatalogSyncService {
       await _dao.upsertOtaCatalog(decoded);
       _lastSyncAt = DateTime.now();
       debugPrint('[CatalogSync] OTA catalog merged at $_lastSyncAt.');
+      return decoded.values.whereType<List<dynamic>>().fold<int>(
+        0,
+        (total, rows) => total + rows.length,
+      );
     } finally {
       _syncInProgress = false;
     }

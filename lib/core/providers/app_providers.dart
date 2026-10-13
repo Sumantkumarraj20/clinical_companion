@@ -455,6 +455,7 @@ class AppStatus extends Notifier<AppStatusState> {
           .syncCatalogFromCloud(catalogScriptUrl)
           .catchError((Object error) {
             debugPrint('[AppStatus] OTA catalog sync skipped: $error');
+            return 0;
           }),
     );
     // Sprint 16 — Smart data retention. Fire-and-forget on startup so a sweep of
