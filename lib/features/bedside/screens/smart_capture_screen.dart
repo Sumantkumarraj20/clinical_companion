@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'package:clinical_companion/core/ingestion/live_ingestion_controller.dart';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -50,15 +52,15 @@ class _SmartCaptureScreenState extends ConsumerState<SmartCaptureScreen> {
       }
       if (files.isEmpty || !mounted) return;
 
-      // Sprint 17 — attach the live census so bed numbers resolve to patients.
-      final census = await BatchExtractionNotifier.buildActiveCensusJson(
-        ref.read(clinicalDaoProvider),
-      );
-      if (!mounted) return;
-      ref
-          .read(batchExtractionProvider.notifier)
-          .addOmniFiles(files, activeCensusJson: census);
-      if (!mounted) return;
+      final messenger = ScaffoldMessenger.of(context);
+      for (final file in files) {
+        unawaited(
+          ref
+              .read(liveIngestionProvider.notifier)
+              .submitFile(file, messenger: messenger)
+              .then<void>((_) {}, onError: (_) {}),
+        );
+      }
 
       context.go('/dashboard');
     } catch (error, stackTrace) {

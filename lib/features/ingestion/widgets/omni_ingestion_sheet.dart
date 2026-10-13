@@ -1,3 +1,4 @@
+import 'package:clinical_companion/core/ingestion/live_ingestion_controller.dart';
 import 'dart:async';
 import 'dart:io';
 
@@ -41,24 +42,10 @@ class _OmniIngestionSheetState extends ConsumerState<OmniIngestionSheet> {
     }
   }
 
-  Future<String?> _census() async {
-    try {
-      return await BatchExtractionNotifier.buildActiveCensusJson(
-        ref.read(clinicalDaoProvider),
-      );
-    } catch (error, stackTrace) {
-      debugPrint('Could not load the current ward list: $error\n$stackTrace');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'The current ward list is unavailable. Please confirm the patient during review.',
-            ),
-          ),
-        );
-      }
-      return null;
-    }
+  ScaffoldMessengerState _messenger() => ScaffoldMessenger.of(context);
+
+  void _submit(Future<Object?> Function() job) {
+    unawaited(job().then<void>((_) {}, onError: (_) {}));
   }
 
   void _goReview() {
@@ -87,14 +74,15 @@ class _OmniIngestionSheetState extends ConsumerState<OmniIngestionSheet> {
       final transcript = await scribe.stopAndGetTranscript();
       if (mounted) setState(() => _listening = false);
       if (!mounted) return;
-      final census = await _census();
-      ref
-          .read(batchExtractionProvider.notifier)
-          .addOmniText(
-            transcript,
-            activeCensusJson: census,
-            isAmbientAudio: true,
-          );
+      _submit(
+        () => ref
+            .read(liveIngestionProvider.notifier)
+            .submitText(
+              transcript,
+              messenger: _messenger(),
+              payloadType: 'audio',
+            ),
+      );
       _goReview();
     } catch (error) {
       _fail(error);
@@ -111,11 +99,11 @@ class _OmniIngestionSheetState extends ConsumerState<OmniIngestionSheet> {
     try {
       final picked = await _picker.pickImage(source: source, imageQuality: 90);
       if (picked == null || !mounted) return;
-      final census = await _census();
-      if (!mounted) return;
-      ref.read(batchExtractionProvider.notifier).addOmniFiles([
-        File(picked.path),
-      ], activeCensusJson: census);
+      _submit(
+        () => ref
+            .read(liveIngestionProvider.notifier)
+            .submitFile(File(picked.path), messenger: _messenger()),
+      );
       _goReview();
     } catch (error) {
       _fail(error);
@@ -130,11 +118,11 @@ class _OmniIngestionSheetState extends ConsumerState<OmniIngestionSheet> {
       );
       final path = picked?.files.singleOrNull?.path;
       if (path == null || path.isEmpty || !mounted) return;
-      final census = await _census();
-      if (!mounted) return;
-      ref.read(batchExtractionProvider.notifier).addOmniFiles([
-        File(path),
-      ], activeCensusJson: census);
+      _submit(
+        () => ref
+            .read(liveIngestionProvider.notifier)
+            .submitFile(File(path), messenger: _messenger()),
+      );
       _goReview();
     } catch (error) {
       _fail(error);

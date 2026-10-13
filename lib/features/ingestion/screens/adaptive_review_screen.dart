@@ -16,6 +16,7 @@ import '../../../core/database/local_database.dart';
 import '../../../core/models/ai_extraction_result.dart';
 import '../../../core/models/clinical_drug_selection.dart';
 import '../../../core/models/document_task.dart';
+import '../../../core/ingestion/live_ingestion_controller.dart';
 import '../../../core/providers/app_providers.dart';
 import '../../../core/utils/datetime_utils.dart';
 import '../../../core/widgets/smart_drug_autocomplete.dart';
@@ -463,14 +464,11 @@ class _AdaptiveReviewScreenState extends ConsumerState<AdaptiveReviewScreen> {
         if (mounted) setState(() {});
         return;
       }
-      // Sprint 17 — snapshot the live inpatient census onto the queued pages so
-      // ClinCom can resolve a bed number to a patient at extraction time.
-      final census = await BatchExtractionNotifier.buildActiveCensusJson(dao);
-      if (!mounted) return;
-      notifier.addOmniFiles(fresh, activeCensusJson: census);
-      _index = ref.read(batchExtractionProvider).length - 1;
-      _clampIndex();
-      setState(() {});
+      final messenger = ScaffoldMessenger.of(context);
+      final controller = ref.read(liveIngestionProvider.notifier);
+      for (final file in fresh) {
+        unawaited(controller.submitFile(file, messenger: messenger));
+      }
     } catch (error, stackTrace) {
       debugPrint('Could not add page to review: $error\n$stackTrace');
       if (!mounted) return;
@@ -788,9 +786,17 @@ class _AdaptiveReviewScreenState extends ConsumerState<AdaptiveReviewScreen> {
             FilledButton.icon(
               onPressed: _saving
                   ? null
-                  : () => ref
-                        .read(batchExtractionProvider.notifier)
-                        .retryTask(task.id),
+                  : () async {
+                      await ref
+                          .read(liveIngestionProvider.notifier)
+                          .retryItem(
+                            task.id,
+                            messenger: ScaffoldMessenger.of(context),
+                          );
+                      ref
+                          .read(batchExtractionProvider.notifier)
+                          .removeTask(task.id);
+                    },
               icon: const Icon(Icons.refresh),
               label: const Text('Try again'),
             ),

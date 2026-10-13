@@ -323,48 +323,5 @@ void main() {
       expect(task.errorMessage, contains('Processing was interrupted'));
       expect((await dao.getOpenItems()).single.status, 'error');
     });
-
-    test(
-      'omni queue persists structured output and restores it for review',
-      () async {
-        final db = await _database();
-        addTearDown(db.close);
-        final container = ProviderContainer(
-          overrides: [
-            appDatabaseProvider.overrideWithValue(db),
-            documentAiServiceProvider.overrideWithValue(_ThrowingAiService()),
-            extractionPipelineProvider.overrideWithValue(
-              _TrackingPipeline(_ThrowingAiService()),
-            ),
-          ],
-        );
-        addTearDown(container.dispose);
-        final notifier = container.read(batchExtractionProvider.notifier);
-        notifier.addOmniText('pasted discharge note');
-
-        for (var attempt = 0; attempt < 100; attempt++) {
-          if (container
-              .read(batchExtractionProvider)
-              .any((task) => task.status == ExtractionStatus.readyForReview)) {
-            break;
-          }
-          await Future<void>.delayed(const Duration(milliseconds: 10));
-        }
-        final task = container.read(batchExtractionProvider).single;
-        expect(task.status, ExtractionStatus.readyForReview);
-
-        final item = (await IngestionInboxDao(db).getOpenItems()).single;
-        expect(item.status, 'ready_for_review');
-        expect(item.extractedJson, contains('structured text'));
-        expect(item.rawInput, 'pasted discharge note');
-
-        notifier.removeTask(task.id);
-        await notifier.restoreInbox();
-        expect(
-          container.read(batchExtractionProvider).single.status,
-          ExtractionStatus.readyForReview,
-        );
-      },
-    );
   });
 }

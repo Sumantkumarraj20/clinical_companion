@@ -281,7 +281,7 @@ void main() {
       );
       await tester.pump();
 
-      expect(find.text('Extracting text locally…'), findsOneWidget);
+      expect(find.text('Reading this page…'), findsOneWidget);
       // Saving is impossible until extraction finishes.
       expect(
         tester
@@ -301,10 +301,10 @@ void main() {
       );
       await tester.pump();
 
-      expect(find.text('Normalizing with ClinCom…'), findsOneWidget);
+      expect(find.text('Preparing your clinical review…'), findsOneWidget);
     });
 
-    testWidgets('an error page defers retry to the dashboard', (
+    testWidgets('an error page offers a retry through the ingestion pipeline', (
       tester,
     ) async {
       final container = await _pumpReview(
@@ -320,11 +320,9 @@ void main() {
       );
       await tester.pump();
 
-      expect(find.text('Could not extract this page'), findsOneWidget);
-      expect(find.text('Local OCR could not read this image.'), findsOneWidget);
-
-      expect(find.text('Return to dashboard'), findsOneWidget);
-      expect(find.text('Retry extraction'), findsNothing);
+      expect(find.text('This item is not ready to review'), findsOneWidget);
+      expect(find.text('Try again'), findsOneWidget);
+      expect(find.text('Back to dashboard'), findsOneWidget);
       expect(
         container.read(batchExtractionProvider).single.status,
         ExtractionStatus.error,

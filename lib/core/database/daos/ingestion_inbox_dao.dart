@@ -66,6 +66,42 @@ class IngestionInboxDao extends DatabaseAccessor<AppDatabase>
     }
   }
 
+  /// Preserves unprocessed input as an unstructured draft awaiting retry.
+  Future<void> saveDraft({
+    required String id,
+    required String payloadType,
+    required String rawInput,
+    String? filePath,
+    String? message,
+  }) async {
+    await into(ingestionInboxes).insertOnConflictUpdate(
+      IngestionInboxesCompanion.insert(
+        id: id,
+        payloadType: payloadType,
+        rawInput: Value(rawInput),
+        filePath: Value(filePath),
+        status: const Value('draft'),
+        errorMessage: Value(message),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
+  /// Keeps the input of a failed extraction as a retryable draft.
+  Future<void> markDraft(String id, String message) async {
+    await (update(ingestionInboxes)..where((item) => item.id.equals(id))).write(
+      IngestionInboxesCompanion(
+        status: const Value('draft'),
+        errorMessage: Value(message),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
+  Future<void> deleteItem(String id) async {
+    await (delete(ingestionInboxes)..where((item) => item.id.equals(id))).go();
+  }
+
   Future<void> markError(String id, String message) async {
     final updated =
         await (update(

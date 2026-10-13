@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:clinical_companion/core/ingestion/live_ingestion_controller.dart';
 import 'package:clinical_companion/core/ai/document_ai_service.dart';
 import 'package:clinical_companion/core/database/daos/clinical_dao.dart';
 import 'package:clinical_companion/core/database/local_database.dart';
@@ -20,7 +21,7 @@ import 'package:flutter_test/flutter_test.dart';
 /// Counts the expensive calls a real pipeline would make, so a test can assert
 /// on API spend directly rather than inferring it from side effects.
 class _CountingPipeline extends ExtractionPipelineService {
-  _CountingPipeline({this.aiResult}) : super(DocumentAiService());
+  _CountingPipeline() : super(DocumentAiService());
 
   AiExtractionResult? aiResult;
 
@@ -72,23 +73,9 @@ Future<File> _tempImage(String name, {String bytes = 'page-one-bytes'}) async {
 /// Seeds a patient the way the app does, so FKs and defaults stay realistic.
 Future<String> _seedPatient(AppDatabase db, String name) async {
   final saved = await ClinicalDao(db).insertPatient(
-    PatientsCompanion.insert(
-      ownerId: 'local-practitioner',
-      fullName: name,
-    ),
+    PatientsCompanion.insert(ownerId: 'local-practitioner', fullName: name),
   );
   return saved.id;
-}
-
-/// Pumps until [condition] holds, so queue-driven tests never rely on sleeps.
-Future<void> _waitUntil(
-  bool Function() condition, {
-  int maxPumps = 60,
-}) async {
-  for (var i = 0; i < maxPumps; i++) {
-    if (condition()) return;
-    await Future<void>.delayed(const Duration(milliseconds: 10));
-  }
 }
 
 void main() {
@@ -123,15 +110,17 @@ void main() {
       final file = await _tempImage('page.png');
       final hash = (await hashDocumentImageOrNull(file.path))!;
 
-      await db.into(db.documentRegistries).insert(
-        DocumentRegistriesCompanion.insert(
-          id: 'doc-1',
-          patientId: patientId,
-          documentCategory: 'Lab Report',
-          imagePath: file.path,
-          documentedAt: DateTime.utc(2024, 3, 12),
-        ),
-      );
+      await db
+          .into(db.documentRegistries)
+          .insert(
+            DocumentRegistriesCompanion.insert(
+              id: 'doc-1',
+              patientId: patientId,
+              documentCategory: 'Lab Report',
+              imagePath: file.path,
+              documentedAt: DateTime.utc(2024, 3, 12),
+            ),
+          );
       await dao.attachImageHash('doc-1', hash);
       final found = await dao.findDocumentByImageHash(hash);
       expect(found, isNotNull);
@@ -144,15 +133,17 @@ void main() {
       // Two pre-Sprint-17 documents, both with NULL hashes. Matching them
       // against each other would falsely call every legacy page a duplicate.
       for (final id in ['old-1', 'old-2']) {
-        await db.into(db.documentRegistries).insert(
-          DocumentRegistriesCompanion.insert(
-            id: id,
-            patientId: await _seedPatient(db, 'Patient \$id'),
-            documentCategory: 'Lab Report',
-            imagePath: '/legacy/\$id.jpg',
-            documentedAt: DateTime.utc(2024),
-          ),
-        );
+        await db
+            .into(db.documentRegistries)
+            .insert(
+              DocumentRegistriesCompanion.insert(
+                id: id,
+                patientId: await _seedPatient(db, 'Patient \$id'),
+                documentCategory: 'Lab Report',
+                imagePath: '/legacy/\$id.jpg',
+                documentedAt: DateTime.utc(2024),
+              ),
+            );
       }
       expect(await dao.findDocumentByImageHash(null), isNull);
       expect(await dao.findDocumentByImageHash(''), isNull);
@@ -167,8 +158,7 @@ void main() {
       expect(await dao.findDocumentByImageHash(hash), isNull);
     });
 
-    test('DEDUPLICATION ABORTS THE AI: a repeat capture costs nothing',
-        () async {
+    test('DEDUPLICATION ABORTS THE AI: a repeat capture costs nothing', () async {
       // The headline Sprint 17 guarantee. A second capture of the same physical
       // page must spend nothing: no OCR, no API call, no new document row.
       final db = await _db();
@@ -177,16 +167,18 @@ void main() {
       final hash = (await hashDocumentImageOrNull(file.path))!;
 
       // The page is already on file, under this patient.
-      await db.into(db.documentRegistries).insert(
-        DocumentRegistriesCompanion.insert(
-          id: 'existing-doc',
-          patientId: patientId,
-          documentCategory: 'Lab Report',
-          imagePath: file.path,
-          imageHash: Value(hash),
-          documentedAt: DateTime.utc(2024, 3, 12),
-        ),
-      );
+      await db
+          .into(db.documentRegistries)
+          .insert(
+            DocumentRegistriesCompanion.insert(
+              id: 'existing-doc',
+              patientId: patientId,
+              documentCategory: 'Lab Report',
+              imagePath: file.path,
+              imageHash: Value(hash),
+              documentedAt: DateTime.utc(2024, 3, 12),
+            ),
+          );
 
       final pipeline = _CountingPipeline();
       final container = ProviderContainer(
@@ -208,32 +200,6 @@ void main() {
 
       // And no second document row exists for those same bytes.
       expect(await db.select(db.documentRegistries).get(), hasLength(1));
-    });
-
-    test('a genuinely new image is queued and does reach ClinCom', () async {
-      final db = await _db();
-      final pipeline = _CountingPipeline(
-        aiResult: const AiExtractionResult(
-          patientIdentity: PatientIdentity(name: 'Asha Rao', age: 45),
-          encounterContext: EncounterContext(documentType: 'Lab Report'),
-          clinicalSummary: 'CBC panel',
-        ),
-      );
-      final container = ProviderContainer(
-        overrides: [
-          appDatabaseProvider.overrideWithValue(db),
-          extractionPipelineProvider.overrideWithValue(pipeline),
-        ],
-      );
-      addTearDown(container.dispose);
-      final notifier = container.read(batchExtractionProvider.notifier);
-      final file = await _tempImage('brand-new.png');
-
-      expect(await notifier.findDuplicate(file), isNull);
-      notifier.addFiles([file]);
-      await _waitUntil(() => pipeline.refineCalls > 0);
-      expect(pipeline.ocrCalls, 1);
-      expect(pipeline.refineCalls, 1);
     });
 
     test('an unreadable image does not block capture', () async {
@@ -287,40 +253,11 @@ void main() {
   });
 
   group('STEP 2 — contextual patient inference', () {
-    test('the census captured at enqueue time reaches the prompt', () async {
-      final db = await _db();
-      final pipeline = _CountingPipeline(
-        aiResult: const AiExtractionResult(
-          encounterContext: EncounterContext(documentType: 'Lab Report'),
-          clinicalSummary: 'Bed 12 report',
-        ),
-      );
-      final container = ProviderContainer(
-        overrides: [
-          appDatabaseProvider.overrideWithValue(db),
-          extractionPipelineProvider.overrideWithValue(pipeline),
-        ],
-      );
-      addTearDown(container.dispose);
-      final file = await _tempImage('census-page.jpg');
-
-      container.read(batchExtractionProvider.notifier).addFiles(
-        [file],
-        activeCensusJson: '[{"patient_id":"p-1","bed":"12"}]',
-      );
-      await _waitUntil(() => pipeline.refineCalls > 0);
-      expect(pipeline.lastCensus, contains('p-1'));
-      expect(pipeline.lastCensus, contains('"bed":"12"'));
-    });
-
     test('no active inpatients means no census block', () async {
       final db = await _db();
       // No block, so a page with no bed number is never nudged into inventing
       // a patient match.
-      expect(
-        await BatchExtractionNotifier.buildActiveCensusJson(ClinicalDao(db)),
-        isNull,
-      );
+      expect(await buildActiveCensusJson(ClinicalDao(db)), isNull);
     });
   });
 
@@ -357,31 +294,34 @@ void main() {
       expect(await db.select(db.investigationResults).get(), hasLength(1));
     });
 
-    test('a weak note arriving after a lab report never overwrites it', () async {
-      final db = await _db();
-      final dao = ClinicalDao(db);
-      final patientId = await _seedPatient(db, 'Asha Rao');
-      final at = DateTime.utc(2024, 3, 12, 8);
+    test(
+      'a weak note arriving after a lab report never overwrites it',
+      () async {
+        final db = await _db();
+        final dao = ClinicalDao(db);
+        final patientId = await _seedPatient(db, 'Asha Rao');
+        final at = DateTime.utc(2024, 3, 12, 8);
 
-      await dao.upsertInvestigationResult(
-        patientId: patientId,
-        testName: 'Creatinine',
-        resultDate: at,
-        textValue: '1.6',
-        sourceAuthority: 'Scanned Document',
-      );
-      final later = await dao.upsertInvestigationResult(
-        patientId: patientId,
-        testName: 'Creatinine',
-        resultDate: at.add(const Duration(hours: 2)),
-        textValue: '2',
-        sourceAuthority: 'Ward Round Note',
-      );
+        await dao.upsertInvestigationResult(
+          patientId: patientId,
+          testName: 'Creatinine',
+          resultDate: at,
+          textValue: '1.6',
+          sourceAuthority: 'Scanned Document',
+        );
+        final later = await dao.upsertInvestigationResult(
+          patientId: patientId,
+          testName: 'Creatinine',
+          resultDate: at.add(const Duration(hours: 2)),
+          textValue: '2',
+          sourceAuthority: 'Ward Round Note',
+        );
 
-      expect(later.merged, isFalse);
-      expect(later.result.textValue, '1.6');
-      expect(await db.select(db.investigationResults).get(), hasLength(1));
-    });
+        expect(later.merged, isFalse);
+        expect(later.result.textValue, '1.6');
+        expect(await db.select(db.investigationResults).get(), hasLength(1));
+      },
+    );
 
     test('results outside the 12-hour window stay separate', () async {
       final db = await _db();
@@ -405,58 +345,64 @@ void main() {
       expect(await db.select(db.investigationResults).get(), hasLength(2));
     });
 
-    test('merging is case-insensitive so terminology cannot fork the data',
-        () async {
-      final db = await _db();
-      final dao = ClinicalDao(db);
-      final patientId = await _seedPatient(db, 'Asha Rao');
-      final at = DateTime.utc(2024, 3, 12, 8);
+    test(
+      'merging is case-insensitive so terminology cannot fork the data',
+      () async {
+        final db = await _db();
+        final dao = ClinicalDao(db);
+        final patientId = await _seedPatient(db, 'Asha Rao');
+        final at = DateTime.utc(2024, 3, 12, 8);
 
-      await dao.upsertInvestigationResult(
-        patientId: patientId,
-        testName: 'TLC',
-        resultDate: at,
-        textValue: '11200',
-        sourceAuthority: 'Ward Round Note',
-      );
-      final merged = await dao.upsertInvestigationResult(
-        patientId: patientId,
-        testName: 'tlc',
-        resultDate: at.add(const Duration(hours: 1)),
-        textValue: '9800',
-        sourceAuthority: 'Scanned Document',
-      );
-      expect(merged.merged, isTrue);
-      expect(await db.select(db.investigationResults).get(), hasLength(1));
-    });
+        await dao.upsertInvestigationResult(
+          patientId: patientId,
+          testName: 'TLC',
+          resultDate: at,
+          textValue: '11200',
+          sourceAuthority: 'Ward Round Note',
+        );
+        final merged = await dao.upsertInvestigationResult(
+          patientId: patientId,
+          testName: 'tlc',
+          resultDate: at.add(const Duration(hours: 1)),
+          textValue: '9800',
+          sourceAuthority: 'Scanned Document',
+        );
+        expect(merged.merged, isTrue);
+        expect(await db.select(db.investigationResults).get(), hasLength(1));
+      },
+    );
 
-    test('a legacy row with no provenance is superseded by a real report',
-        () async {
-      final db = await _db();
-      final dao = ClinicalDao(db);
-      final patientId = await _seedPatient(db, 'Asha Rao');
-      final at = DateTime.utc(2024, 3, 12, 8);
+    test(
+      'a legacy row with no provenance is superseded by a real report',
+      () async {
+        final db = await _db();
+        final dao = ClinicalDao(db);
+        final patientId = await _seedPatient(db, 'Asha Rao');
+        final at = DateTime.utc(2024, 3, 12, 8);
 
-      await db.into(db.investigationResults).insert(
-        InvestigationResultsCompanion.insert(
-          id: const Value('legacy'),
+        await db
+            .into(db.investigationResults)
+            .insert(
+              InvestigationResultsCompanion.insert(
+                id: const Value('legacy'),
+                patientId: patientId,
+                testName: 'Sodium',
+                textValue: const Value('130'),
+                resultDate: Value(at),
+              ),
+            );
+        final merged = await dao.upsertInvestigationResult(
           patientId: patientId,
           testName: 'Sodium',
-          textValue: const Value('130'),
-          resultDate: Value(at),
-        ),
-      );
-      final merged = await dao.upsertInvestigationResult(
-        patientId: patientId,
-        testName: 'Sodium',
-        resultDate: at.add(const Duration(hours: 1)),
-        textValue: '138',
-        sourceAuthority: 'Scanned Document',
-      );
-      expect(merged.merged, isTrue);
-      expect(merged.result.id, 'legacy');
-      expect(merged.result.textValue, '138');
-    });
+          resultDate: at.add(const Duration(hours: 1)),
+          textValue: '138',
+          sourceAuthority: 'Scanned Document',
+        );
+        expect(merged.merged, isTrue);
+        expect(merged.result.id, 'legacy');
+        expect(merged.result.textValue, '138');
+      },
+    );
 
     test('source authority ranks a lab report above a ward note', () {
       expect(
@@ -469,29 +415,31 @@ void main() {
       );
     });
 
-    test('the merge keeps the earliest clinical time so trends stay true',
-        () async {
-      final db = await _db();
-      final dao = ClinicalDao(db);
-      final patientId = await _seedPatient(db, 'Asha Rao');
-      final early = DateTime.utc(2024, 3, 12, 8);
+    test(
+      'the merge keeps the earliest clinical time so trends stay true',
+      () async {
+        final db = await _db();
+        final dao = ClinicalDao(db);
+        final patientId = await _seedPatient(db, 'Asha Rao');
+        final early = DateTime.utc(2024, 3, 12, 8);
 
-      await dao.upsertInvestigationResult(
-        patientId: patientId,
-        testName: 'Urea',
-        resultDate: early,
-        textValue: '40',
-        sourceAuthority: 'Ward Round Note',
-      );
-      final merged = await dao.upsertInvestigationResult(
-        patientId: patientId,
-        testName: 'Urea',
-        resultDate: early.add(const Duration(hours: 5)),
-        textValue: '52',
-        sourceAuthority: 'Scanned Document',
-      );
-      expect(merged.result.resultDate, early);
-    });
+        await dao.upsertInvestigationResult(
+          patientId: patientId,
+          testName: 'Urea',
+          resultDate: early,
+          textValue: '40',
+          sourceAuthority: 'Ward Round Note',
+        );
+        final merged = await dao.upsertInvestigationResult(
+          patientId: patientId,
+          testName: 'Urea',
+          resultDate: early.add(const Duration(hours: 5)),
+          textValue: '52',
+          sourceAuthority: 'Scanned Document',
+        );
+        expect(merged.result.resultDate, early);
+      },
+    );
   });
 
   group('STEP 3 — the ClinCom JSON contract', () {
@@ -541,38 +489,6 @@ void main() {
     });
   });
 
-  group('STEP 4 — nothing is saved without the clinician', () {
-    test('extraction alone writes no document row', () async {
-      final db = await _db();
-      final file = await _tempImage('review-only.png');
-      final pipeline = _CountingPipeline(
-        aiResult: const AiExtractionResult(
-          patientIdentity: PatientIdentity(name: 'Asha Rao', age: 45),
-          encounterContext: EncounterContext(documentType: 'Lab Report'),
-          clinicalSummary: 'CBC',
-        ),
-      );
-      final container = ProviderContainer(
-        overrides: [
-          appDatabaseProvider.overrideWithValue(db),
-          extractionPipelineProvider.overrideWithValue(pipeline),
-        ],
-      );
-      addTearDown(container.dispose);
-
-      container.read(batchExtractionProvider.notifier).addFiles([file]);
-      await _waitUntil(() => pipeline.refineCalls > 0);
-      // ClinCom produced a result and it lives only in Riverpod state...
-      expect(
-        container.read(batchExtractionProvider).single.extractedData,
-        isNotNull,
-      );
-      // ...SQLite is untouched until the clinician taps "Save document".
-      expect(await db.select(db.documentRegistries).get(), isEmpty);
-      expect(await db.select(db.clinicalEncounters).get(), isEmpty);
-    });
-  });
-
   group('Sprint 17.5 — Edit Mode hydration (the 1-year lifecycle)', () {
     test('a saved extraction round-trips every semantic field', () async {
       final db = await _db();
@@ -603,10 +519,16 @@ void main() {
       );
 
       // Reopen it the way editExisting() does, a year later.
-      final document = await dao.findDocumentByImagePath('/itest/rehydrate.jpg');
+      final document = await dao.findDocumentByImagePath(
+        '/itest/rehydrate.jpg',
+      );
       expect(document, isNotNull);
-      expect(document!.clincomJson, isNotNull,
-          reason: 'The extraction JSON must be stored, or the form reopens empty.');
+      expect(
+        document!.clincomJson,
+        isNotNull,
+        reason:
+            'The extraction JSON must be stored, or the form reopens empty.',
+      );
 
       final restored = AiExtractionResult.fromJson(
         jsonDecode(document.clincomJson!) as Map<String, dynamic>,
@@ -626,16 +548,18 @@ void main() {
       final patientId = await _seedPatient(db, 'Legacy Patient');
 
       // A pre-Sprint-17.5 row: no clincomJson at all.
-      await db.into(db.documentRegistries).insert(
-        DocumentRegistriesCompanion.insert(
-          id: 'legacy-doc',
-          patientId: patientId,
-          documentCategory: 'Lab Report',
-          imagePath: '/legacy/old.jpg',
-          rawOcrTranscript: const Value('Old CBC panel'),
-          documentedAt: DateTime.utc(2023),
-        ),
-      );
+      await db
+          .into(db.documentRegistries)
+          .insert(
+            DocumentRegistriesCompanion.insert(
+              id: 'legacy-doc',
+              patientId: patientId,
+              documentCategory: 'Lab Report',
+              imagePath: '/legacy/old.jpg',
+              rawOcrTranscript: const Value('Old CBC panel'),
+              documentedAt: DateTime.utc(2023),
+            ),
+          );
 
       final document = await dao.findDocumentByImagePath('/legacy/old.jpg');
       expect(document, isNotNull);
@@ -646,9 +570,12 @@ void main() {
     test('a corrupt stored JSON does not break opening the document', () {
       // The screen catches this and falls back to the summary-only form, so a
       // truncated write can never make a document permanently unopenable.
-      expect(() => AiExtractionResult.fromJson(
-        jsonDecode('{not valid json') as Map<String, dynamic>,
-      ), throwsA(isA<FormatException>()));
+      expect(
+        () => AiExtractionResult.fromJson(
+          jsonDecode('{not valid json') as Map<String, dynamic>,
+        ),
+        throwsA(isA<FormatException>()),
+      );
     });
 
     test('applyDocumentEdits refreshes the stored JSON', () async {

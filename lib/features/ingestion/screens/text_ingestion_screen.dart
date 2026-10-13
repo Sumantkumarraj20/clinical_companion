@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'package:clinical_companion/core/ingestion/live_ingestion_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -64,13 +66,12 @@ class _TextIngestionScreenState extends ConsumerState<TextIngestionScreen> {
         );
         return;
       }
-      final census = await BatchExtractionNotifier.buildActiveCensusJson(
-        ref.read(clinicalDaoProvider),
+      unawaited(
+        ref
+            .read(liveIngestionProvider.notifier)
+            .submitText(text, messenger: ScaffoldMessenger.of(context))
+            .then<void>((_) {}, onError: (_) {}),
       );
-      if (!mounted) return;
-      ref
-          .read(batchExtractionProvider.notifier)
-          .addOmniText(text, activeCensusJson: census);
       context.go('/dashboard');
     } catch (error, stackTrace) {
       debugPrint('Could not prepare pasted clinical text: $error\n$stackTrace');
@@ -87,7 +88,10 @@ class _TextIngestionScreenState extends ConsumerState<TextIngestionScreen> {
     }
   }
 
-  Future<void> _reviewRule(CachedClinicalRule rule, {required bool accept}) async {
+  Future<void> _reviewRule(
+    CachedClinicalRule rule, {
+    required bool accept,
+  }) async {
     try {
       final dao = ref.read(clinicalRuleDaoProvider);
       if (accept) {
@@ -208,7 +212,8 @@ class _TextIngestionScreenState extends ConsumerState<TextIngestionScreen> {
                                         ),
                                       ),
                                       Text(rule.suggestedAction),
-                                      if (rule.contraindicatingConditions
+                                      if (rule
+                                          .contraindicatingConditions
                                           .isNotEmpty)
                                         Text(
                                           'Do not proceed: ${rule.contraindicatingConditions.join('; ')}',

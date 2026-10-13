@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'package:clinical_companion/core/ingestion/live_ingestion_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -69,16 +71,17 @@ class _AmbientScribeFabState extends ConsumerState<AmbientScribeFab>
     setState(() => _processing = true);
     try {
       final transcript = await _scribe.stopAndGetTranscript();
-      final dao = ref.read(clinicalDaoProvider);
-      final census = await BatchExtractionNotifier.buildActiveCensusJson(dao);
-      ref
-          .read(batchExtractionProvider.notifier)
-          .addOmniText(
-            transcript,
-            activeCensusJson: census,
-            isAmbientAudio: true,
-          );
       if (!mounted) return;
+      unawaited(
+        ref
+            .read(liveIngestionProvider.notifier)
+            .submitText(
+              transcript,
+              messenger: ScaffoldMessenger.of(context),
+              payloadType: 'audio',
+            )
+            .then<void>((_) {}, onError: (_) {}),
+      );
       setState(() => _processing = false);
       context.go('/dashboard');
     } catch (error) {

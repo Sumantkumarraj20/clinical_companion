@@ -1,3 +1,4 @@
+import 'package:clinical_companion/core/ingestion/live_ingestion_controller.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -70,6 +71,7 @@ class DashboardScreen extends ConsumerWidget {
       body: Column(
         children: [
           const _UpdateBanner(),
+          const _LiveIngestionBanner(),
           const _IngestionInboxBanner(),
           Expanded(
             child: ListView(
@@ -262,7 +264,9 @@ class _IngestionInboxBannerState extends ConsumerState<_IngestionInboxBanner> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Saved clinical data could not be loaded. Please try again.'),
+          content: Text(
+            'Saved clinical data could not be loaded. Please try again.',
+          ),
         ),
       );
     }
@@ -279,7 +283,9 @@ class _IngestionInboxBannerState extends ConsumerState<_IngestionInboxBanner> {
     final processingCount = inbox
         .where((item) => item.status == 'processing')
         .length;
-    final errorCount = inbox.where((item) => item.status == 'error').length;
+    final errorCount = inbox
+        .where((item) => item.status == 'error' || item.status == 'draft')
+        .length;
     final theme = Theme.of(context);
     return Card(
       margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
@@ -344,16 +350,22 @@ class _IngestionInboxBannerState extends ConsumerState<_IngestionInboxBanner> {
             if (errorCount > 0)
               TextButton(
                 onPressed: () async {
-                  final notifier = ref.read(batchExtractionProvider.notifier);
+                  final controller = ref.read(liveIngestionProvider.notifier);
+                  final messenger = ScaffoldMessenger.of(context);
                   try {
-                    await notifier.restoreInbox();
                     for (final item in inbox.where(
-                      (entry) => entry.status == 'error',
+                      (entry) =>
+                          entry.status == 'error' || entry.status == 'draft',
                     )) {
-                      await notifier.retryTask(item.id);
+                      await controller.retryItem(
+                        item.id,
+                        messenger: messenger,
+                      );
                     }
                   } catch (error, stackTrace) {
-                    debugPrint('Could not retry saved data: $error\n$stackTrace');
+                    debugPrint(
+                      'Could not retry saved data: $error\n$stackTrace',
+                    );
                     if (context.mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
@@ -452,6 +464,33 @@ class _UpdateBannerState extends ConsumerState<_UpdateBanner> {
           child: const Text('Later'),
         ),
       ],
+    );
+  }
+}
+
+/// Non-blocking status strip shown while captured data is being organised.
+class _LiveIngestionBanner extends ConsumerWidget {
+  const _LiveIngestionBanner();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final active = ref.watch(liveIngestionProvider);
+    if (active == 0) return const SizedBox.shrink();
+    return const Card(
+      margin: EdgeInsets.fromLTRB(16, 8, 16, 0),
+      child: Padding(
+        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        child: Row(
+          children: [
+            SizedBox.square(
+              dimension: 20,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+            SizedBox(width: 12),
+            Expanded(child: Text('Organizing your clinical data…')),
+          ],
+        ),
+      ),
     );
   }
 }
