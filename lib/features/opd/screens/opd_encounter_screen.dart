@@ -152,6 +152,10 @@ class _OpdEncounterScreenState extends ConsumerState<OpdEncounterScreen> {
     pulse: _int(_pulse),
     spo2: _int(_spo2),
     temperatureC: double.tryParse(_temp.text.trim()),
+    // Inject the AI-extraction evidence into the CDSS so it can cross-check
+    // structured outputs (medications, investigations, problems,
+    // clinical summary) against local [ClinicalRules].
+    evidence: ref.read(aiExtractionEvidenceProvider),
   );
 
   bool get _isEmpty =>

@@ -7,6 +7,51 @@ library;
 
 import '../database/local_database.dart';
 
+/// Aggregated clinical evidence pulled from the AI extraction pipeline.
+///
+/// This is the "living record" that the AI's structured output (from
+/// [lib/core/ai/document_ai_service.dart]) is mapped into.  The CDSS consumes
+/// it alongside [BrainInput] so it can cross-reference extracted medications,
+/// investigations, problems and the clinical synopsis against the local
+/// [ClinicalRules] and emit missing-data / next-step / safety prompts.
+class ClinicalEvidence {
+  const ClinicalEvidence({
+    this.clinicalSummary = '',
+    this.problems = const [],
+    this.medicationsOrdered = const [],
+    this.medicationsMentioned = const [],
+    this.invLinked = const [],
+    this.invUnlinked = const [],
+    this.procedures = const [],
+    this.warnings = const [],
+    this.vitals = const {},
+  });
+
+  final String clinicalSummary;
+  final List<String> problems;
+  final List<String> medicationsOrdered;
+  final List<String> medicationsMentioned;
+  final List<String> invLinked;
+  final List<String> invUnlinked;
+  final List<String> procedures;
+  final List<String> warnings;
+  final Map<String, dynamic> vitals;
+
+  /// Merges in another [ClinicalEvidence], useful when evidence comes from
+  /// several extraction passes.
+  ClinicalEvidence merge(ClinicalEvidence other) => ClinicalEvidence(
+        clinicalSummary: clinicalSummary + other.clinicalSummary,
+        problems: List.from({...problems, ...other.problems}),
+        medicationsOrdered: List.from({...medicationsOrdered, ...other.medicationsOrdered}),
+        medicationsMentioned: List.from({...medicationsMentioned, ...other.medicationsMentioned}),
+        invLinked: List.from({...invLinked, ...other.invLinked}),
+        invUnlinked: List.from({...invUnlinked, ...other.invUnlinked}),
+        procedures: List.from({...procedures, ...other.procedures}),
+        warnings: List.from({...warnings, ...other.warnings}),
+        vitals: {...vitals, ...other.vitals},
+      );
+}
+
 class BrainInput {
   const BrainInput({
     this.complaints = '',
@@ -23,6 +68,7 @@ class BrainInput {
     this.respiratoryRate,
     this.hasAllergyRecord = false,
     this.hasMedicationRecord = false,
+    this.evidence = const ClinicalEvidence(),
   });
 
   final String complaints;
@@ -39,9 +85,11 @@ class BrainInput {
   final int? respiratoryRate;
   final bool hasAllergyRecord;
   final bool hasMedicationRecord;
+  final ClinicalEvidence evidence;
 
   String get _all =>
-      '$complaints $history $examination $assessment $plan'.toLowerCase();
+      '$complaints $history $examination $assessment $plan '
+      '${evidence.clinicalSummary}'.toLowerCase();
 
   /// Everything the clinician has typed, for keyword search.
   String get allText => _all;
@@ -457,6 +505,11 @@ class SilentBrain {
       );
     }
 
+    /// Cross-reference the AI-extracted evidence against local rules and the
+    /// current clinical picture.  This is what drives "cost-effective
+    /// next steps", "investigations to order (or avoid)" and "procedure hints".
+    _addEvidenceDrivenInsights(out, i, text);
+
     // A last cognitive-bias check on any non-trivial differential.
     if (out.any((e) => e.kind == BrainKind.differential)) {
       out.add(
@@ -516,6 +569,106 @@ class SilentBrain {
       flag(
         'High temperature (${i.temperatureC}°C)',
         'Look for a source; consider sepsis screen.',
+      );
+    }
+  }
+  /// Evidence-driven prompts built from the AI extraction output, cross-referenced
+  /// with local [ClinicalRules].  This is what powers "cost-effective questions to
+  /// ask the patient", "investigations to order (or avoid)" and "evidence-based
+  /// procedure hints".
+  static void _addEvidenceDrivenInsights(
+    List<BrainInsight> out,
+    BrainInput i,
+    String text,
+  ) {
+    final ev = i.evidence;
+
+    // 1. Cross-reference linked problems against evidence of missing
+    //    investigations, medications or procedures.
+    for (final p in ev.problems) {
+      if (p.isEmpty) continue;
+      final title = 'Problem documented: ${p.substring(0, p.length < 60 ? p.length : 60)}';
+
+      // A problem is on the record, but nothing says how it was investigated.
+      if (ev.invLinked.isEmpty && ev.invUnlinked.isEmpty) {
+        out.add(
+          BrainInsight(
+            BrainKind.missingData,
+            '$title: order investigations',
+            'No investigations linked to this problem yet. Order the minimum panel '
+            'first (FBC, U&E, LFT, glucose, CRP) and escalate based on response.',
+            urgent: true,
+            source: 'AI extraction · evidence cross-check',
+          ),
+        );
+      }
+
+      // Linkable unlinked management suggests something was considered but not
+      // ordered — probe cost-effectiveness before committing.
+      if (ev.invUnlinked.isNotEmpty) {
+        out.add(
+          BrainInsight(
+            BrainKind.nextStep,
+            '$title: investigations not yet ordered',
+            'The extraction hints at "${ev.invUnlinked.first}" but it is unlinked to '
+            'any problem. Confirm necessity vs. cost before ordering.',
+            source: 'AI extraction · evidence cross-check',
+          ),
+        );
+      }
+    }
+
+    // 2. Medications: if the clinician has no medication record but the AI
+    //    extraction already surfaced ordered meds, surface that conflict for
+    //    verification.
+    if (!i.hasMedicationRecord && ev.medicationsOrdered.isNotEmpty) {
+      out.add(
+        BrainInsight(
+          BrainKind.missingData,
+          'Medications on file conflict with extraction',
+          'AI extraction reports: ${ev.medicationsOrdered.take(3).join(', ')}. '
+          'Confirm these are active orders; stop/change as needed to avoid duplication.',
+          urgent: true,
+          source: 'AI extraction · evidence cross-check',
+        ),
+      );
+    }
+
+    // 3. Clinical warnings from the model that need clinician action.
+    for (final w in ev.warnings) {
+      if (w.isEmpty) continue;
+      out.add(
+        BrainInsight(
+          BrainKind.safety,
+          'AI warning: ${w.substring(0, w.length < 80 ? w.length : 80)}',
+          w.length > 120 ? '${w.substring(0, 120)}...' : w,
+          urgent: true,
+          source: 'AI extraction · evidence cross-check',
+        ),
+      );
+    }
+
+    // 4. Holistic next steps derived from procedures/procedures.
+    if (ev.procedures.isNotEmpty) {
+      out.add(
+        BrainInsight(
+          BrainKind.nextStep,
+          'Procedures recently recorded',
+          ev.procedures.take(4).map((e) => '• $e').join('\n'),
+          source: 'AI extraction · evidence cross-check',
+        ),
+      );
+    }
+
+    // 5. Clinical summary provides the bird's-eye context for the clinician.
+    if (ev.clinicalSummary.isNotEmpty) {
+      out.add(
+        BrainInsight(
+          BrainKind.nextStep,
+          'AI clinical summary',
+          ev.clinicalSummary,
+          source: 'AI extraction · evidence cross-check',
+        ),
       );
     }
   }

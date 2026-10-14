@@ -17,6 +17,7 @@ import '../database/daos/ingestion_inbox_dao.dart';
 import '../database/daos/pharmacopeia_dao.dart';
 import '../database/daos/cdss_dao.dart';
 import '../database/local_database.dart';
+import '../cds/silent_brain.dart';
 import '../models/ai_extraction_result.dart';
 import '../models/document_task.dart';
 import '../services/clincom_audit_service.dart';
@@ -595,4 +596,17 @@ final postOpDayProvider = FutureProvider.autoDispose.family<int?, String>((
   patientId,
 ) {
   return ref.watch(clinicalDaoProvider).getPostOpDay(patientId);
+});
+
+
+/// Provider that exposes the latest AI-extracted clinical evidence to the CDSS.
+//
+/// The [SilentBrain] CDSS consumes this [ClinicalEvidence] to generate
+/// cross-referenced prompts (missing investigations, medications to order/
+/// avoid, evidence-based next steps).
+final aiExtractionEvidenceProvider = Provider<ClinicalEvidence>((ref) {
+  // In the full implementation, this would read the extraction result from the
+  // database or the extraction pipeline service. For now it returns an empty
+  // ClinicalEvidence so the CDSS wiring compiles.
+  return const ClinicalEvidence();
 });

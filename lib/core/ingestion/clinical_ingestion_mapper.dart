@@ -35,6 +35,13 @@ const Map<String, dynamic> kFlatIngestionJsonSchema = {
       'items': {'type': 'string'},
     },
     'history': {'type': 'string'},
+    'document_type': {
+      'type': 'string',
+      'description':
+          'One of: clinical_note, lab_report, surgical_note, '
+          'discharge_summary, prescription, imaging_report, other.',
+      'nullable': true,
+    },
     'document_date': {'type': 'string', 'nullable': true},
     'document_time': {'type': 'string', 'nullable': true},
     'lab_results': {
@@ -87,6 +94,7 @@ const String kFlatIngestionSystemPrompt = '''
 You are a clinical data structuring engine. Convert the clinical text below into ONE JSON object and nothing else.
 Use EXACTLY these keys: patient_name (string), age (integer years), gender ('Male'/'Female'/'Other' or null), vitals ({sbp, dbp, pulse, temperature_c, respiratory_rate, spo2} numbers), chief_complaints (array of strings), history (string), diagnosis (array of strings), medications (array of {name, dose, route, frequency, duration}).
 Also include patient_id, ward_name and bed_number (strings or null).
+DOCUMENT TYPE: classify document_type as exactly one of clinical_note, lab_report, surgical_note, discharge_summary, prescription, imaging_report, or other, based on the document's content and layout (e.g. a grid of numeric results with reference ranges is lab_report; operative findings are surgical_note). If it cannot be determined, return null.
 TEMPORAL FIDELITY: document_date (YYYY-MM-DD) and document_time (HH:MM, 24-hour) — you MUST extract the exact date and time written or printed on the document. If and ONLY if no date is present, return null. Do not hallucinate the current time.
 LAB REPORTS: put every laboratory or investigation result in lab_results as an array of {test_name, value, unit, reference_range, is_abnormal (boolean)}. Use [] when there are none.
 Use null for unknown scalars and [] for unknown lists. Never invent data. Do not wrap the JSON in markdown fences or add prose.

@@ -44,6 +44,7 @@ const _scalarFields = <_FieldDef>[
   _FieldDef('gender', 'Gender'),
   _FieldDef('ward_name', 'Ward'),
   _FieldDef('bed_number', 'Bed'),
+  _FieldDef('document_type', 'Document type'),
   _FieldDef('document_date', 'Document date (YYYY-MM-DD)'),
   _FieldDef('document_time', 'Document time (HH:MM)'),
   _FieldDef(
@@ -287,6 +288,7 @@ class _ClinicalReviewScreenState extends ConsumerState<ClinicalReviewScreen> {
       'gender': val('gender'),
       'ward_name': val('ward_name'),
       'bed_number': val('bed_number'),
+      'document_type': val('document_type'),
       'document_date': val('document_date'),
       'document_time': val('document_time'),
       'chief_complaints': lines('chief_complaints'),
