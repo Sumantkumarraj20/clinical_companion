@@ -9,6 +9,31 @@ Object? _readDrugName(Map<dynamic, dynamic> json, String key) =>
 Object? _readDosage(Map<dynamic, dynamic> json, String key) =>
     json[key] ?? json['dose'];
 
+String? _textOrNull(Object? value) {
+  if (value == null) return null;
+  final text = value.toString().trim();
+  return text.isEmpty || text.toLowerCase() == 'null' ? null : text;
+}
+
+/// Coerces tabular lab rows into the string-typed shape the model expects.
+/// Numeric values, null fields and malformed rows must never throw.
+List<Map<String, dynamic>> _sanitizeLabRows(List<dynamic> rows) {
+  final out = <Map<String, dynamic>>[];
+  for (final row in rows) {
+    if (row is! Map) continue;
+    final name = _textOrNull(row['test_name'] ?? row['name']);
+    if (name == null) continue;
+    out.add({
+      'test_name': name,
+      'value': _textOrNull(row['value']) ?? '',
+      'unit': _textOrNull(row['unit']),
+      'reference_range': _textOrNull(row['reference_range']),
+      'is_abnormal': row['is_abnormal'] == true,
+    });
+  }
+  return out;
+}
+
 Map<String, dynamic> _normalizeUniversalExtraction(Map<String, dynamic> json) {
   final normalized = Map<String, dynamic>.from(json);
   final demographics = json['inferredPatientDemographics'];
@@ -47,8 +72,37 @@ Map<String, dynamic> _normalizeUniversalExtraction(Map<String, dynamic> json) {
   }
   final unlinkedData = json['unlinked_data'];
   if (unlinkedData is Map) {
-    normalized['unlinked_management'] = unlinkedData;
+    final unlinked = Map<String, dynamic>.from(unlinkedData);
+    final investigations = unlinked['investigations'];
+    if (investigations is List) {
+      unlinked['investigations'] = _sanitizeLabRows(investigations);
+    }
+    normalized['unlinked_management'] = unlinked;
   }
+
+  // Polymorphic document header: classification and the printed date/time.
+  final docType = _textOrNull(json['document_type']);
+  if (docType != null) {
+    final context = Map<String, dynamic>.from(
+      (normalized['encounter_context'] as Map?) ?? const {},
+    );
+    context['document_type'] = docType;
+    normalized['encounter_context'] = context;
+  }
+  final docDate = _textOrNull(json['document_date']);
+  if (docDate != null) {
+    final docTime = _textOrNull(json['document_time']);
+    normalized['document_date'] = docTime == null
+        ? docDate
+        : '${docDate}T$docTime';
+  } else {
+    normalized.remove('document_date');
+  }
+
+  final labs = json['lab_results'];
+  normalized['lab_results'] = labs is List
+      ? _sanitizeLabRows(labs)
+      : const <Map<String, dynamic>>[];
   return normalized;
 }
 
@@ -283,6 +337,7 @@ sealed class AiInvestigation with _$AiInvestigation {
     @JsonKey(name: 'test_name') @Default('') String testName,
     @Default('') String value,
     String? unit,
+    @JsonKey(name: 'reference_range') String? referenceRange,
     @JsonKey(name: 'is_abnormal') @Default(false) bool isAbnormal,
   }) = _AiInvestigation;
 
@@ -306,6 +361,7 @@ sealed class AiLabResult with _$AiLabResult {
     @JsonKey(name: 'test_name') @Default('') String testName,
     @Default('') String value,
     String? unit,
+    @JsonKey(name: 'reference_range') String? referenceRange,
     @JsonKey(name: 'is_abnormal') @Default(false) bool isAbnormal,
   }) = _AiLabResult;
 

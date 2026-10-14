@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/providers/app_providers.dart';
+import '../../../core/ui/raw_error.dart';
 
 /// A single reflection capture form.
 ///
@@ -106,13 +107,14 @@ class _ReflectionEntrySheetState extends ConsumerState<ReflectionEntrySheet> {
             clinicalTakeaway: _takeaway.text,
           );
       if (mounted) Navigator.of(context).pop(true);
-    } catch (error) {
+    } catch (error, st) {
       if (!mounted) return;
       setState(() => _saving = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Could not save reflection: $error'),
-          backgroundColor: Theme.of(context).colorScheme.error,
+        rawErrorSnackBar(
+          'Could not save reflection',
+          error: error,
+          stackTrace: st,
         ),
       );
     }

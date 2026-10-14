@@ -8,6 +8,7 @@ import '../../../core/cds/decision_support_engine.dart';
 import '../../../core/database/local_database.dart';
 import '../../../core/providers/app_providers.dart';
 import '../../../core/utils/datetime_utils.dart';
+import '../../../core/ui/raw_error.dart';
 
 class VitalsEntryScreen extends ConsumerStatefulWidget {
   const VitalsEntryScreen({this.preselectedPatientId, super.key});
@@ -187,8 +188,10 @@ class _VitalsEntryScreenState extends ConsumerState<VitalsEntryScreen> {
           _clearForm();
         }
       }
-    } catch (e) {
-      if (mounted) _message('Error saving vitals: $e', isError: true);
+    } catch (e, st) {
+      if (mounted) {
+        _message('Error saving vitals', isError: true, error: e, stackTrace: st);
+      }
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -205,12 +208,16 @@ class _VitalsEntryScreenState extends ConsumerState<VitalsEntryScreen> {
     setState(() => _map = null);
   }
 
-  void _message(String msg, {bool isError = false}) {
+  void _message(
+    String msg, {
+    bool isError = false,
+    Object? error,
+    StackTrace? stackTrace,
+  }) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(msg),
-        backgroundColor: isError ? Colors.red : Colors.green,
-      ),
+      isError
+          ? rawErrorSnackBar(msg, error: error, stackTrace: stackTrace)
+          : SnackBar(content: Text(msg), backgroundColor: Colors.green),
     );
   }
 

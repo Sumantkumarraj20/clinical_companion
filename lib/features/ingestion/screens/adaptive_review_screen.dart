@@ -291,10 +291,7 @@ class _AdaptiveReviewScreenState extends ConsumerState<AdaptiveReviewScreen> {
         if (!mounted) return;
         if (!applied) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('That document is no longer available to edit.'),
-              backgroundColor: Colors.red,
-            ),
+            rawErrorSnackBar('That document is no longer available to edit.'),
           );
           return;
         }

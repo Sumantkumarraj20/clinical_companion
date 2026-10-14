@@ -869,6 +869,34 @@ $sourceText
   }) async {
     final schema = Schema.object(
       properties: {
+        'document_type': Schema.string(
+          nullable: true,
+          description:
+              'Classify first: clinical_note, lab_report, abg_receipt, '
+              'prescription, surgical_note, discharge_summary, or other.',
+        ),
+        'document_date': Schema.string(
+          nullable: true,
+          description:
+              'Exact YYYY-MM-DD printed on the document header; null if '
+              'absent. Never today\'s date.',
+        ),
+        'document_time': Schema.string(
+          nullable: true,
+          description:
+              'Exact HH:MM (24h) printed on the document; null if absent.',
+        ),
+        'lab_results': Schema.array(
+          items: Schema.object(
+            properties: {
+              'test_name': Schema.string(),
+              'value': Schema.string(nullable: true),
+              'unit': Schema.string(nullable: true),
+              'reference_range': Schema.string(nullable: true),
+              'is_abnormal': Schema.boolean(),
+            },
+          ),
+        ),
         'inferredPatientDemographics': Schema.object(
           properties: {
             'name': Schema.string(nullable: true),
@@ -919,6 +947,7 @@ $sourceText
                     'test_name': Schema.string(),
                     'value': Schema.string(),
                     'unit': Schema.string(nullable: true),
+                    'reference_range': Schema.string(nullable: true),
                     'is_abnormal': Schema.boolean(),
                   },
                 ),
@@ -951,6 +980,7 @@ $sourceText
                   'test_name': Schema.string(),
                   'value': Schema.string(),
                   'unit': Schema.string(nullable: true),
+                  'reference_range': Schema.string(nullable: true),
                   'is_abnormal': Schema.boolean(),
                 },
               ),

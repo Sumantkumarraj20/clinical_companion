@@ -28,7 +28,17 @@ const _modelJson = '''
 ''';
 
 http.Response _ok(String text) => http.Response(
-  jsonEncode({'id': 'int_1', 'output_text': text}),
+  jsonEncode({
+    'candidates': [
+      {
+        'content': {
+          'parts': [
+            {'text': text},
+          ],
+        },
+      },
+    ],
+  }),
   200,
   headers: {'content-type': 'application/json'},
 );
@@ -49,7 +59,10 @@ void main() {
       expect(sent.containsKey(banned), isFalse);
       expect((sent['generation_config'] ?? {}) as Map, isNot(contains(banned)));
     }
-    expect((sent['response_format'] as Map)['mime_type'], 'application/json');
+    expect(
+      (sent['generationConfig'] as Map)['responseMimeType'],
+      'application/json',
+    );
   });
 
   test('discharge summary maps into distinct SQLite rows', () async {
@@ -101,7 +114,8 @@ void main() {
 
   test('failures preserve raw input as a draft', () async {
     for (final handler in <MockClientHandler>[
-      (_) async => http.Response('{"error":{"status":"INVALID_ARGUMENT"}}', 400),
+      (_) async =>
+          http.Response('{"error":{"status":"INVALID_ARGUMENT"}}', 400),
       (_) async => _ok('not json at all'),
     ]) {
       final db = AppDatabase(NativeDatabase.memory());
@@ -163,56 +177,63 @@ void main() {
     expect(await db.select(db.patients).get(), hasLength(5));
   });
 
-  test('census prompt is injected and Bed reference resolves to the patient',
-      () async {
-    final db = AppDatabase(NativeDatabase.memory());
-    addTearDown(db.close);
-    final seeded = await ClinicalIngestionMapper(
-      db,
-    ).persist({'patient_name': 'Sita Devi', 'age': 40});
-    final census = jsonEncode([
-      {
-        'patient_id': seeded.patientId,
-        'name': 'Sita Devi',
-        'bed': '827',
-        'ward': 'Medicine',
-      },
-    ]);
-    late String prompt;
-    final orchestrator = IngestionOrchestrator(
-      client: InteractionsApiClient(
-        apiKey: 'k',
-        client: MockClient((req) async {
-          prompt = (jsonDecode(req.body) as Map)['input'] as String;
-          return _ok(
-            jsonEncode({
-              'patient_id': seeded.patientId,
-              'patient_name': null,
-              'bed_number': '827',
-              'diagnosis': ['Pneumonia'],
-            }),
-          );
-        }),
-      ),
-      db: db,
-      model: 'm',
-    );
-    final outcome = await orchestrator.ingestText(
-      'Bed 827 - fever, start antibiotics',
-      activeCensusJson: census,
-    );
-    expect(prompt, contains('ACTIVE WARD CENSUS'));
-    expect(prompt, contains(seeded.patientId));
-    expect(outcome.mapping!.patientId, seeded.patientId);
-    expect(await db.select(db.patients).get(), hasLength(1));
-    final enc = (await db.select(db.clinicalEncounters).get()).last;
-    expect(enc.bedNumber, '827');
+  test(
+    'census prompt is injected and Bed reference resolves to the patient',
+    () async {
+      final db = AppDatabase(NativeDatabase.memory());
+      addTearDown(db.close);
+      final seeded = await ClinicalIngestionMapper(
+        db,
+      ).persist({'patient_name': 'Sita Devi', 'age': 40});
+      final census = jsonEncode([
+        {
+          'patient_id': seeded.patientId,
+          'name': 'Sita Devi',
+          'bed': '827',
+          'ward': 'Medicine',
+        },
+      ]);
+      late String prompt;
+      final orchestrator = IngestionOrchestrator(
+        client: InteractionsApiClient(
+          apiKey: 'k',
+          client: MockClient((req) async {
+            prompt =
+                ((((jsonDecode(req.body) as Map)['contents'] as List).first
+                                as Map)['parts']
+                            as List)
+                        .first['text']
+                    as String;
+            return _ok(
+              jsonEncode({
+                'patient_id': seeded.patientId,
+                'patient_name': null,
+                'bed_number': '827',
+                'diagnosis': ['Pneumonia'],
+              }),
+            );
+          }),
+        ),
+        db: db,
+        model: 'm',
+      );
+      final outcome = await orchestrator.ingestText(
+        'Bed 827 - fever, start antibiotics',
+        activeCensusJson: census,
+      );
+      expect(prompt, contains('ACTIVE WARD CENSUS'));
+      expect(prompt, contains(seeded.patientId));
+      expect(outcome.mapping!.patientId, seeded.patientId);
+      expect(await db.select(db.patients).get(), hasLength(1));
+      final enc = (await db.select(db.clinicalEncounters).get()).last;
+      expect(enc.bedNumber, '827');
 
-    // A hallucinated id that is not in the census is ignored.
-    final r = await ClinicalIngestionMapper(db).persist({
-      'patient_id': 'not-in-census',
-      'patient_name': 'Other Person',
-    }, censusIds: censusPatientIds(census));
-    expect(r.matchedExistingPatient, isFalse);
-  });
+      // A hallucinated id that is not in the census is ignored.
+      final r = await ClinicalIngestionMapper(db).persist({
+        'patient_id': 'not-in-census',
+        'patient_name': 'Other Person',
+      }, censusIds: censusPatientIds(census));
+      expect(r.matchedExistingPatient, isFalse);
+    },
+  );
 }

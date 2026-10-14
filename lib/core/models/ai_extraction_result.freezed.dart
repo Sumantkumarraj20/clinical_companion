@@ -679,7 +679,7 @@ $AiVitalsCopyWith<$Res> get vitals {
 @override
 @pragma('vm:prefer-inline')
 $AiUnlinkedManagementCopyWith<$Res> get unlinkedManagement {
-
+  
   return $AiUnlinkedManagementCopyWith<$Res>(_self.unlinkedManagement, (value) {
     return _then(_self.copyWith(unlinkedManagement: value));
   });
@@ -1001,7 +1001,7 @@ $AiVitalsCopyWith<$Res> get vitals {
 @override
 @pragma('vm:prefer-inline')
 $AiUnlinkedManagementCopyWith<$Res> get unlinkedManagement {
-
+  
   return $AiUnlinkedManagementCopyWith<$Res>(_self.unlinkedManagement, (value) {
     return _then(_self.copyWith(unlinkedManagement: value));
   });
@@ -2664,7 +2664,7 @@ as String?,
 /// @nodoc
 mixin _$AiInvestigation {
 
-@JsonKey(name: 'test_name') String get testName; String get value; String? get unit;@JsonKey(name: 'is_abnormal') bool get isAbnormal;
+@JsonKey(name: 'test_name') String get testName; String get value; String? get unit;@JsonKey(name: 'reference_range') String? get referenceRange;@JsonKey(name: 'is_abnormal') bool get isAbnormal;
 /// Create a copy of AiInvestigation
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -2677,16 +2677,16 @@ $AiInvestigationCopyWith<AiInvestigation> get copyWith => _$AiInvestigationCopyW
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is AiInvestigation&&(identical(other.testName, testName) || other.testName == testName)&&(identical(other.value, value) || other.value == value)&&(identical(other.unit, unit) || other.unit == unit)&&(identical(other.isAbnormal, isAbnormal) || other.isAbnormal == isAbnormal));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is AiInvestigation&&(identical(other.testName, testName) || other.testName == testName)&&(identical(other.value, value) || other.value == value)&&(identical(other.unit, unit) || other.unit == unit)&&(identical(other.referenceRange, referenceRange) || other.referenceRange == referenceRange)&&(identical(other.isAbnormal, isAbnormal) || other.isAbnormal == isAbnormal));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,testName,value,unit,isAbnormal);
+int get hashCode => Object.hash(runtimeType,testName,value,unit,referenceRange,isAbnormal);
 
 @override
 String toString() {
-  return 'AiInvestigation(testName: $testName, value: $value, unit: $unit, isAbnormal: $isAbnormal)';
+  return 'AiInvestigation(testName: $testName, value: $value, unit: $unit, referenceRange: $referenceRange, isAbnormal: $isAbnormal)';
 }
 
 
@@ -2697,7 +2697,7 @@ abstract mixin class $AiInvestigationCopyWith<$Res>  {
   factory $AiInvestigationCopyWith(AiInvestigation value, $Res Function(AiInvestigation) _then) = _$AiInvestigationCopyWithImpl;
 @useResult
 $Res call({
-@JsonKey(name: 'test_name') String testName, String value, String? unit,@JsonKey(name: 'is_abnormal') bool isAbnormal
+@JsonKey(name: 'test_name') String testName, String value, String? unit,@JsonKey(name: 'reference_range') String? referenceRange,@JsonKey(name: 'is_abnormal') bool isAbnormal
 });
 
 
@@ -2714,11 +2714,12 @@ class _$AiInvestigationCopyWithImpl<$Res>
 
 /// Create a copy of AiInvestigation
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? testName = null,Object? value = null,Object? unit = freezed,Object? isAbnormal = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? testName = null,Object? value = null,Object? unit = freezed,Object? referenceRange = freezed,Object? isAbnormal = null,}) {
   return _then(AiInvestigation(
 testName: null == testName ? _self.testName : testName // ignore: cast_nullable_to_non_nullable
 as String,value: null == value ? _self.value : value // ignore: cast_nullable_to_non_nullable
 as String,unit: freezed == unit ? _self.unit : unit // ignore: cast_nullable_to_non_nullable
+as String?,referenceRange: freezed == referenceRange ? _self.referenceRange : referenceRange // ignore: cast_nullable_to_non_nullable
 as String?,isAbnormal: null == isAbnormal ? _self.isAbnormal : isAbnormal // ignore: cast_nullable_to_non_nullable
 as bool,
   ));
@@ -2802,10 +2803,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function(@JsonKey(name: 'test_name')  String testName,  String value,  String? unit, @JsonKey(name: 'is_abnormal')  bool isAbnormal)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function(@JsonKey(name: 'test_name')  String testName,  String value,  String? unit, @JsonKey(name: 'reference_range')  String? referenceRange, @JsonKey(name: 'is_abnormal')  bool isAbnormal)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _AiInvestigation() when $default != null:
-return $default(_that.testName,_that.value,_that.unit,_that.isAbnormal);case _:
+return $default(_that.testName,_that.value,_that.unit,_that.referenceRange,_that.isAbnormal);case _:
   return orElse();
 
 }
@@ -2823,10 +2824,10 @@ return $default(_that.testName,_that.value,_that.unit,_that.isAbnormal);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function(@JsonKey(name: 'test_name')  String testName,  String value,  String? unit, @JsonKey(name: 'is_abnormal')  bool isAbnormal)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function(@JsonKey(name: 'test_name')  String testName,  String value,  String? unit, @JsonKey(name: 'reference_range')  String? referenceRange, @JsonKey(name: 'is_abnormal')  bool isAbnormal)  $default,) {final _that = this;
 switch (_that) {
 case _AiInvestigation():
-return $default(_that.testName,_that.value,_that.unit,_that.isAbnormal);}
+return $default(_that.testName,_that.value,_that.unit,_that.referenceRange,_that.isAbnormal);}
 }
 /// A variant of `when` that fallback to returning `null`
 ///
@@ -2840,10 +2841,10 @@ return $default(_that.testName,_that.value,_that.unit,_that.isAbnormal);}
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function(@JsonKey(name: 'test_name')  String testName,  String value,  String? unit, @JsonKey(name: 'is_abnormal')  bool isAbnormal)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function(@JsonKey(name: 'test_name')  String testName,  String value,  String? unit, @JsonKey(name: 'reference_range')  String? referenceRange, @JsonKey(name: 'is_abnormal')  bool isAbnormal)?  $default,) {final _that = this;
 switch (_that) {
 case _AiInvestigation() when $default != null:
-return $default(_that.testName,_that.value,_that.unit,_that.isAbnormal);case _:
+return $default(_that.testName,_that.value,_that.unit,_that.referenceRange,_that.isAbnormal);case _:
   return null;
 
 }
@@ -2855,12 +2856,13 @@ return $default(_that.testName,_that.value,_that.unit,_that.isAbnormal);case _:
 @JsonSerializable()
 
 class _AiInvestigation implements AiInvestigation {
-  const _AiInvestigation({@JsonKey(name: 'test_name') this.testName = '', this.value = '', this.unit, @JsonKey(name: 'is_abnormal') this.isAbnormal = false});
+  const _AiInvestigation({@JsonKey(name: 'test_name') this.testName = '', this.value = '', this.unit, @JsonKey(name: 'reference_range') this.referenceRange, @JsonKey(name: 'is_abnormal') this.isAbnormal = false});
   factory _AiInvestigation.fromJson(Map<String, dynamic> json) => _$AiInvestigationFromJson(json);
 
 @override@JsonKey(name: 'test_name') final  String testName;
 @override@JsonKey() final  String value;
 @override final  String? unit;
+@override@JsonKey(name: 'reference_range') final  String? referenceRange;
 @override@JsonKey(name: 'is_abnormal') final  bool isAbnormal;
 
 /// Create a copy of AiInvestigation
@@ -2876,16 +2878,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _AiInvestigation&&(identical(other.testName, testName) || other.testName == testName)&&(identical(other.value, value) || other.value == value)&&(identical(other.unit, unit) || other.unit == unit)&&(identical(other.isAbnormal, isAbnormal) || other.isAbnormal == isAbnormal));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _AiInvestigation&&(identical(other.testName, testName) || other.testName == testName)&&(identical(other.value, value) || other.value == value)&&(identical(other.unit, unit) || other.unit == unit)&&(identical(other.referenceRange, referenceRange) || other.referenceRange == referenceRange)&&(identical(other.isAbnormal, isAbnormal) || other.isAbnormal == isAbnormal));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,testName,value,unit,isAbnormal);
+int get hashCode => Object.hash(runtimeType,testName,value,unit,referenceRange,isAbnormal);
 
 @override
 String toString() {
-  return 'AiInvestigation(testName: $testName, value: $value, unit: $unit, isAbnormal: $isAbnormal)';
+  return 'AiInvestigation(testName: $testName, value: $value, unit: $unit, referenceRange: $referenceRange, isAbnormal: $isAbnormal)';
 }
 
 
@@ -2896,7 +2898,7 @@ abstract mixin class _$AiInvestigationCopyWith<$Res> implements $AiInvestigation
   factory _$AiInvestigationCopyWith(_AiInvestigation value, $Res Function(_AiInvestigation) _then) = __$AiInvestigationCopyWithImpl;
 @override @useResult
 $Res call({
-@JsonKey(name: 'test_name') String testName, String value, String? unit,@JsonKey(name: 'is_abnormal') bool isAbnormal
+@JsonKey(name: 'test_name') String testName, String value, String? unit,@JsonKey(name: 'reference_range') String? referenceRange,@JsonKey(name: 'is_abnormal') bool isAbnormal
 });
 
 
@@ -2913,11 +2915,12 @@ class __$AiInvestigationCopyWithImpl<$Res>
 
 /// Create a copy of AiInvestigation
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? testName = null,Object? value = null,Object? unit = freezed,Object? isAbnormal = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? testName = null,Object? value = null,Object? unit = freezed,Object? referenceRange = freezed,Object? isAbnormal = null,}) {
   return _then(_AiInvestigation(
 testName: null == testName ? _self.testName : testName // ignore: cast_nullable_to_non_nullable
 as String,value: null == value ? _self.value : value // ignore: cast_nullable_to_non_nullable
 as String,unit: freezed == unit ? _self.unit : unit // ignore: cast_nullable_to_non_nullable
+as String?,referenceRange: freezed == referenceRange ? _self.referenceRange : referenceRange // ignore: cast_nullable_to_non_nullable
 as String?,isAbnormal: null == isAbnormal ? _self.isAbnormal : isAbnormal // ignore: cast_nullable_to_non_nullable
 as bool,
   ));
@@ -3187,7 +3190,7 @@ as String,
 /// @nodoc
 mixin _$AiLabResult {
 
-@JsonKey(name: 'test_name') String get testName; String get value; String? get unit;@JsonKey(name: 'is_abnormal') bool get isAbnormal;
+@JsonKey(name: 'test_name') String get testName; String get value; String? get unit;@JsonKey(name: 'reference_range') String? get referenceRange;@JsonKey(name: 'is_abnormal') bool get isAbnormal;
 /// Create a copy of AiLabResult
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -3200,16 +3203,16 @@ $AiLabResultCopyWith<AiLabResult> get copyWith => _$AiLabResultCopyWithImpl<AiLa
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is AiLabResult&&(identical(other.testName, testName) || other.testName == testName)&&(identical(other.value, value) || other.value == value)&&(identical(other.unit, unit) || other.unit == unit)&&(identical(other.isAbnormal, isAbnormal) || other.isAbnormal == isAbnormal));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is AiLabResult&&(identical(other.testName, testName) || other.testName == testName)&&(identical(other.value, value) || other.value == value)&&(identical(other.unit, unit) || other.unit == unit)&&(identical(other.referenceRange, referenceRange) || other.referenceRange == referenceRange)&&(identical(other.isAbnormal, isAbnormal) || other.isAbnormal == isAbnormal));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,testName,value,unit,isAbnormal);
+int get hashCode => Object.hash(runtimeType,testName,value,unit,referenceRange,isAbnormal);
 
 @override
 String toString() {
-  return 'AiLabResult(testName: $testName, value: $value, unit: $unit, isAbnormal: $isAbnormal)';
+  return 'AiLabResult(testName: $testName, value: $value, unit: $unit, referenceRange: $referenceRange, isAbnormal: $isAbnormal)';
 }
 
 
@@ -3220,7 +3223,7 @@ abstract mixin class $AiLabResultCopyWith<$Res>  {
   factory $AiLabResultCopyWith(AiLabResult value, $Res Function(AiLabResult) _then) = _$AiLabResultCopyWithImpl;
 @useResult
 $Res call({
-@JsonKey(name: 'test_name') String testName, String value, String? unit,@JsonKey(name: 'is_abnormal') bool isAbnormal
+@JsonKey(name: 'test_name') String testName, String value, String? unit,@JsonKey(name: 'reference_range') String? referenceRange,@JsonKey(name: 'is_abnormal') bool isAbnormal
 });
 
 
@@ -3237,11 +3240,12 @@ class _$AiLabResultCopyWithImpl<$Res>
 
 /// Create a copy of AiLabResult
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? testName = null,Object? value = null,Object? unit = freezed,Object? isAbnormal = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? testName = null,Object? value = null,Object? unit = freezed,Object? referenceRange = freezed,Object? isAbnormal = null,}) {
   return _then(AiLabResult(
 testName: null == testName ? _self.testName : testName // ignore: cast_nullable_to_non_nullable
 as String,value: null == value ? _self.value : value // ignore: cast_nullable_to_non_nullable
 as String,unit: freezed == unit ? _self.unit : unit // ignore: cast_nullable_to_non_nullable
+as String?,referenceRange: freezed == referenceRange ? _self.referenceRange : referenceRange // ignore: cast_nullable_to_non_nullable
 as String?,isAbnormal: null == isAbnormal ? _self.isAbnormal : isAbnormal // ignore: cast_nullable_to_non_nullable
 as bool,
   ));
@@ -3325,10 +3329,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function(@JsonKey(name: 'test_name')  String testName,  String value,  String? unit, @JsonKey(name: 'is_abnormal')  bool isAbnormal)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function(@JsonKey(name: 'test_name')  String testName,  String value,  String? unit, @JsonKey(name: 'reference_range')  String? referenceRange, @JsonKey(name: 'is_abnormal')  bool isAbnormal)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _AiLabResult() when $default != null:
-return $default(_that.testName,_that.value,_that.unit,_that.isAbnormal);case _:
+return $default(_that.testName,_that.value,_that.unit,_that.referenceRange,_that.isAbnormal);case _:
   return orElse();
 
 }
@@ -3346,10 +3350,10 @@ return $default(_that.testName,_that.value,_that.unit,_that.isAbnormal);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function(@JsonKey(name: 'test_name')  String testName,  String value,  String? unit, @JsonKey(name: 'is_abnormal')  bool isAbnormal)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function(@JsonKey(name: 'test_name')  String testName,  String value,  String? unit, @JsonKey(name: 'reference_range')  String? referenceRange, @JsonKey(name: 'is_abnormal')  bool isAbnormal)  $default,) {final _that = this;
 switch (_that) {
 case _AiLabResult():
-return $default(_that.testName,_that.value,_that.unit,_that.isAbnormal);}
+return $default(_that.testName,_that.value,_that.unit,_that.referenceRange,_that.isAbnormal);}
 }
 /// A variant of `when` that fallback to returning `null`
 ///
@@ -3363,10 +3367,10 @@ return $default(_that.testName,_that.value,_that.unit,_that.isAbnormal);}
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function(@JsonKey(name: 'test_name')  String testName,  String value,  String? unit, @JsonKey(name: 'is_abnormal')  bool isAbnormal)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function(@JsonKey(name: 'test_name')  String testName,  String value,  String? unit, @JsonKey(name: 'reference_range')  String? referenceRange, @JsonKey(name: 'is_abnormal')  bool isAbnormal)?  $default,) {final _that = this;
 switch (_that) {
 case _AiLabResult() when $default != null:
-return $default(_that.testName,_that.value,_that.unit,_that.isAbnormal);case _:
+return $default(_that.testName,_that.value,_that.unit,_that.referenceRange,_that.isAbnormal);case _:
   return null;
 
 }
@@ -3378,12 +3382,13 @@ return $default(_that.testName,_that.value,_that.unit,_that.isAbnormal);case _:
 @JsonSerializable()
 
 class _AiLabResult implements AiLabResult {
-  const _AiLabResult({@JsonKey(name: 'test_name') this.testName = '', this.value = '', this.unit, @JsonKey(name: 'is_abnormal') this.isAbnormal = false});
+  const _AiLabResult({@JsonKey(name: 'test_name') this.testName = '', this.value = '', this.unit, @JsonKey(name: 'reference_range') this.referenceRange, @JsonKey(name: 'is_abnormal') this.isAbnormal = false});
   factory _AiLabResult.fromJson(Map<String, dynamic> json) => _$AiLabResultFromJson(json);
 
 @override@JsonKey(name: 'test_name') final  String testName;
 @override@JsonKey() final  String value;
 @override final  String? unit;
+@override@JsonKey(name: 'reference_range') final  String? referenceRange;
 @override@JsonKey(name: 'is_abnormal') final  bool isAbnormal;
 
 /// Create a copy of AiLabResult
@@ -3399,16 +3404,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _AiLabResult&&(identical(other.testName, testName) || other.testName == testName)&&(identical(other.value, value) || other.value == value)&&(identical(other.unit, unit) || other.unit == unit)&&(identical(other.isAbnormal, isAbnormal) || other.isAbnormal == isAbnormal));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _AiLabResult&&(identical(other.testName, testName) || other.testName == testName)&&(identical(other.value, value) || other.value == value)&&(identical(other.unit, unit) || other.unit == unit)&&(identical(other.referenceRange, referenceRange) || other.referenceRange == referenceRange)&&(identical(other.isAbnormal, isAbnormal) || other.isAbnormal == isAbnormal));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,testName,value,unit,isAbnormal);
+int get hashCode => Object.hash(runtimeType,testName,value,unit,referenceRange,isAbnormal);
 
 @override
 String toString() {
-  return 'AiLabResult(testName: $testName, value: $value, unit: $unit, isAbnormal: $isAbnormal)';
+  return 'AiLabResult(testName: $testName, value: $value, unit: $unit, referenceRange: $referenceRange, isAbnormal: $isAbnormal)';
 }
 
 
@@ -3419,7 +3424,7 @@ abstract mixin class _$AiLabResultCopyWith<$Res> implements $AiLabResultCopyWith
   factory _$AiLabResultCopyWith(_AiLabResult value, $Res Function(_AiLabResult) _then) = __$AiLabResultCopyWithImpl;
 @override @useResult
 $Res call({
-@JsonKey(name: 'test_name') String testName, String value, String? unit,@JsonKey(name: 'is_abnormal') bool isAbnormal
+@JsonKey(name: 'test_name') String testName, String value, String? unit,@JsonKey(name: 'reference_range') String? referenceRange,@JsonKey(name: 'is_abnormal') bool isAbnormal
 });
 
 
@@ -3436,11 +3441,12 @@ class __$AiLabResultCopyWithImpl<$Res>
 
 /// Create a copy of AiLabResult
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? testName = null,Object? value = null,Object? unit = freezed,Object? isAbnormal = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? testName = null,Object? value = null,Object? unit = freezed,Object? referenceRange = freezed,Object? isAbnormal = null,}) {
   return _then(_AiLabResult(
 testName: null == testName ? _self.testName : testName // ignore: cast_nullable_to_non_nullable
 as String,value: null == value ? _self.value : value // ignore: cast_nullable_to_non_nullable
 as String,unit: freezed == unit ? _self.unit : unit // ignore: cast_nullable_to_non_nullable
+as String?,referenceRange: freezed == referenceRange ? _self.referenceRange : referenceRange // ignore: cast_nullable_to_non_nullable
 as String?,isAbnormal: null == isAbnormal ? _self.isAbnormal : isAbnormal // ignore: cast_nullable_to_non_nullable
 as bool,
   ));

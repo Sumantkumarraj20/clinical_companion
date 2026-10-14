@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/database/local_database.dart';
 import '../../../core/providers/app_providers.dart';
 import '../../../core/database/daos/clinical_dao.dart';
 import '../../../core/utils/datetime_utils.dart';
+import '../../../core/ui/raw_error.dart';
+import '../../../core/ingestion/json_schema_tool.dart';
 
 class DataManagementScreen extends ConsumerStatefulWidget {
   const DataManagementScreen({super.key});
@@ -105,6 +109,34 @@ class _DataManagementScreenState extends ConsumerState<DataManagementScreen> {
                     ),
                   ],
                 ),
+              ),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  OutlinedButton.icon(
+                    onPressed: () async {
+                      final messenger = ScaffoldMessenger.of(context);
+                      await Clipboard.setData(
+                        ClipboardData(text: buildIngestionSchemaTemplate()),
+                      );
+                      messenger.showSnackBar(
+                        const SnackBar(
+                          content: Text('Schema copied to clipboard'),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.copy_rounded),
+                    label: const Text('Copy Schema to Clipboard'),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: () =>
+                        context.push('/data-management/import-json'),
+                    icon: const Icon(Icons.data_object_rounded),
+                    label: const Text('Import JSON'),
+                  ),
+                ],
               ),
               const SizedBox(height: 20),
 
@@ -329,14 +361,11 @@ class _DataManagementScreenState extends ConsumerState<DataManagementScreen> {
           ),
         );
       }
-    } catch (error) {
+    } catch (error, st) {
       if (mounted) {
         setState(() => _saving = false);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Merge failed: $error'),
-            backgroundColor: Colors.red,
-          ),
+          rawErrorSnackBar('Merge failed', error: error, stackTrace: st),
         );
       }
     }

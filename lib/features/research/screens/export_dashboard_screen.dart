@@ -8,6 +8,7 @@ import '../../../core/database/local_database.dart';
 import '../../../core/providers/app_providers.dart';
 import '../../../core/utils/datetime_utils.dart';
 import 'export_sink.dart';
+import '../../../core/ui/raw_error.dart';
 
 class ExportDashboardScreen extends ConsumerStatefulWidget {
   const ExportDashboardScreen({super.key});
@@ -140,13 +141,10 @@ class _ExportDashboardScreenState extends ConsumerState<ExportDashboardScreen> {
           ),
         );
       }
-    } catch (e) {
+    } catch (e, st) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Export failed: $e'),
-            backgroundColor: Colors.red,
-          ),
+          rawErrorSnackBar('Export failed', error: e, stackTrace: st),
         );
       }
     } finally {
@@ -210,13 +208,10 @@ class _ExportDashboardScreenState extends ConsumerState<ExportDashboardScreen> {
           ),
         );
       }
-    } catch (e) {
+    } catch (e, st) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('JSON export failed: $e'),
-            backgroundColor: Colors.red,
-          ),
+          rawErrorSnackBar('JSON export failed', error: e, stackTrace: st),
         );
       }
     } finally {

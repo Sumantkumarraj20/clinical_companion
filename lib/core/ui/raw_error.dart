@@ -44,11 +44,13 @@ SnackBar rawErrorSnackBar(
   String text, {
   Object? error,
   StackTrace? stackTrace,
+  Color backgroundColor = const Color(0xFFB71C1C),
   Duration duration = const Duration(seconds: 10),
 }) {
   if (error != null) text = '$text\n\n${describeRawError(error, stackTrace)}';
   return SnackBar(
     duration: duration,
+    backgroundColor: backgroundColor,
     content: SelectableErrorText(
       text,
       maxHeight: 200,
@@ -62,8 +64,15 @@ SnackBar rawErrorSnackBar(
   );
 }
 
-void showRawErrorSnackBar(ScaffoldMessengerState? messenger, String text) {
+void showRawErrorSnackBar(
+  ScaffoldMessengerState? messenger,
+  String text, {
+  Object? error,
+  StackTrace? stackTrace,
+}) {
   messenger
     ?..hideCurrentSnackBar()
-    ..showSnackBar(rawErrorSnackBar(text));
+    ..showSnackBar(
+      rawErrorSnackBar(text, error: error, stackTrace: stackTrace),
+    );
 }

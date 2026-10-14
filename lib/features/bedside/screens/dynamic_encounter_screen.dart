@@ -22,6 +22,7 @@ import '../widgets/subtle_guardian_banner.dart';
 import '../widgets/guardrail_status_widget.dart';
 import '../widgets/clinical_rule_navigator.dart';
 import '../../ingestion/widgets/ambient_scribe_fab.dart';
+import '../../../core/ui/raw_error.dart';
 
 class DynamicEncounterScreen extends ConsumerStatefulWidget {
   const DynamicEncounterScreen({required this.patient, super.key});
@@ -480,8 +481,15 @@ class _DynamicEncounterScreenState
         );
         Navigator.pop(context, true);
       }
-    } catch (error) {
-      if (mounted) _toast('Could not save encounter: $error', isError: true);
+    } catch (error, st) {
+      if (mounted) {
+        _toast(
+          'Could not save encounter',
+          isError: true,
+          error: error,
+          stackTrace: st,
+        );
+      }
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -536,13 +544,16 @@ class _DynamicEncounterScreenState
     }
   }
 
-  void _toast(String message, {bool isError = false}) =>
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(message),
-          backgroundColor: isError ? Colors.red : Colors.green,
-        ),
-      );
+  void _toast(
+    String message, {
+    bool isError = false,
+    Object? error,
+    StackTrace? stackTrace,
+  }) => ScaffoldMessenger.of(context).showSnackBar(
+    isError
+        ? rawErrorSnackBar(message, error: error, stackTrace: stackTrace)
+        : SnackBar(content: Text(message), backgroundColor: Colors.green),
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -551,9 +562,7 @@ class _DynamicEncounterScreenState
     // instead of crashing or silently vanishing from the Encounter UI.
     ref.listen<String?>(aiErrorNoticeProvider, (previous, message) {
       if (message == null || !mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(message)));
+      ScaffoldMessenger.of(context).showSnackBar(rawErrorSnackBar(message));
       ref.read(aiErrorNoticeProvider.notifier).clear();
     });
     ref.listen<List<PendingOrder>>(stagedOrdersProvider, (previous, next) {

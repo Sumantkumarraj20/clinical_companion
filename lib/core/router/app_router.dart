@@ -25,6 +25,7 @@ import '../../features/research/screens/comparative_analysis_screen.dart';
 import '../../features/patients/screens/problem_dashboard_screen.dart';
 import '../../features/cdss/screens/rule_builder_screen.dart';
 import '../../features/admin/screens/data_management_screen.dart';
+import '../../features/admin/screens/raw_json_import_screen.dart';
 import '../../features/settings/screens/configuration_screen.dart';
 import '../../features/bedside/screens/manual_entry_screen.dart';
 import '../../features/ingestion/screens/adaptive_review_screen.dart';
@@ -86,6 +87,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: '/cdss-rules',
             builder: (context, state) => const RuleBuilderScreen(),
+          ),
+          GoRoute(
+            path: '/data-management/import-json',
+            builder: (context, state) => const RawJsonImportScreen(),
           ),
           GoRoute(
             path: '/data-management',

@@ -9,6 +9,7 @@ import '../../../core/providers/app_providers.dart';
 import '../../../core/utils/datetime_utils.dart';
 import '../widgets/cohort_tagger.dart';
 import 'hospital_picker_field.dart';
+import '../../../core/ui/raw_error.dart';
 
 class PatientRegistryScreen extends ConsumerStatefulWidget {
   const PatientRegistryScreen({this.selectForOpd = false, super.key});
@@ -658,7 +659,9 @@ class _PatientEditorState extends ConsumerState<_PatientEditor> {
       debugPrint(
         'Could not load patient registration details: $error\n$stackTrace',
       );
-      _loadError = 'Patient registration details could not be loaded.';
+      _loadError =
+          'Patient registration details could not be loaded.\n'
+          '${describeRawError(error, stackTrace)}';
     } finally {
       if (mounted) setState(() => _loadingInitial = false);
     }
@@ -1059,15 +1062,14 @@ class _PatientEditorState extends ConsumerState<_PatientEditor> {
       }
 
       if (mounted) Navigator.pop(context, widget.patient);
-    } catch (e) {
-      debugPrint('Could not save patient profile: $e');
+    } catch (e, st) {
+      debugPrint('Could not save patient profile: $e\n$st');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text(
-              'Could not save this profile. Your changes are still here; please try again.',
-            ),
-            backgroundColor: Theme.of(context).colorScheme.error,
+          rawErrorSnackBar(
+            'Could not save this profile. Your changes are still here.',
+            error: e,
+            stackTrace: st,
           ),
         );
       }

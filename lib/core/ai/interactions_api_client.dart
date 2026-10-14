@@ -4,24 +4,18 @@ import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
 
-/// Sprint 27 — "The Interactions API Migration & Adaptive Compute".
-///
-/// Thin HTTP client for the GA Gemini Interactions API
-/// (`POST https://generativelanguage.googleapis.com/v1/interactions`), the
-/// replacement for the legacy `generateContent` endpoint.
+/// HTTP client for the Gemini `generateContent` REST endpoint
+/// (`POST https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent`).
 ///
 /// Design notes:
+///  * Multimodal input is a single `contents[0].parts` list: a `text` part and
+///    an optional `inlineData {mimeType, data}` part.
+///  * Structured output uses `generationConfig.responseMimeType` and
+///    `responseSchema`.
 ///  * The deprecated sampling knobs (`temperature`, `top_p`, `top_k`,
-///    `thinking_budget`) are NOT sent — they now return
-///    400 INVALID_ARGUMENT. Reasoning depth is routed with
-///    `generation_config.thinking_level` instead.
-///  * Structured output moves from `generationConfig.responseMimeType /
-///    responseSchema` to `response_format: {type, mime_type, schema}`.
-///  * Responses are read from the `steps` timeline (`model_output` steps) or
-///    the `output_text` convenience field — never the legacy `candidates`
-///    array.
-///  * `store: false` keeps the interaction stateless: clinical text must not
-///    be retained server-side for multi-turn history.
+///    `thinking_budget`) are never sent; reasoning depth is routed with
+///    `generationConfig.thinkingConfig.thinkingLevel`.
+///  * Responses are read from `candidates[0].content.parts[*].text`.
 enum ThinkingLevel {
   minimal('minimal'),
   low('low'),
@@ -79,26 +73,26 @@ class InteractionsResult {
   final String? interactionId;
 }
 
-/// Client for `POST /v1/interactions` (stable GA endpoint).
+/// Client for the Gemini `generateContent` endpoint.
 class InteractionsApiClient {
   InteractionsApiClient({required this.apiKey, http.Client? client})
     : _client = client ?? http.Client();
 
-  /// GA (stable) Interactions endpoint. `/v1beta` and `/v1beta2` still
-  /// exist, but the app targets the GA surface only.
-  static const String endpoint =
-      'https://generativelanguage.googleapis.com/v1/interactions';
+  static const String _baseUrl =
+      'https://generativelanguage.googleapis.com/v1beta/models';
+
+  /// REST endpoint for [model], e.g. `.../models/gemini-3.8-flash:generateContent`.
+  static String endpointFor(String model) => '$_baseUrl/$model:generateContent';
 
   static const Duration _timeout = Duration(seconds: 120);
 
   final String apiKey;
   final http.Client _client;
 
-  /// Builds the exact `POST` body for one interaction.
+  /// Builds the exact `POST` body for one request.
   ///
-  /// Exposed (and exercised by the Sprint 27 suite) so the request shape —
-  /// including the absence of every deprecated sampling parameter — is
-  /// verifiable without touching the network.
+  /// Exposed so the request shape — including the absence of every
+  /// deprecated sampling parameter — is verifiable without the network.
   Map<String, dynamic> buildRequestBody({
     required String model,
     required String prompt,
@@ -107,40 +101,35 @@ class InteractionsApiClient {
     Map<String, dynamic>? jsonSchema,
     ThinkingLevel? thinkingLevel,
   }) {
-    final Object input;
-    if (imageBytes == null) {
-      input = prompt;
-    } else {
-      input = <Map<String, dynamic>>[
-        {'type': 'text', 'text': prompt},
-        {
-          'type': 'image',
+    final parts = <Map<String, dynamic>>[
+      {'text': prompt},
+    ];
+
+    if (imageBytes != null) {
+      parts.add({
+        'inlineData': {
+          'mimeType': imageMimeType ?? 'image/jpeg',
           'data': base64Encode(imageBytes),
-          'mime_type': imageMimeType ?? 'image/jpeg',
         },
-      ];
+      });
     }
 
     return <String, dynamic>{
-      'model': model,
-      'input': input,
-      // Stateless: clinical payloads are never retained for history.
-      'store': false,
-      'response_format': <String, dynamic>{
-        'type': 'text',
-        'mime_type': 'application/json',
-        if (jsonSchema != null) 'schema': jsonSchema,
+      'contents': [
+        {'parts': parts},
+      ],
+      'generationConfig': <String, dynamic>{
+        'responseMimeType': 'application/json',
+        if (jsonSchema != null) 'responseSchema': jsonSchema,
+        if (thinkingLevel != null)
+          'thinkingConfig': <String, dynamic>{
+            'thinkingLevel': thinkingLevel.value,
+          },
       },
-      if (thinkingLevel != null)
-        'generation_config': <String, dynamic>{
-          'thinking_level': thinkingLevel.value,
-        },
-      // NOTE: no temperature / top_p / top_k / thinking_budget — the model's
-      // native default sampling is authoritative on the Interactions API.
     };
   }
 
-  /// Creates one interaction and returns the model's output text.
+  /// Sends one request and returns the model's output text.
   Future<InteractionsResult> create({
     required String model,
     required String prompt,
@@ -157,12 +146,13 @@ class InteractionsApiClient {
       jsonSchema: jsonSchema,
       thinkingLevel: thinkingLevel,
     );
+    final url = endpointFor(model);
 
     final http.Response response;
     try {
       response = await _client
           .post(
-            Uri.parse(endpoint),
+            Uri.parse(url),
             headers: <String, String>{
               'Content-Type': 'application/json',
               'x-goog-api-key': apiKey,
@@ -172,14 +162,13 @@ class InteractionsApiClient {
           .timeout(_timeout);
     } on TimeoutException catch (error) {
       throw InteractionsApiException(
-        'timeout: the Interactions API did not respond within '
+        'timeout: the request did not complete within '
         '${_timeout.inSeconds}s ($error)',
       );
     } on Exception catch (error) {
-      // Socket/DNS/TLS failures surface through `http` as wrapped
-      // exceptions; keep the original text so error classification can
-      // still see 'SocketException' / 'failed host lookup'.
-      throw InteractionsApiException('network: request to $endpoint failed: $error');
+      // Keep the original text so error classification can still see
+      // 'SocketException' / 'failed host lookup'.
+      throw InteractionsApiException('network: request to $url failed: $error');
     }
 
     if (response.statusCode != 200) {
@@ -212,56 +201,53 @@ class InteractionsApiClient {
     } on FormatException {
       // Non-JSON error body — fall through.
     }
-    return body.trim().isEmpty ? 'The Interactions API returned an error.' : body;
+    return body.trim().isEmpty ? 'The API returned an error.' : body;
   }
 
-  /// Reads an Interactions response: `output_text` first, then the `steps`
-  /// timeline (`model_output` steps), per the Interactions API schema.
+  /// Reads `candidates[0].content.parts[*].text`. Any missing key raises a
+  /// classified [InteractionsApiException] carrying the raw payload.
   static InteractionsResult _parseResponse(String body) {
     final Object? decoded;
     try {
       decoded = jsonDecode(body);
-    } on FormatException {
+    } on FormatException catch (error) {
       throw InteractionsApiException(
-        'schema: the Interactions API returned a non-JSON payload.',
+        'schema: the API returned a non-JSON payload ($error): $body',
       );
     }
     if (decoded is! Map) {
       throw InteractionsApiException(
-        'schema: the Interactions API response was not a JSON object.',
+        'schema: the API response was not a JSON object: $body',
       );
     }
-    final response = Map<String, dynamic>.from(decoded);
 
-    final outputText = response['output_text'];
-    if (outputText is String && outputText.trim().isNotEmpty) {
-      return InteractionsResult(text: outputText, interactionId: response['id'] as String?);
-    }
+    final candidates = decoded['candidates'];
+    final first = candidates is List && candidates.isNotEmpty
+        ? candidates.first
+        : null;
+    final content = first is Map ? first['content'] : null;
+    final parts = content is Map ? content['parts'] : null;
 
-    final steps = response['steps'];
-    if (steps is List) {
+    if (parts is List) {
       final buffer = StringBuffer();
-      for (final step in steps.reversed) {
-        if (step is! Map) continue;
-        if (step['type'] != 'model_output') continue;
-        final content = step['content'];
-        if (content is! List) continue;
-        for (final block in content) {
-          if (block is Map && block['type'] == 'text') {
-            final text = block['text'];
-            if (text is String && text.isNotEmpty) buffer.write(text);
-          }
-        }
-        if (buffer.isNotEmpty) break;
+      for (final part in parts) {
+        if (part is! Map || part['thought'] == true) continue;
+        final text = part['text'];
+        if (text is String) buffer.write(text);
       }
-      return InteractionsResult(
-        text: buffer.toString(),
-        interactionId: response['id'] as String?,
-      );
+      if (buffer.isNotEmpty) {
+        return InteractionsResult(
+          text: buffer.toString(),
+          interactionId: decoded['responseId'] as String?,
+        );
+      }
     }
 
-    // Neither output_text nor steps: the caller turns an empty string into a
-    // typed empty-response error.
-    return InteractionsResult(text: '', interactionId: response['id'] as String?);
+    final feedback = decoded['promptFeedback'];
+    final finish = first is Map ? first['finishReason'] : null;
+    throw InteractionsApiException(
+      'schema: response had no candidates[0].content.parts[].text '
+      '(finishReason: $finish, promptFeedback: $feedback). Raw: $body',
+    );
   }
 }

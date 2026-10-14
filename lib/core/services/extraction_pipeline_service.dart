@@ -162,11 +162,6 @@ class ExtractionPipelineService {
     String rawText, {
     String? activeCensusJson,
   }) async {
-    final local = parseLocalText(rawText);
-    if (local != null) {
-      return PipelineExtraction(result: local, source: PipelineSource.local);
-    }
-
     if (path.extension(image.path).toLowerCase() == '.pdf') {
       return processTextWithProvenance(
         rawText,
@@ -382,15 +377,21 @@ NON-NEGOTIABLE CLINICAL RULES:
    meaning, not shorthand.
 2. NEVER GUESS a value. A field you cannot read is null, not a plausible
    number. A fabricated haemoglobin is a clinical hazard.
-3. DOCUMENT DATE: extract the date the document was WRITTEN (the report's own
-   date, the sample-collection date, or the top-right date on a prescription)
-   into `encounterDetails.date` as ISO-8601 (YYYY-MM-DD). NEVER substitute
-   today's date — a back-dated report entered today must keep its true date.
+3. DOCUMENT TYPE: first classify `document_type` as one of clinical_note,
+   lab_report, abg_receipt, prescription, surgical_note, discharge_summary or
+   other, and adapt to it: tabular lab/ABG reports are read row by row into
+   `lab_results`; narrative notes populate problems and management.
+   DOCUMENT DATE/TIME: extract the exact date/time printed on the document
+   header into `document_date` (YYYY-MM-DD) and `document_time` (HH:MM, 24h),
+   and mirror the date into `encounterDetails.date`. Do NOT hallucinate the
+   current time or date. If missing, return null.
 4. CENSUS INFERENCE: if the source carries a bed/ward number but no patient
    name, cross-reference the appended active census JSON and output the matched
    id in `inferred_patient_id`. If the bed is missing or ambiguous, emit null —
    never guess a patient.
-5. LABS: expand test names to standard units ("Serum Creatinine"), keep the
+5. LABS: put EVERY tabular result in the top-level `lab_results` array as
+   {test_name, value, unit, reference_range, is_abnormal}; never drop rows,
+   and use null for any unreadable field. Expand test names to standard units ("Serum Creatinine"), keep the
    original value, unit and reference range exactly as printed, and set
    `is_abnormal` only when the report itself flags it.
 6. Keep `clinical_summary` to ONE sentence.

@@ -249,10 +249,7 @@ class OmniIngestionService {
     required String rawText,
     required OmniIngestionResult local,
   }) async {
-    if (local.localConfidence >= highConfidenceThreshold &&
-        _isDataAdequate(local.data)) {
-      return local;
-    }
+    // Raw text is never persisted from local parsing; Gemini always structures it.
     final extraction = await _pipeline.processTextPayload(
       rawText,
       activeCensusJson: payload.activeCensusJson,
@@ -279,10 +276,7 @@ class OmniIngestionService {
     required String rawText,
     required OmniIngestionResult local,
   }) async {
-    if (local.localConfidence >= highConfidenceThreshold &&
-        _isDataAdequate(local.data)) {
-      return local;
-    }
+    // Raw text is never persisted from local parsing; Gemini always structures it.
     final extraction = await _pipeline.processRecognizedDocumentWithProvenance(
       payload.file,
       rawText,
@@ -340,12 +334,6 @@ class OmniIngestionService {
       );
     }
   }
-
-  bool _isDataAdequate(AiExtractionResult data) =>
-      data.problems.isNotEmpty ||
-      data.medicationsOrdered.isNotEmpty ||
-      data.labResults.isNotEmpty ||
-      data.vitals.sbp != null;
 
   AiExtractionResult _mergeLocalUnder(
     AiExtractionResult cloud,

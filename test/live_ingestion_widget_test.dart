@@ -88,7 +88,17 @@ void main() {
     final db = await _pump(
       tester,
       (_) async => http.Response(
-        jsonEncode({'id': 'int_1', 'output_text': _modelJson}),
+        jsonEncode({
+          'candidates': [
+            {
+              'content': {
+                'parts': [
+                  {'text': _modelJson},
+                ],
+              },
+            },
+          ],
+        }),
         200,
         headers: {'content-type': 'application/json'},
       ),
@@ -122,7 +132,10 @@ void main() {
     for (final banned in kDeprecatedGenerationParameters) {
       expect(sent.containsKey(banned), isFalse);
     }
-    expect((sent['response_format'] as Map)['mime_type'], 'application/json');
+    expect(
+      (sent['generationConfig'] as Map)['responseMimeType'],
+      'application/json',
+    );
 
     final patients = await tester.runAsync(() => db.select(db.patients).get());
     final problems = await tester.runAsync(

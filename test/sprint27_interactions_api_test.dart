@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 import 'dart:io';
 
 import 'package:clinical_companion/core/ai/document_ai_service.dart';
@@ -34,41 +35,28 @@ const _denseClinicalTranscript =
     'Final report: sections show reactive changes with no evidence of '
     'malignancy described anywhere in the concluding narrative block.';
 
-/// A GA Interactions API response (`steps` timeline + `output_text`).
+/// A `generateContent` response (`candidates[0].content.parts[0].text`).
 String interactionsResponseBody(
   String outputText, {
   bool includeOutputText = true,
-}) =>
-    jsonEncode({
-      'id': 'int_sprint27_test',
-      'object': 'interaction',
-      'status': 'completed',
-      if (includeOutputText) 'output_text': outputText,
-      'steps': [
-        {
-          'type': 'user_input',
-          'status': 'done',
-          'content': [
-            {'type': 'text', 'text': 'clinician prompt'},
-          ],
-        },
-        {
-          'type': 'model_output',
-          'status': 'done',
-          'content': [
-            {'type': 'text', 'text': outputText},
-          ],
-        },
-      ],
-      'usage': {
-        'total_input_tokens': 120,
-        'total_output_tokens': 80,
-        'total_tokens': 200,
+}) => jsonEncode({
+  'responseId': 'int_sprint27_test',
+  'candidates': [
+    {
+      'content': {
+        'role': 'model',
+        'parts': [
+          {'text': outputText},
+        ],
       },
-    });
+      'finishReason': 'STOP',
+    },
+  ],
+});
 
 /// Minimal valid ClinicalRuleSuggestion payload for mocked responses.
-Map<String, dynamic> _ruleJson({required String triggerValue}) => <String, dynamic>{
+Map<String, dynamic> _ruleJson({required String triggerValue}) =>
+    <String, dynamic>{
       'trigger_type': 'diagnosis',
       'trigger_value': triggerValue,
       'suggested_action': 'Start standard therapy',
@@ -82,31 +70,33 @@ Map<String, dynamic> _ruleJson({required String triggerValue}) => <String, dynam
     };
 
 String _inputTextOf(Map<String, dynamic> body) {
-  final input = body['input'];
-  if (input is String) return input;
-  if (input is List) {
-    final buffer = StringBuffer();
-    for (final block in input) {
-      if (block is Map && block['type'] == 'text') {
-        buffer.writeln(block['text']);
+  final buffer = StringBuffer();
+  final contents = body['contents'];
+  if (contents is List) {
+    for (final content in contents) {
+      final parts = content is Map ? content['parts'] : null;
+      if (parts is! List) continue;
+      for (final part in parts) {
+        if (part is Map && part['text'] is String) buffer.writeln(part['text']);
       }
     }
-    return buffer.toString();
   }
-  return '';
+  return buffer.toString();
 }
 
 String? _thinkingLevelOf(Map<String, dynamic> body) {
-  final config = body['generation_config'];
-  return config is Map ? config['thinking_level'] as String? : null;
+  final config = body['generationConfig'];
+  final thinking = config is Map ? config['thinkingConfig'] : null;
+  return thinking is Map ? thinking['thinkingLevel'] as String? : null;
 }
 
 void main() {
   group('Sprint 27: Interactions request payload', () {
-    test('targets the stable GA endpoint with the latest supported model', () {
+    test('targets the generateContent endpoint with the latest model', () {
       expect(
-        InteractionsApiClient.endpoint,
-        'https://generativelanguage.googleapis.com/v1/interactions',
+        InteractionsApiClient.endpointFor('gemini-3.8-flash'),
+        'https://generativelanguage.googleapis.com/v1beta/models/'
+        'gemini-3.8-flash:generateContent',
       );
       expect(DocumentAiService.defaultModel, 'gemini-3.8-flash');
       expect(
@@ -115,182 +105,158 @@ void main() {
       );
     });
 
-    test(
-      'payload carries response_format + thinking_level and purges every '
-      'deprecated sampling parameter',
-      () {
-        final body = InteractionsApiClient(apiKey: 'test-key').buildRequestBody(
-          model: DocumentAiService.defaultModel,
-          prompt: 'Structure this encounter as POMR.',
-          jsonSchema: <String, dynamic>{
-            'type': 'object',
-            'properties': <String, dynamic>{
-              'diagnosis': <String, dynamic>{'type': 'string'},
-            },
-            'required': <String>['diagnosis'],
+    test('payload carries response_format + thinking_level and purges every '
+        'deprecated sampling parameter', () {
+      final body = InteractionsApiClient(apiKey: 'test-key').buildRequestBody(
+        model: DocumentAiService.defaultModel,
+        prompt: 'Structure this encounter as POMR.',
+        jsonSchema: <String, dynamic>{
+          'type': 'object',
+          'properties': <String, dynamic>{
+            'diagnosis': <String, dynamic>{'type': 'string'},
           },
-          thinkingLevel: ThinkingLevel.medium,
-        );
+          'required': <String>['diagnosis'],
+        },
+        thinkingLevel: ThinkingLevel.medium,
+      );
 
-        expect(body['model'], 'gemini-3.8-flash');
-        // Stateless: clinical text must not be retained server-side.
-        expect(body['store'], isFalse);
-        expect(
-          body['response_format'],
-          <String, dynamic>{
-            'type': 'text',
-            'mime_type': 'application/json',
-            'schema': <String, dynamic>{
-              'type': 'object',
-              'properties': <String, dynamic>{
-                'diagnosis': <String, dynamic>{'type': 'string'},
-              },
-              'required': <String>['diagnosis'],
-            },
+      expect(body.containsKey('model'), isFalse);
+      expect(body['contents'], [
+        {
+          'parts': [
+            {'text': 'Structure this encounter as POMR.'},
+          ],
+        },
+      ]);
+      expect(body['generationConfig'], <String, dynamic>{
+        'responseMimeType': 'application/json',
+        'responseSchema': <String, dynamic>{
+          'type': 'object',
+          'properties': <String, dynamic>{
+            'diagnosis': <String, dynamic>{'type': 'string'},
           },
-        );
-        expect(
-          body['generation_config'],
-          <String, dynamic>{'thinking_level': 'medium'},
-        );
+          'required': <String>['diagnosis'],
+        },
+        'thinkingConfig': <String, dynamic>{'thinkingLevel': 'medium'},
+      });
 
-        // The legacy generateContent config surface must be gone entirely.
-        final encoded = jsonEncode(body);
-        for (final banned in kDeprecatedGenerationParameters) {
-          expect(
-            body.containsKey(banned),
-            isFalse,
-            reason: '$banned leaked into payload',
-          );
-          expect(
-            encoded.contains('"$banned"'),
-            isFalse,
-            reason: '$banned leaked into payload',
-          );
-        }
-        expect(body.containsKey('generationConfig'), isFalse);
-        expect(body.containsKey('candidates'), isFalse);
-      },
-    );
-
-    test('every adaptive-compute tier maps to a valid thinking_level value', () {
-      const wireValues = <String>{'minimal', 'low', 'medium', 'high'};
-      expect(ThinkingLevel.all, hasLength(4));
-      for (final tier in ThinkingLevel.all) {
+      // The legacy generateContent config surface must be gone entirely.
+      final encoded = jsonEncode(body);
+      for (final banned in kDeprecatedGenerationParameters) {
         expect(
-          wireValues.contains(tier.value),
-          isTrue,
-          reason: '${tier.value} is not a valid tier',
-        );
-        final body = InteractionsApiClient(apiKey: 'k').buildRequestBody(
-          model: DocumentAiService.defaultModel,
-          prompt: 'p',
-          thinkingLevel: tier,
+          body.containsKey(banned),
+          isFalse,
+          reason: '$banned leaked into payload',
         );
         expect(
-          (body['generation_config'] as Map)['thinking_level'],
-          tier.value,
+          encoded.contains('"$banned"'),
+          isFalse,
+          reason: '$banned leaked into payload',
         );
       }
+      expect(body.containsKey('input'), isFalse);
+      expect(body.containsKey('response_format'), isFalse);
     });
+
+    test(
+      'every adaptive-compute tier maps to a valid thinking_level value',
+      () {
+        const wireValues = <String>{'minimal', 'low', 'medium', 'high'};
+        expect(ThinkingLevel.all, hasLength(4));
+        for (final tier in ThinkingLevel.all) {
+          expect(
+            wireValues.contains(tier.value),
+            isTrue,
+            reason: '${tier.value} is not a valid tier',
+          );
+          final body = InteractionsApiClient(apiKey: 'k').buildRequestBody(
+            model: DocumentAiService.defaultModel,
+            prompt: 'p',
+            thinkingLevel: tier,
+          );
+          expect(_thinkingLevelOf(body), tier.value);
+        }
+      },
+    );
   });
 
   group('Sprint 27: Interactions response parsing', () {
-    test('reads output_text and the steps timeline from a GA response',
-        () async {
-      http.Request? captured;
-      final client = InteractionsApiClient(
-        apiKey: 'test-key',
-        client: MockClient((request) async {
-          captured = request;
-          return http.Response(
-            interactionsResponseBody('{"clinical_insights":[]}'),
-            200,
-            headers: {'content-type': 'application/json'},
-          );
-        }),
+    test(
+      'reads output_text and the steps timeline from a GA response',
+      () async {
+        http.Request? captured;
+        final client = InteractionsApiClient(
+          apiKey: 'test-key',
+          client: MockClient((request) async {
+            captured = request;
+            return http.Response(
+              interactionsResponseBody('{"clinical_insights":[]}'),
+              200,
+              headers: {'content-type': 'application/json'},
+            );
+          }),
+        );
+
+        final result = await client.create(
+          model: DocumentAiService.defaultModel,
+          prompt: 'audit the chart',
+          thinkingLevel: ThinkingLevel.high,
+        );
+
+        expect(result.text, '{"clinical_insights":[]}');
+        expect(result.interactionId, 'int_sprint27_test');
+
+        // Request shape on the wire.
+        expect(captured, isNotNull);
+        expect(
+          captured!.url.toString(),
+          InteractionsApiClient.endpointFor(DocumentAiService.defaultModel),
+        );
+        expect(captured!.headers['x-goog-api-key'], 'test-key');
+        final sent = jsonDecode(captured!.body) as Map<String, dynamic>;
+        expect(_thinkingLevelOf(sent), 'high');
+        for (final banned in kDeprecatedGenerationParameters) {
+          expect(sent.containsKey(banned), isFalse);
+        }
+      },
+    );
+
+    test('sends images as inlineData parts', () {
+      final body = InteractionsApiClient(apiKey: 'k').buildRequestBody(
+        model: 'm',
+        prompt: 'read it',
+        imageBytes: Uint8List.fromList([1, 2, 3]),
+        imageMimeType: 'image/png',
       );
-
-      final result = await client.create(
-        model: DocumentAiService.defaultModel,
-        prompt: 'audit the chart',
-        thinkingLevel: ThinkingLevel.high,
-      );
-
-      expect(result.text, '{"clinical_insights":[]}');
-      expect(result.interactionId, 'int_sprint27_test');
-
-      // Request shape on the wire.
-      expect(captured, isNotNull);
-      expect(captured!.url.toString(), InteractionsApiClient.endpoint);
-      expect(captured!.headers['x-goog-api-key'], 'test-key');
-      final sent = jsonDecode(captured!.body) as Map<String, dynamic>;
-      expect(sent['model'], 'gemini-3.8-flash');
-      expect((sent['generation_config'] as Map)['thinking_level'], 'high');
-      for (final banned in kDeprecatedGenerationParameters) {
-        expect(sent.containsKey(banned), isFalse);
-      }
+      final parts = ((body['contents'] as List).single as Map)['parts'] as List;
+      expect(parts[0], {'text': 'read it'});
+      expect(parts[1], {
+        'inlineData': {'mimeType': 'image/png', 'data': 'AQID'},
+      });
     });
 
-    test('falls back to the steps array when output_text is absent', () async {
+    test('a payload without candidates text throws a classified error', () {
       final client = InteractionsApiClient(
         apiKey: 'test-key',
         client: MockClient(
           (request) async => http.Response(
-            interactionsResponseBody(
-              '{"raw_ocr_transcript":"lab report"}',
-              includeOutputText: false,
-            ),
+            jsonEncode({'steps': []}),
             200,
             headers: {'content-type': 'application/json'},
           ),
         ),
       );
-
-      final result = await client.create(
-        model: DocumentAiService.defaultModel,
-        prompt: 'digest the report',
+      expect(
+        client.create(model: 'm', prompt: 'p'),
+        throwsA(
+          isA<InteractionsApiException>().having(
+            (e) => e.message,
+            'message',
+            contains('candidates[0].content.parts'),
+          ),
+        ),
       );
-      expect(result.text, '{"raw_ocr_transcript":"lab report"}');
     });
-
-    test(
-      'a legacy generateContent candidates payload fails cleanly as an empty '
-      'response instead of crashing',
-      () async {
-        final service = DocumentAiService(
-          apiKey: 'test-key',
-          httpClient: MockClient(
-            (request) async => http.Response(
-              jsonEncode({
-                'candidates': [
-                  {
-                    'content': {
-                      'parts': [
-                        {'text': 'legacy'},
-                      ],
-                    },
-                  },
-                ],
-              }),
-              200,
-              headers: {'content-type': 'application/json'},
-            ),
-          ),
-        );
-
-        await expectLater(
-          service.generateClinicalInsights('chart summary'),
-          throwsA(
-            isA<DocumentAiException>().having(
-              (error) => error.type,
-              'type',
-              DocumentAiErrorType.emptyResponse,
-            ),
-          ),
-        );
-      },
-    );
   });
 
   group('Sprint 27: adaptive thinking-level routing', () {
@@ -303,119 +269,103 @@ void main() {
       expect(ai.lastThinkingLevel, ThinkingLevel.low);
     });
 
-    test(
-      'document refinement (Sprint 19 POMR structuring) requests the medium '
-      'tier',
-      () async {
-        final ai = _TierCapturingAiService();
-        final pipeline = ExtractionPipelineService(ai);
+    test('document refinement (Sprint 19 POMR structuring) requests the medium '
+        'tier', () async {
+      final ai = _TierCapturingAiService();
+      final pipeline = ExtractionPipelineService(ai);
 
-        await pipeline.refineWithAi(
-          File('chart.png'),
-          _denseClinicalTranscript,
-        );
+      await pipeline.refineWithAi(File('chart.png'), _denseClinicalTranscript);
 
-        expect(ai.lastThinkingLevel, ThinkingLevel.medium);
-      },
-    );
+      expect(ai.lastThinkingLevel, ThinkingLevel.medium);
+    });
 
-    test(
-      'chart audit defaults to medium; DDx rule generation and guideline '
-      'contraindication mining default to high',
-      () async {
-        final sentBodies = <Map<String, dynamic>>[];
-        final service = DocumentAiService(
-          apiKey: 'test-key',
-          httpClient: MockClient((request) async {
-            final body = jsonDecode(request.body) as Map<String, dynamic>;
-            sentBodies.add(body);
-            final input = _inputTextOf(body);
+    test('chart audit defaults to medium; DDx rule generation and guideline '
+        'contraindication mining default to high', () async {
+      final sentBodies = <Map<String, dynamic>>[];
+      final service = DocumentAiService(
+        apiKey: 'test-key',
+        httpClient: MockClient((request) async {
+          final body = jsonDecode(request.body) as Map<String, dynamic>;
+          sentBodies.add(body);
+          final input = _inputTextOf(body);
 
-            final Object output;
-            if (input.contains('elite academic attending physician')) {
-              output = {'clinical_insights': <dynamic>[]};
-            } else if (input.contains('MEDICAL LITERATURE')) {
-              output = {'rules': [_ruleJson(triggerValue: 'Metformin')]};
-            } else {
-              output = _ruleJson(
-                triggerValue: 'Community acquired pneumonia',
-              );
-            }
-            return http.Response(
-              interactionsResponseBody(jsonEncode(output)),
-              200,
-              headers: {'content-type': 'application/json'},
-            );
-          }),
-        );
+          final Object output;
+          if (input.contains('elite academic attending physician')) {
+            output = {'clinical_insights': <dynamic>[]};
+          } else if (input.contains('MEDICAL LITERATURE')) {
+            output = {
+              'rules': [_ruleJson(triggerValue: 'Metformin')],
+            };
+          } else {
+            output = _ruleJson(triggerValue: 'Community acquired pneumonia');
+          }
+          return http.Response(
+            interactionsResponseBody(jsonEncode(output)),
+            200,
+            headers: {'content-type': 'application/json'},
+          );
+        }),
+      );
 
-        await service.generateClinicalInsights('longitudinal POMR summary');
-        expect(_thinkingLevelOf(sentBodies.last), 'medium');
+      await service.generateClinicalInsights('longitudinal POMR summary');
+      expect(_thinkingLevelOf(sentBodies.last), 'medium');
 
-        await service.generateClinicalRule(
-          triggerType: 'diagnosis',
-          triggerValue: 'Community acquired pneumonia',
-        );
-        expect(_thinkingLevelOf(sentBodies.last), 'high');
+      await service.generateClinicalRule(
+        triggerType: 'diagnosis',
+        triggerValue: 'Community acquired pneumonia',
+      );
+      expect(_thinkingLevelOf(sentBodies.last), 'high');
 
-        await service.generateClinicalRulesFromGuideline(
-          'Metformin is contraindicated in severe renal impairment.',
-        );
-        expect(_thinkingLevelOf(sentBodies.last), 'high');
-      },
-    );
+      await service.generateClinicalRulesFromGuideline(
+        'Metformin is contraindicated in severe renal impairment.',
+      );
+      expect(_thinkingLevelOf(sentBodies.last), 'high');
+    });
   });
 
   group('Sprint 27: 400/500 fallback validation', () {
-    test(
-      'a rogue legacy parameter (400 INVALID_ARGUMENT) surfaces as a typed '
-      'non-blocking error',
-      () async {
-        var calls = 0;
-        final service = DocumentAiService(
-          apiKey: 'test-key',
-          httpClient: MockClient((request) async {
-            calls++;
-            return http.Response(
-              jsonEncode({
-                'error': {
-                  'code': 400,
-                  'message':
-                      'Unknown name "temperature" at \'generation_config\'',
-                  'status': 'INVALID_ARGUMENT',
-                },
-              }),
-              400,
-              headers: {'content-type': 'application/json'},
-            );
-          }),
-        );
+    test('a rogue legacy parameter (400 INVALID_ARGUMENT) surfaces as a typed '
+        'non-blocking error', () async {
+      var calls = 0;
+      final service = DocumentAiService(
+        apiKey: 'test-key',
+        httpClient: MockClient((request) async {
+          calls++;
+          return http.Response(
+            jsonEncode({
+              'error': {
+                'code': 400,
+                'message':
+                    'Unknown name "temperature" at \'generation_config\'',
+                'status': 'INVALID_ARGUMENT',
+              },
+            }),
+            400,
+            headers: {'content-type': 'application/json'},
+          );
+        }),
+      );
 
-        await expectLater(
-          service.generateClinicalInsights('chart summary'),
-          throwsA(
-            isA<DocumentAiException>()
-                .having(
-                  (error) => error.type,
-                  'type',
-                  DocumentAiErrorType.invalidRequest,
-                )
-                .having(
-                  (error) => error.message,
-                  'message',
-                  contains('INVALID_ARGUMENT'),
-                )
-                .having(
-                  (error) => error.retryable,
-                  'retryable',
-                  isFalse,
-                ),
-          ),
-        );
-        // Primary + fallback model, exactly once each — never a retry storm.
-        expect(calls, 2);
-      },
-    );
+      await expectLater(
+        service.generateClinicalInsights('chart summary'),
+        throwsA(
+          isA<DocumentAiException>()
+              .having(
+                (error) => error.type,
+                'type',
+                DocumentAiErrorType.invalidRequest,
+              )
+              .having(
+                (error) => error.message,
+                'message',
+                contains('INVALID_ARGUMENT'),
+              )
+              .having((error) => error.retryable, 'retryable', isFalse),
+        ),
+      );
+      // Primary + fallback model, exactly once each — never a retry storm.
+      expect(calls, 2);
+    });
 
     test('a 500 outage classifies as a retryable server error', () async {
       final service = DocumentAiService(
@@ -439,11 +389,7 @@ void main() {
         service.generateClinicalInsights('chart summary'),
         throwsA(
           isA<DocumentAiException>()
-              .having(
-                (error) => error.type,
-                'type',
-                DocumentAiErrorType.server,
-              )
+              .having((error) => error.type, 'type', DocumentAiErrorType.server)
               .having((error) => error.retryable, 'retryable', isTrue),
         ),
       );

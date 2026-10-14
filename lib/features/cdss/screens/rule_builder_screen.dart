@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/database/local_database.dart';
 import '../../../core/providers/app_providers.dart';
+import '../../../core/ui/raw_error.dart';
 
 class RuleBuilderScreen extends ConsumerStatefulWidget {
   const RuleBuilderScreen({super.key});
@@ -715,13 +716,10 @@ class _RuleEditorDialogState extends ConsumerState<_RuleEditorDialog> {
       );
 
       if (mounted) Navigator.pop(context, true);
-    } catch (e) {
+    } catch (e, st) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error saving protocol: $e'),
-            backgroundColor: Colors.red,
-          ),
+          rawErrorSnackBar('Error saving protocol', error: e, stackTrace: st),
         );
       }
     } finally {

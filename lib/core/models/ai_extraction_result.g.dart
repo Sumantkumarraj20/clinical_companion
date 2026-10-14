@@ -254,6 +254,7 @@ _AiInvestigation _$AiInvestigationFromJson(Map<String, dynamic> json) =>
       testName: json['test_name'] as String? ?? '',
       value: json['value'] as String? ?? '',
       unit: json['unit'] as String?,
+      referenceRange: json['reference_range'] as String?,
       isAbnormal: json['is_abnormal'] as bool? ?? false,
     );
 
@@ -262,6 +263,7 @@ Map<String, dynamic> _$AiInvestigationToJson(_AiInvestigation instance) =>
       'test_name': instance.testName,
       'value': instance.value,
       'unit': instance.unit,
+      'reference_range': instance.referenceRange,
       'is_abnormal': instance.isAbnormal,
     };
 
@@ -275,6 +277,7 @@ _AiLabResult _$AiLabResultFromJson(Map<String, dynamic> json) => _AiLabResult(
   testName: json['test_name'] as String? ?? '',
   value: json['value'] as String? ?? '',
   unit: json['unit'] as String?,
+  referenceRange: json['reference_range'] as String?,
   isAbnormal: json['is_abnormal'] as bool? ?? false,
 );
 
@@ -283,6 +286,7 @@ Map<String, dynamic> _$AiLabResultToJson(_AiLabResult instance) =>
       'test_name': instance.testName,
       'value': instance.value,
       'unit': instance.unit,
+      'reference_range': instance.referenceRange,
       'is_abnormal': instance.isAbnormal,
     };
 
