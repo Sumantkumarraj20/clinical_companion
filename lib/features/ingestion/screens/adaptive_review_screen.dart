@@ -22,6 +22,7 @@ import '../../../core/utils/datetime_utils.dart';
 import '../../../core/widgets/smart_drug_autocomplete.dart';
 import '../../patients/screens/hospital_picker_field.dart';
 import '../widgets/full_screen_image_viewer.dart';
+import '../../../core/ui/raw_error.dart';
 
 /// Sprint 9 — review half of the OCR/ClinCom pipeline.
 ///
@@ -192,10 +193,10 @@ class _AdaptiveReviewScreenState extends ConsumerState<AdaptiveReviewScreen> {
       );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Some saved problem links could not be loaded. Please verify the details before saving.',
-            ),
+          rawErrorSnackBar(
+            'Some saved problem links could not be loaded. Please verify the details before saving.',
+            error: error,
+            stackTrace: stackTrace,
           ),
         );
       }
@@ -350,10 +351,10 @@ class _AdaptiveReviewScreenState extends ConsumerState<AdaptiveReviewScreen> {
       debugPrint('Could not save clinical document: $error\n$stackTrace');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Could not save this document. Your changes are still available; please try again.',
-          ),
+        rawErrorSnackBar(
+          'Could not save this document. Your changes are still available; please try again.',
+          error: error,
+          stackTrace: stackTrace,
         ),
       );
     } finally {
@@ -473,8 +474,10 @@ class _AdaptiveReviewScreenState extends ConsumerState<AdaptiveReviewScreen> {
       debugPrint('Could not add page to review: $error\n$stackTrace');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Could not add this page. Please select it again.'),
+        rawErrorSnackBar(
+          'Could not add this page. Please select it again.',
+          error: error,
+          stackTrace: stackTrace,
         ),
       );
     }

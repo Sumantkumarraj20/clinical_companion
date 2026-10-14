@@ -10,6 +10,7 @@ import '../../../core/models/ai_extraction_result.dart';
 import '../../../core/models/document_task.dart';
 import '../../../core/providers/app_providers.dart';
 import '../../../core/utils/datetime_utils.dart';
+import '../../../core/ui/raw_error.dart';
 
 class ExtractionReviewScreen extends ConsumerStatefulWidget {
   const ExtractionReviewScreen({
@@ -185,10 +186,10 @@ class _ExtractionReviewScreenState
       debugPrint('Could not save clinical document: $error\n$stackTrace');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Could not save this document. Your changes are still available; please try again.',
-            ),
+          rawErrorSnackBar(
+            'Could not save this document. Your changes are still available; please try again.',
+            error: error,
+            stackTrace: stackTrace,
           ),
         );
       }

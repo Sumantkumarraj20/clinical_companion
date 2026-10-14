@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/ui/raw_error.dart';
 import '../../../core/ingestion/live_ingestion_controller.dart';
 import '../../../core/providers/app_providers.dart';
 import '../../../core/services/pdf_render_adapter.dart';
@@ -174,16 +175,13 @@ class _ClinicalReviewScreenState extends ConsumerState<ClinicalReviewScreen> {
         _apply(data);
         _loading = false;
       });
-    } catch (error) {
-      debugPrint('[Review] extraction failed: $error');
+    } catch (error, st) {
+      final raw = describeRawError(error, st);
+      debugPrint('[Review] extraction failed: $raw');
       if (!mounted) return;
       setState(() {
         _loading = false;
-        _notice = _isImage
-            ? 'The text on this image was hard to read. Try "Run Deep Scan", '
-                  'or enter the details manually.'
-            : 'We could not organize this automatically. You can enter the '
-                  'details manually.';
+        _notice = raw;
       });
     }
   }
@@ -202,14 +200,12 @@ class _ClinicalReviewScreenState extends ConsumerState<ClinicalReviewScreen> {
         _apply(data);
         _notice = null;
       });
-    } catch (error) {
-      debugPrint('[Review] deep scan failed: $error');
+    } catch (error, st) {
+      final raw = describeRawError(error, st);
+      debugPrint('[Review] deep scan failed: $raw');
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Deep Scan could not read this image. Please retry.'),
-        ),
-      );
+      setState(() => _notice = raw);
+      showRawErrorSnackBar(ScaffoldMessenger.of(context), raw);
     } finally {
       if (mounted) setState(() => _deepScanning = false);
     }
@@ -341,13 +337,10 @@ class _ClinicalReviewScreenState extends ConsumerState<ClinicalReviewScreen> {
         const SnackBar(content: Text(kIngestionSuccessMessage)),
       );
       navigator.pop(true);
-    } catch (error) {
-      debugPrint('[Review] save failed: $error');
-      messenger.showSnackBar(
-        const SnackBar(
-          content: Text('Could not save this right now. Please try again.'),
-        ),
-      );
+    } catch (error, st) {
+      final raw = describeRawError(error, st);
+      debugPrint('[Review] save failed: $raw');
+      showRawErrorSnackBar(messenger, raw);
       if (mounted) setState(() => _saving = false);
     }
   }
@@ -491,7 +484,7 @@ class _ClinicalReviewScreenState extends ConsumerState<ClinicalReviewScreen> {
             color: theme.colorScheme.secondaryContainer,
             child: Padding(
               padding: const EdgeInsets.all(12),
-              child: Text(_notice!),
+              child: SelectableErrorText(_notice!, maxHeight: 240),
             ),
           ),
         for (final f in _scalarFields)

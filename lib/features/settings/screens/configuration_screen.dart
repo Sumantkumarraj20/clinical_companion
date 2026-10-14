@@ -12,6 +12,7 @@ import '../../../core/config/app_configuration.dart';
 import '../../../core/database/database_sideload_service.dart';
 import '../../../core/providers/app_providers.dart';
 import '../../../core/utils/portable_directory.dart';
+import '../../../core/ui/raw_error.dart';
 
 class ConfigurationScreen extends ConsumerStatefulWidget {
   const ConfigurationScreen({super.key});
@@ -159,9 +160,9 @@ class _ConfigurationScreenState extends ConsumerState<ConfigurationScreen> {
       }
     } on Object catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not import database: $error')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(rawErrorSnackBar('Could not import database: $error'));
       }
     }
   }

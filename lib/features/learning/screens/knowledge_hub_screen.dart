@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/database/local_database.dart';
 import '../../../core/providers/app_providers.dart';
 import '../../../core/utils/datetime_utils.dart';
+import '../../../core/ui/raw_error.dart';
 
 /// The unified knowledge flywheel.
 ///
@@ -173,9 +174,9 @@ class _PendingPathwayCardState extends ConsumerState<_PendingPathwayCard> {
           );
     } catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not verify pathway: $error')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(rawErrorSnackBar('Could not verify pathway: $error'));
       }
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -187,9 +188,9 @@ class _PendingPathwayCardState extends ConsumerState<_PendingPathwayCard> {
       await ref.read(clinicalRuleDaoProvider).dismissRule(widget.rule.id);
     } catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not dismiss pathway: $error')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(rawErrorSnackBar('Could not dismiss pathway: $error'));
       }
     }
   }
@@ -832,9 +833,9 @@ class _ProtocolEditor {
           );
     } catch (error) {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not save protocol: $error')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(rawErrorSnackBar('Could not save protocol: $error'));
     } finally {
       for (final controller in [
         triggerType,

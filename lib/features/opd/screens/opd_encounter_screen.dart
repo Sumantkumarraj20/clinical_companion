@@ -12,6 +12,7 @@ import '../../../core/providers/app_providers.dart';
 import '../../../core/widgets/copy_note_button.dart';
 import '../../../core/widgets/silent_brain_panel.dart';
 import '../data/opd_seeds.dart';
+import '../../../core/ui/raw_error.dart';
 
 /// Rapid OPD consult: tap chips instead of typing, with suggestions that learn
 /// from the clinician's own usage. The safety net observes quietly below.
@@ -212,10 +213,10 @@ class _OpdEncounterScreenState extends ConsumerState<OpdEncounterScreen> {
     } catch (e, st) {
       debugPrint('OPD save failed: $e\n$st');
       messenger.showSnackBar(
-        const SnackBar(
-          content: Text(
-            'We could not save this consult. Your entries are still here.',
-          ),
+        rawErrorSnackBar(
+          'We could not save this consult. Your entries are still here.',
+          error: e,
+          stackTrace: st,
         ),
       );
     } finally {

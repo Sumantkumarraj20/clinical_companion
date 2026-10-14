@@ -11,6 +11,7 @@ import '../../../core/providers/app_providers.dart';
 import '../../../core/widgets/copy_note_button.dart';
 import '../../../core/widgets/silent_brain_panel.dart';
 import '../../ingestion/widgets/omni_ingestion_sheet.dart';
+import '../../../core/ui/raw_error.dart';
 
 final _roundHistoryProvider = FutureProvider.autoDispose
     .family<List<ClinicalEncounter>, String>(
@@ -313,10 +314,10 @@ class _RoundPageState extends ConsumerState<_RoundPage>
     } catch (e, st) {
       debugPrint('Round note save failed: $e\n$st');
       messenger.showSnackBar(
-        const SnackBar(
-          content: Text(
-            'We could not save this note. Your text is still here.',
-          ),
+        rawErrorSnackBar(
+          'We could not save this note. Your text is still here.',
+          error: e,
+          stackTrace: st,
         ),
       );
     } finally {

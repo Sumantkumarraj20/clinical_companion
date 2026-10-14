@@ -112,7 +112,9 @@ void main() {
         model: 'm',
       ).ingestText(_discharge);
       expect(outcome.savedAsDraft, isTrue);
-      expect(outcome.userMessage, kDraftSavedMessage);
+      expect(outcome.isError, isTrue);
+      expect(outcome.userMessage, isNot(kDraftSavedMessage));
+      expect(outcome.userMessage, contains('Stack trace'));
       final drafts = await db.select(db.ingestionInboxes).get();
       expect(drafts.single.status, 'draft');
       expect(drafts.single.rawInput, _discharge);

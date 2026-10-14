@@ -9,6 +9,7 @@ import 'package:image_picker/image_picker.dart';
 
 import '../../../core/providers/app_providers.dart';
 import '../screens/clinical_review_screen.dart';
+import '../../../core/ui/raw_error.dart';
 
 /// Sprint 28 — the single unified entry point for ALL clinical data.
 Future<void> showOmniIngestionSheet(BuildContext context) {
@@ -60,8 +61,9 @@ class _OmniIngestionSheetState extends ConsumerState<OmniIngestionSheet> {
     if (!mounted) return;
     debugPrint('Could not add clinical data: $error');
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Could not add clinical data. Please try again.'),
+      rawErrorSnackBar(
+        'Could not add clinical data. Please try again.',
+        error: error,
       ),
     );
   }

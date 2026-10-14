@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/models/clinical_insight.dart';
 import '../../../core/providers/app_providers.dart';
+import '../../../core/ui/raw_error.dart';
 
 /// Collapsible, non-blocking chart-audit panel.
 class ClinComInsightsPanel extends ConsumerStatefulWidget {
@@ -95,7 +96,7 @@ class _ClinComInsightsPanelState extends ConsumerState<ClinComInsightsPanel> {
     } catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not save audit feedback: $error')),
+          rawErrorSnackBar('Could not save audit feedback: $error'),
         );
       }
     } finally {
@@ -137,7 +138,7 @@ class _ClinComInsightsPanelState extends ConsumerState<ClinComInsightsPanel> {
     } catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not add recommended orders: $error')),
+          rawErrorSnackBar('Could not add recommended orders: $error'),
         );
       }
     } finally {

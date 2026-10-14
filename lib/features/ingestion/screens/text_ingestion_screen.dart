@@ -7,6 +7,7 @@ import '../../../core/ai/document_ai_service.dart';
 import '../../../core/database/local_database.dart';
 import '../../../core/providers/app_providers.dart';
 import 'clinical_review_screen.dart';
+import '../../../core/ui/raw_error.dart';
 
 class TextIngestionScreen extends ConsumerStatefulWidget {
   const TextIngestionScreen({super.key});
@@ -72,10 +73,10 @@ class _TextIngestionScreenState extends ConsumerState<TextIngestionScreen> {
       debugPrint('Could not prepare pasted clinical text: $error\n$stackTrace');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Could not prepare this text. Your original text is still here; please try again.',
-          ),
+        rawErrorSnackBar(
+          'Could not prepare this text. Your original text is still here; please try again.',
+          error: error,
+          stackTrace: stackTrace,
         ),
       );
     } finally {
@@ -113,8 +114,10 @@ class _TextIngestionScreenState extends ConsumerState<TextIngestionScreen> {
       debugPrint('Could not update clinical pathway: $error\n$stackTrace');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Could not update this pathway. Please try again.'),
+          rawErrorSnackBar(
+            'Could not update this pathway. Please try again.',
+            error: error,
+            stackTrace: stackTrace,
           ),
         );
       }

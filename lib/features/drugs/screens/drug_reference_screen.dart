@@ -8,6 +8,7 @@ import '../../../core/database/daos/pharmacopeia_dao.dart';
 import '../../../core/database/local_database.dart';
 import '../../../core/models/clinical_drug_selection.dart';
 import '../../../core/providers/app_providers.dart';
+import '../../../core/ui/raw_error.dart';
 
 class DrugReferenceScreen extends ConsumerStatefulWidget {
   const DrugReferenceScreen({super.key});
@@ -89,10 +90,9 @@ class _DrugReferenceScreenState extends ConsumerState<DrugReferenceScreen>
       messenger
         ..hideCurrentSnackBar()
         ..showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Could not reach the drug server. Using offline data.',
-            ),
+          rawErrorSnackBar(
+            'Could not reach the drug server. Using offline data.',
+            error: error,
           ),
         );
     } finally {

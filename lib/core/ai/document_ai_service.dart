@@ -76,6 +76,7 @@ class DocumentAiException implements Exception {
     this.retryable = false,
     this.retryAfterMs,
     this.requestId,
+    this.stackTrace,
   });
 
   final String message;
@@ -84,6 +85,7 @@ class DocumentAiException implements Exception {
   final bool retryable;
   final int? retryAfterMs;
   final String? requestId;
+  final StackTrace? stackTrace;
 
   @override
   String toString() {
@@ -99,6 +101,9 @@ class DocumentAiException implements Exception {
     }
     if (requestId != null) {
       buffer.write(' [request: $requestId]');
+    }
+    if (stackTrace != null) {
+      buffer.write('\n\nStack trace:\n$stackTrace');
     }
     return buffer.toString();
   }
@@ -350,15 +355,11 @@ Return JSON with exactly these fields:
                 items: Schema.string(),
               ),
               'required_monitoring': Schema.array(items: Schema.string()),
-              'differential_diagnoses': Schema.array(
-                items: Schema.string(),
-              ),
+              'differential_diagnoses': Schema.array(items: Schema.string()),
               'recommended_investigations': Schema.array(
                 items: Schema.string(),
               ),
-              'recommended_management': Schema.array(
-                items: Schema.string(),
-              ),
+              'recommended_management': Schema.array(items: Schema.string()),
               'source_reference': Schema.string(),
             },
             requiredProperties: [
@@ -488,7 +489,20 @@ $sourceText
   static DocumentAiException classifyError(
     Object error, {
     required String model,
-  }) => _classifyError(error, model: model);
+    StackTrace? stackTrace,
+  }) {
+    final classified = _classifyError(error, model: model);
+    if (stackTrace == null || classified.stackTrace != null) return classified;
+    return DocumentAiException(
+      classified.message,
+      type: classified.type,
+      cause: classified.cause,
+      retryable: classified.retryable,
+      retryAfterMs: classified.retryAfterMs,
+      requestId: classified.requestId,
+      stackTrace: stackTrace,
+    );
+  }
 
   String _mimeType(File image) {
     final extension = path.extension(image.path).toLowerCase();
@@ -820,11 +834,14 @@ $sourceText
         Map<String, dynamic> decoded;
         try {
           decoded = await Isolate.run(() => _decodeStructuredJson(text));
-        } on FormatException {
-          throw const DocumentAiException(
+        } on FormatException catch (error, st) {
+          throw DocumentAiException(
             'ClinCom returned malformed or schema-invalid data. The result was '
-            'sanitized and re-parsed, but no valid JSON object was found.',
+            'sanitized and re-parsed, but no valid JSON object was found.\n'
+            'Parser error: $error\nRaw response:\n$text',
             type: DocumentAiErrorType.malformedJson,
+            cause: error,
+            stackTrace: st,
           );
         }
 
@@ -832,8 +849,8 @@ $sourceText
         return normalized;
       } on DocumentAiException {
         rethrow;
-      } catch (error) {
-        throw classifyError(error, model: modelName);
+      } catch (error, st) {
+        throw classifyError(error, model: modelName, stackTrace: st);
       }
     }
 

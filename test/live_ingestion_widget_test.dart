@@ -10,6 +10,7 @@ import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:clinical_companion/core/ui/raw_error.dart';
 import 'package:go_router/go_router.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -157,8 +158,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Review Record'), findsOneWidget);
-    expect(find.textContaining('enter the details manually'), findsOneWidget);
-    expect(find.textContaining('INVALID_ARGUMENT'), findsNothing);
+    expect(find.byType(SelectableErrorText), findsOneWidget);
+    expect(find.textContaining('INVALID_ARGUMENT'), findsWidgets);
     expect(find.text('Add Clinical Field'), findsOneWidget);
   });
 }

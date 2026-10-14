@@ -8,6 +8,7 @@ import '../ai/document_ai_service.dart';
 import '../database/daos/clinical_dao.dart';
 import '../ai/interactions_api_client.dart';
 import '../providers/app_providers.dart';
+import '../ui/raw_error.dart';
 import 'ingestion_orchestrator.dart';
 
 const String kIngestionSuccessMessage =
@@ -33,8 +34,8 @@ Future<String?> buildActiveCensusJson(ClinicalDao dao) async {
           'ward': r.wardName,
         },
     ]);
-  } catch (error) {
-    debugPrint('[Ingestion] Active census unavailable: $error');
+  } catch (error, st) {
+    debugPrint('[Ingestion] Active census unavailable: $error\n$st');
     return null;
   }
 }
@@ -116,19 +117,20 @@ class LiveIngestionController extends Notifier<int> {
     state = state + 1;
     try {
       final outcome = await job();
-      messenger?.showSnackBar(
-        SnackBar(
-          content: Text(outcome.userMessage ?? kIngestionSuccessMessage),
-        ),
-      );
+      if (outcome.isError) {
+        showRawErrorSnackBar(messenger, outcome.userMessage!);
+      } else {
+        messenger?.showSnackBar(
+          SnackBar(
+            content: Text(outcome.userMessage ?? kIngestionSuccessMessage),
+          ),
+        );
+      }
       return outcome;
-    } catch (error) {
-      debugPrint('[Ingestion] could not persist input: $error');
-      messenger?.showSnackBar(
-        const SnackBar(
-          content: Text('Could not save this right now. Please try again.'),
-        ),
-      );
+    } catch (error, st) {
+      final raw = describeRawError(error, st);
+      debugPrint('[Ingestion] could not persist input: $raw');
+      showRawErrorSnackBar(messenger, raw);
       rethrow;
     } finally {
       state = state - 1;

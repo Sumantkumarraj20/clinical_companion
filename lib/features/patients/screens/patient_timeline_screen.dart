@@ -16,6 +16,7 @@ import '../../learning/widgets/timeline_event_card.dart';
 import '../widgets/cohort_tagger.dart';
 import '../widgets/clincom_insights_panel.dart';
 import '../widgets/timeline_feed_model.dart';
+import '../../../core/ui/raw_error.dart';
 
 /// Longitudinal patient view, restructured as a Material 3 feed (Sprint 11).
 ///
@@ -148,7 +149,7 @@ class _PatientTimelineScreenState extends ConsumerState<PatientTimelineScreen> {
     } catch (error) {
       if (!mounted) return;
       messenger.showSnackBar(
-        SnackBar(content: Text('Could not copy clinical note: $error')),
+        rawErrorSnackBar('Could not copy clinical note: $error'),
       );
     }
   }
@@ -181,7 +182,7 @@ class _PatientTimelineScreenState extends ConsumerState<PatientTimelineScreen> {
     } catch (error) {
       if (!mounted) return;
       messenger.showSnackBar(
-        SnackBar(content: Text('Could not generate clinical PDF: $error')),
+        rawErrorSnackBar('Could not generate clinical PDF: $error'),
       );
     }
   }
@@ -414,7 +415,7 @@ class _PatientTimelineScreenState extends ConsumerState<PatientTimelineScreen> {
     } catch (error) {
       if (mounted) {
         messenger.showSnackBar(
-          SnackBar(content: Text('Could not record ADR: $error')),
+          rawErrorSnackBar('Could not record ADR: $error'),
         );
       }
     }

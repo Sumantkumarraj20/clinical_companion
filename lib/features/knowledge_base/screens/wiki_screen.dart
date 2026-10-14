@@ -8,6 +8,7 @@ import 'package:drift/drift.dart' show Value;
 import '../../../core/database/local_database.dart';
 import '../../../core/providers/app_providers.dart';
 import '../../../core/widgets/shimmer_loading.dart';
+import '../../../core/ui/raw_error.dart';
 
 class WikiScreen extends ConsumerStatefulWidget {
   const WikiScreen({super.key});
@@ -151,7 +152,7 @@ class _WikiScreenState extends ConsumerState<WikiScreen> {
       if (context.mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('Could not save note: $error')));
+        ).showSnackBar(rawErrorSnackBar('Could not save note: $error'));
       }
     }
   }

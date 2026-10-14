@@ -10,6 +10,7 @@ import '../../../core/providers/app_providers.dart';
 import '../../../core/services/app_updater_service.dart';
 import '../../ingestion/widgets/omni_ingestion_sheet.dart';
 import '../widgets/update_download_banner.dart';
+import '../../../core/ui/raw_error.dart';
 
 /// Sprint 8 — CI/CD & In-App Binary Updates.
 ///
@@ -263,10 +264,10 @@ class _IngestionInboxBannerState extends ConsumerState<_IngestionInboxBanner> {
       debugPrint('Could not restore saved clinical data: $error\n$stackTrace');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Saved clinical data could not be loaded. Please try again.',
-          ),
+        rawErrorSnackBar(
+          'Saved clinical data could not be loaded. Please try again.',
+          error: error,
+          stackTrace: stackTrace,
         ),
       );
     }
@@ -336,10 +337,10 @@ class _IngestionInboxBannerState extends ConsumerState<_IngestionInboxBanner> {
                     );
                     if (context.mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text(
-                            'Saved clinical data could not be opened. Please try again.',
-                          ),
+                        rawErrorSnackBar(
+                          'Saved clinical data could not be opened. Please try again.',
+                          error: error,
+                          stackTrace: stackTrace,
                         ),
                       );
                     }
@@ -357,10 +358,7 @@ class _IngestionInboxBannerState extends ConsumerState<_IngestionInboxBanner> {
                       (entry) =>
                           entry.status == 'error' || entry.status == 'draft',
                     )) {
-                      await controller.retryItem(
-                        item.id,
-                        messenger: messenger,
-                      );
+                      await controller.retryItem(item.id, messenger: messenger);
                     }
                   } catch (error, stackTrace) {
                     debugPrint(
@@ -368,10 +366,10 @@ class _IngestionInboxBannerState extends ConsumerState<_IngestionInboxBanner> {
                     );
                     if (context.mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text(
-                            'The saved data could not be retried. Please try again.',
-                          ),
+                        rawErrorSnackBar(
+                          'The saved data could not be retried. Please try again.',
+                          error: error,
+                          stackTrace: stackTrace,
                         ),
                       );
                     }
@@ -412,7 +410,9 @@ class _UpdateBannerState extends ConsumerState<_UpdateBanner> {
       );
       if (!opened && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Could not open the release page.')),
+          rawErrorSnackBar(
+            'Could not open the release page: ${update.releaseUrl}',
+          ),
         );
       }
       return;
@@ -420,10 +420,12 @@ class _UpdateBannerState extends ConsumerState<_UpdateBanner> {
 
     if (defaultTargetPlatform == TargetPlatform.windows ||
         defaultTargetPlatform == TargetPlatform.linux) {
-      ref.read(updateDownloadProvider.notifier).startDesktop(
-        update.downloadUrl,
-        service: ref.read(appUpdaterServiceProvider),
-      );
+      ref
+          .read(updateDownloadProvider.notifier)
+          .startDesktop(
+            update.downloadUrl,
+            service: ref.read(appUpdaterServiceProvider),
+          );
       return;
     }
 
@@ -434,7 +436,9 @@ class _UpdateBannerState extends ConsumerState<_UpdateBanner> {
       );
       if (!opened && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Could not open the release page.')),
+          rawErrorSnackBar(
+            'Could not open the release page: ${update.releaseUrl}',
+          ),
         );
       }
       return;

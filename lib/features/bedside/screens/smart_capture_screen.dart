@@ -8,6 +8,7 @@ import '../../ingestion/screens/clinical_review_screen.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../../core/providers/app_providers.dart';
+import '../../../core/ui/raw_error.dart';
 
 /// Entry point of the OCR/ClinCom pipeline.
 ///
@@ -64,8 +65,10 @@ class _SmartCaptureScreenState extends ConsumerState<SmartCaptureScreen> {
       debugPrint('Could not open clinical image picker: $error\n$stackTrace');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Could not open your images. Please try again.'),
+          rawErrorSnackBar(
+            'Could not open your images. Please try again.',
+            error: error,
+            stackTrace: stackTrace,
           ),
         );
       }

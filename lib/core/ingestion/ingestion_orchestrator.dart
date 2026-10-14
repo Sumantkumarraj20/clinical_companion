@@ -6,6 +6,7 @@ import 'package:uuid/uuid.dart';
 import '../ai/interactions_api_client.dart';
 import '../database/daos/ingestion_inbox_dao.dart';
 import '../database/local_database.dart';
+import '../ui/raw_error.dart';
 import 'clinical_ingestion_mapper.dart';
 import 'image_optimizer.dart';
 
@@ -13,17 +14,22 @@ import 'image_optimizer.dart';
 class IngestionOutcome {
   const IngestionOutcome.structured(IngestionMappingResult this.mapping)
     : draftId = null,
-      userMessage = null;
+      userMessage = null,
+      isError = false;
 
-  const IngestionOutcome.draft(String this.draftId)
+  const IngestionOutcome.draft(String this.draftId, {String? rawError})
     : mapping = null,
-      userMessage = kDraftSavedMessage;
+      userMessage = rawError ?? kDraftSavedMessage,
+      isError = rawError != null;
 
   final IngestionMappingResult? mapping;
   final String? draftId;
 
   /// Non-technical toast text; null on success.
   final String? userMessage;
+
+  /// True when [userMessage] carries the raw technical failure.
+  final bool isError;
 
   bool get savedAsDraft => draftId != null;
 }
@@ -65,17 +71,18 @@ class IngestionOrchestrator {
           );
       debugPrint('[Ingestion] mapped: $mapping');
       return IngestionOutcome.structured(mapping);
-    } catch (error) {
-      debugPrint('[Ingestion] extraction failed, saving draft: $error');
+    } catch (error, st) {
+      final raw = describeRawError(error, st);
+      debugPrint('[Ingestion] extraction failed, saving draft: $raw');
       final id = const Uuid().v4();
       await IngestionInboxDao(db).saveDraft(
         id: id,
         payloadType: payloadType,
         rawInput: rawText,
         filePath: filePath,
-        message: kDraftSavedMessage,
+        message: raw,
       );
-      return IngestionOutcome.draft(id);
+      return IngestionOutcome.draft(id, rawError: raw);
     }
   }
 
@@ -139,17 +146,18 @@ class IngestionOrchestrator {
     try {
       text = await recognizeText(file);
       if (text.trim().isEmpty) throw const FormatException('No text found.');
-    } catch (error) {
-      debugPrint('[Ingestion] OCR failed, saving draft: $error');
+    } catch (error, st) {
+      final raw = describeRawError(error, st);
+      debugPrint('[Ingestion] OCR failed, saving draft: $raw');
       final id = const Uuid().v4();
       await IngestionInboxDao(db).saveDraft(
         id: id,
         payloadType: type,
         rawInput: '',
         filePath: file.path,
-        message: kDraftSavedMessage,
+        message: raw,
       );
-      return IngestionOutcome.draft(id);
+      return IngestionOutcome.draft(id, rawError: raw);
     }
     return ingestText(
       text,
